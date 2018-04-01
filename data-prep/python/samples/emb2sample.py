@@ -18,7 +18,6 @@ swriter = csv.writer(sf, delimiter=' ', lineterminator='\n', quoting=csv.QUOTE_N
 for line in open(EMB_FILES_LIST):
     line = line.strip()
     tablename = os.path.dirname(line).replace("./", "")
-    print(tablename)
     features = open(os.path.join(OUTPUT_DIR, "domains", line), 'r').readlines()[0].strip().split(',')
     sample = [""]
     for i in range(len(features)):
@@ -33,8 +32,6 @@ for line in open(EMB_FILES_LIST):
                 sampleMap[tablename] = [dinx]
             else:
                 sampleMap[tablename].append(dinx)
-            print('label: ' + str(l))
-            print(str(dinx))
             dinx += 1
     print('done processing ' + tablename)
 sf.close()

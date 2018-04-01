@@ -10,7 +10,6 @@ LABEL_MODEL_SOFTPROB = os.environ['LABEL_MODEL_SOFTPROB']
 
 samples = xgb.DMatrix(SAMPLES_FILE)
 nclass = len(np.unique(samples.get_label()))
-print('nclass: %d' % nclass)
 # dividing data into test and train
 sample_inx = [i for i in range(samples.num_row())]
 shuffle(sample_inx)
@@ -21,15 +20,7 @@ xg_test = samples.slice(test_inx)
 print('num of train: ' + str(xg_train.num_row()))
 print('num of test: ' + str(xg_test.num_row()))
 # setup parameters for xgboost
-param = {}
-# use softmax multi-class classification
-param['objective'] = 'multi:softmax'
-# scale weight of positive examples
-param['eta'] = 0.1
-param['max_depth'] = 10
-param['silent'] = 1
-param['nthread'] = 10
-param['num_class'] = nclass
+param = {'objective': 'multi:softmax', 'eta': 0.1, 'max_depth': 100, 'silent': 1, 'nthread': 10, 'num_class': nclass}
 
 watchlist = [(xg_train, 'train'), (xg_test, 'test')]
 num_round = 10
@@ -40,7 +31,7 @@ pickle.dump(bst, open(LABEL_MODEL_SOFTMAX, "wb"))
 # get prediction
 print('predicting with softmax')
 pred = bst.predict(xg_test)
-error_rate = np.sum(pred != xg_train.get_label()) / xg_train.get_label().shape[0]
+error_rate = np.sum(pred != xg_test.get_label()) / xg_test.get_label().shape[0]
 print('Test error using softmax = {}'.format(error_rate))
 
 # do the same thing again, but output probabilities
@@ -49,12 +40,8 @@ param['objective'] = 'multi:softprob'
 bst = xgb.train(param, xg_train, num_round, watchlist)
 # save model
 pickle.dump(bst, open(LABEL_MODEL_SOFTPROB, "wb"))
-# Note: this convention has been changed since xgboost-unity
-# get prediction, this is in 1D array, need reshape to (ndata, nclass)
 print('predicting with probs')
 pred_prob = bst.predict(xg_test).reshape(xg_test.get_label().shape[0], nclass)
 pred_label = np.argmax(pred_prob, axis=1)
-#print(pred_label)
-#print(xg_test.get_label())
 error_rate = np.sum(pred_label != xg_test.get_label()) / xg_test.get_label().shape[0]
 print('Test error using softprob = {}'.format(error_rate))

@@ -6,7 +6,8 @@ import os
 
 TABLE_LABELS_FILE = os.environ['TABLE_LABELS_FILE']
 GOOD_LABELS_FILE = os.environ['GOOD_LABELS_FILE']
-K = 10
+K = int(os.environ['NUM_LABELS'])
+
 table_labels = json.load(open(TABLE_LABELS_FILE, 'r'))
 labels = []
 for t, ls in table_labels.items():

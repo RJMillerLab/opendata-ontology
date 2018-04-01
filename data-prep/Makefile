@@ -13,6 +13,7 @@ EMB_FILES_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/1k/emb.files
 TABLE_SAMPLE_MAP = /home/fnargesian/FINDOPENDATA_DATASETS/1k/table.samples
 LABEL_MODEL_SOFTMAX = /home/fnargesian/FINDOPENDATA_DATASETS/1k/model.softmax
 LABEL_MODEL_SOFTPROB = /home/fnargesian/FINDOPENDATA_DATASETS/1k/model.softprob
+NUM_LABELS = 50
 
 build:
 	go build ./...
@@ -59,6 +60,7 @@ step5:
 step6:
 	GOOD_LABELS_FILE=$(GOOD_LABELS_FILE) \
 	TABLE_LABELS_FILE=$(TABLE_LABELS_FILE) \
+	NUM_LABELS=$(NUM_LABELS) \
 	python python/labels/find_good_labels.py
 
 step7: embfiles
@@ -74,7 +76,7 @@ step8:
 	LABEL_MODEL_SOFTMAX=$(LABEL_MODEL_SOFTMAX) \
 	LABEL_MODEL_SOFTPROB=$(LABEL_MODEL_SOFTPROB) \
 	EMB_SAMPLES_FILE=$(EMB_SAMPLES_FILE) \
-	python python/labels/learn_labels.py
+	python python/labels/cv_learn_labels.py
 
 embfiles:
 	cd $(OUTPUT_DIR)/domains; find -name "*.ft-mean" > $(EMB_FILES_LIST) 
