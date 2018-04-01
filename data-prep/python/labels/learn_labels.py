@@ -2,24 +2,20 @@ import numpy as np
 import pickle
 import xgboost as xgb
 import os
-#from random import shuffle
+from random import shuffle
 
 SAMPLES_FILE = os.environ['EMB_SAMPLES_FILE']
 LABEL_MODEL_SOFTMAX = os.environ['LABEL_MODEL_SOFTMAX']
 LABEL_MODEL_SOFTPROB = os.environ['LABEL_MODEL_SOFTPROB']
 
 samples = xgb.DMatrix(SAMPLES_FILE)
-print('loaded')
-nclass = len(samples.get_label())
-print('nclass')
-print(nclass)
+nclass = len(np.unique(samples.get_label()))
+print('nclass: %d' % nclass)
 # dividing data into test and train
 sample_inx = [i for i in range(samples.num_row())]
-print('sample_inx')
-#shuffle(sample_inx)
+shuffle(sample_inx)
 train_inx = sample_inx[:int(0.7 * samples.num_row())]
 test_inx = sample_inx[int(0.7 * samples.num_row()):]
-print('here1')
 xg_train = samples.slice(train_inx)
 xg_test = samples.slice(test_inx)
 print('num of train: ' + str(xg_train.num_row()))
@@ -58,7 +54,7 @@ pickle.dump(bst, open(LABEL_MODEL_SOFTPROB, "wb"))
 print('predicting with probs')
 pred_prob = bst.predict(xg_test).reshape(xg_test.get_label().shape[0], nclass)
 pred_label = np.argmax(pred_prob, axis=1)
-print(pred_label)
-print(xg_test.get_label())
+#print(pred_label)
+#print(xg_test.get_label())
 error_rate = np.sum(pred_label != xg_test.get_label()) / xg_test.get_label().shape[0]
 print('Test error using softprob = {}'.format(error_rate))

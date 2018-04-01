@@ -25,7 +25,9 @@ for line in open(EMB_FILES_LIST):
         sample.append(str(i) + ":" + features[i])
     for l in tableLabels[tablename]:
         if l in goodLabels:
-            sample[0] = str(l)
+            # class number is the index of the corresponding label.
+            # this is because xgboost accepts 0 to number of classes class labels.
+            sample[0] = str(goodLabels.index(l))
             swriter.writerow(sample)
             if tablename not in sampleMap:
                 sampleMap[tablename] = [dinx]

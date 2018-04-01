@@ -54,12 +54,12 @@ step5:
 	METADATA_DIR=$(METADATA_DIR) \
 	LABELS_FILE=$(LABELS_FILE) \
 	TABLE_LABELS_FILE=$(TABLE_LABELS_FILE) \
-	python python/metadata2labels.py
+	python python/labels/metadata2labels.py
 
 step6:
 	GOOD_LABELS_FILE=$(GOOD_LABELS_FILE) \
 	TABLE_LABELS_FILE=$(TABLE_LABELS_FILE) \
-	python python/find_good_labels.py
+	python python/labels/find_good_labels.py
 
 step7: embfiles
 	EMB_FILES_LIST=$(EMB_FILES_LIST) \
@@ -68,13 +68,13 @@ step7: embfiles
 	TABLE_LABELS_FILE=$(TABLE_LABELS_FILE) \
 	OUTPUT_DIR=$(OUTPUT_DIR) \
 	TABLE_SAMPLE_MAP=$(TABLE_SAMPLE_MAP) \
-	python python/emb2sample.py
+	python python/samples/emb2sample.py
 
 step8: 
 	LABEL_MODEL_SOFTMAX=$(LABEL_MODEL_SOFTMAX) \
 	LABEL_MODEL_SOFTPROB=$(LABEL_MODEL_SOFTPROB) \
 	EMB_SAMPLES_FILE=$(EMB_SAMPLES_FILE) \
-	python python/training/learn_labels.py
+	python python/labels/learn_labels.py
 
 embfiles:
 	cd $(OUTPUT_DIR)/domains; find -name "*.ft-mean" > $(EMB_FILES_LIST) 
