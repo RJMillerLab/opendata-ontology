@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
-	. "github.com/RJMillerLab/opendata-organization/opendata-ontology/data-prep/go/opendata"
+	. "github.com/RJMillerLab/opendata-ontology/data-prep/go/opendata"
 )
 
 func main() {

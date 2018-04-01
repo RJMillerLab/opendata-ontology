@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	. "github.com/RJMillerLab/opendata-organization/opendata-ontology/data-prep/go/opendata"
+	. "github.com/RJMillerLab/opendata-ontology/data-prep/go/opendata"
 )
 
 // Use 30 threads for reading the filename stream
