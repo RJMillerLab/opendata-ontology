@@ -1,8 +1,14 @@
 OPENDATA_DIR = /home/fnargesian/FINDOPENDATA_DATASETS/1k
+OPENDATA_DIR = /home/fnargesian/FINDOPENDATA_DATASETS/10k
 OUTPUT_DIR = /home/fnargesian/FINDOPENDATA_DATASETS/1k
+OUTPUT_DIR = /home/fnargesian/FINDOPENDATA_DATASETS/10k
+OPENDATA_JSON_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/datasets-10k.list
+#OPENDATA_JSON_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/datasets-10k.list.small
 OPENDATA_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/1k/datasets-1k.list
+OPENDATA_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/datasets-10k.list
 #OPENDATA_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/1k/datasets-1k.debug
 METADATA_DIR = /home/ekzhu/findopendata-datasets-1k
+METADATA_DIR = /home/ekzhu/findopendata-datasets
 EMB_SAMPLES_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/1k/emb.samples
 LABELS_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/1k/labels.json
 LABELS_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/1k/small_labels.json
@@ -22,10 +28,10 @@ install:
 	go install ./...
 
 step0:
-	OPENDATA_LIST=$(OPENDATA_LIST) \
+	OPENDATA_JSON_LIST=$(OPENDATA_JSON_LIST) \
 	OUTPUT_DIR=$(OUTPUT_DIR) \
 	OPENDATA_DIR=$(OPENDATA_DIR) \
-	cat $(OPENDATA_LIST) | xargs -P 30 -n 1 python python/json2csv.py
+	cat $(OPENDATA_JSON_LIST) | xargs -d '\n' -P 20 -n 1 python python/samples/json2csv.py
 
 step1:
 	OUTPUT_DIR=$(OUTPUT_DIR) \

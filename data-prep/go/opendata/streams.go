@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -61,8 +60,9 @@ func StreamFilenames() <-chan string {
 
 		scanner := bufio.NewScanner(f)
 		for scanner.Scan() {
-			parts := strings.SplitN(scanner.Text(), " ", 3)
-			filename := filepath.Join(parts...)
+			//parts := strings.Split(scanner.Text(), " ")
+			//filename := filepath.Join(parts...)
+			filename := scanner.Text()
 			if !strings.Contains(filename, " ") {
 				output <- filename
 			}
