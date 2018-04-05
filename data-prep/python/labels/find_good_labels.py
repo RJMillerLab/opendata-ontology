@@ -6,8 +6,10 @@ import os
 
 TABLE_LABELS_FILE = os.environ['TABLE_LABELS_FILE']
 GOOD_LABELS_FILE = os.environ['GOOD_LABELS_FILE']
+LABELS_FILE = os.environ['LABELS_FILE']
 K = int(os.environ['NUM_LABELS'])
 
+label_names = json.load(open(LABELS_FILE, 'r'))
 table_labels = json.load(open(TABLE_LABELS_FILE, 'r'))
 labels = []
 for t, ls in table_labels.items():
@@ -19,5 +21,12 @@ counts = np.asarray(s)
 probs = counts/float(counts.sum())
 entropy = entr(list(probs))
 good_labels = labels[np.argsort(entropy)[-K:]].tolist()
+print(entropy[np.argsort(entropy)[-K:]])
+print(good_labels)
+for l in good_labels:
+    for k,v in label_names.items():
+        if v == l:
+            print(k)
+print(labels[np.asarray(good_labels)])
 json.dump(good_labels, open(GOOD_LABELS_FILE, 'w'))
 

@@ -8,8 +8,9 @@ def get_labels(tablesfile, labelsfile, tablelabelsfile, metadatadir):
     for tablename in open(os.path.join(metadatadir, tablesfile), 'r').read().splitlines():
         print('processing ' + tablename)
         m = metadata.get_metadata(os.path.join(metadatadir, tablename), labels)
-        labels = m[1]
-        table_labels[tablename] = m[0]
+        if len(m[0]) > 0:
+            labels = m[1]
+            table_labels[tablename] = m[0]
     json.dump(labels, open(labelsfile, 'w'))
     json.dump(table_labels, open(tablelabelsfile, 'w'))
     print(len(labels))

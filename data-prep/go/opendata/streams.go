@@ -63,9 +63,9 @@ func StreamFilenames() <-chan string {
 			//parts := strings.Split(scanner.Text(), " ")
 			//filename := filepath.Join(parts...)
 			filename := scanner.Text()
-			if !strings.Contains(filename, " ") {
-				output <- filename
-			}
+			//if !strings.Contains(filename, " ") {
+			output <- filename
+			//}
 		}
 		close(output)
 	}()
@@ -197,9 +197,6 @@ func makeDomains(filenames <-chan string, out chan *Domain) {
 		out <- headerDomain
 		var cells [][]string
 		for {
-			// adding this line because US tables do not have headers
-
-			//
 			row, err := rdr.Read()
 			if err == io.EOF {
 				// at the end-of-file, we output the domains from the

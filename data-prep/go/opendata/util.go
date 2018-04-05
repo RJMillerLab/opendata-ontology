@@ -3,7 +3,6 @@ package opendata
 import (
 	"encoding/binary"
 	"io"
-	"math"
 	"os"
 	"strconv"
 )
@@ -58,16 +57,3 @@ func ReadVecFromDisk(filename string, order binary.ByteOrder) ([]float64, error)
 	return vec, verr
 }
 
-func Cosine(x, y []float64) float64 {
-	if len(x) != len(y) {
-		panic("Length of vectors not equal")
-	}
-	dot := 0.0
-	modX, modY := 0.0, 0.0
-	for i := range x {
-		dot += x[i] * y[i]
-		modX += x[i] * x[i]
-		modY += y[i] * y[i]
-	}
-	return dot / (math.Sqrt(modX) * math.Sqrt(modY))
-}

@@ -7,7 +7,7 @@ def get_metadata(tablename, labels):
         return ckan_metadata(os.path.join(os.path.dirname(tablename), "ckan.json"), labels)
     if os.path.isfile(os.path.join(os.path.dirname(tablename), "socrata.json")):
         return socrata_metadata(os.path.join(os.path.dirname(tablename), "socrata.json"), labels)
-    return (None, labels)
+    return ([], labels)
 
 def ckan_metadata(metadatafile, labels):
     str_labels = []
