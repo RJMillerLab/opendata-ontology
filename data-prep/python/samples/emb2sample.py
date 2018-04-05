@@ -3,12 +3,12 @@ import csv
 import json
 
 EMB_FILES_LIST = os.environ['EMB_FILES_LIST']
-SAMPLES_FILE = os.environ['EMB_SAMPLES_FILE']
+SAMPLES_CSV_FILE = os.environ['EMB_SAMPLES_CSV_FILE']
+SAMPLES_DMAT_FILE = os.environ['EMB_SAMPLES_DMAT_FILE']
 GOOD_LABELS_FILE = os.environ['GOOD_LABELS_FILE']
 TABLE_LABELS_FILE = os.environ['TABLE_LABELS_FILE']
 OUTPUT_DIR = os.environ['OUTPUT_DIR']
 TABLE_SAMPLE_MAP = os.environ['TABLE_SAMPLE_MAP']
-#NUM_TABLE_SAMPLES = os.environ['NUM_TABLE_SAMPLES']
 
 tableGoodLabels = {}
 sampleMap = {}
@@ -17,8 +17,10 @@ tableLabels = json.load(open(TABLE_LABELS_FILE, 'r'))
 goodLabels = json.load(open(GOOD_LABELS_FILE, 'r'))
 for gl in goodLabels:
     tableGoodLabels[gl] = []
-sf = open(SAMPLES_FILE, 'w')
-swriter = csv.writer(sf, delimiter=' ', lineterminator='\n', quoting=csv.QUOTE_NONE)
+csf = open(SAMPLES_CSV_FILE, 'w')
+dsf = open(SAMPLES_DMAT_FILE, 'w')
+cswriter = csv.writer(csf, delimiter=',', lineterminator='\n', quoting=csv.QUOTE_NONE)
+dswriter = csv.writer(dsf, delimiter=' ', lineterminator='\n', quoting=csv.QUOTE_NONE)
 for line in open(EMB_FILES_LIST):
     #if len(sampleMap) > int(NUM_TABLE_SAMPLES):
     #    continue
@@ -30,27 +32,32 @@ for line in open(EMB_FILES_LIST):
     features = open(os.path.join(OUTPUT_DIR, "domains", line), 'r').readlines()[0].strip().split(',')
     if len(features) == 0:
         continue
-    sample = [""]
-    print(tablename)
+    csample = [""]
+    dsample = [""]
     for i in range(len(features)):
-        print(features[i])
-        sample.append(str(i) + ":" + features[i])
+        dsample.append(str(i) + ":" + features[i])
+        csample.append(features[i])
     for l in tableLabels[tablename]:
         if l in goodLabels:
             # class number is the index of the corresponding label.
             # this is because xgboost accepts 0 to number of classes class labels.
             if l == 290:
-                sample[0] = str(1)
+                csample[0] = "1"
+                dsample[0] = "1"
             else:
-                sample[0] = str(0)
+                print("here")
+                csample[0] = "0"
+                dsample[0] = "0"
             #sample[0] = str(goodLabels.index(l))
-            swriter.writerow(sample)
+            cswriter.writerow(csample)
+            dswriter.writerow(dsample)
             if tablename not in sampleMap:
                 sampleMap[tablename] = [dinx]
             else:
                 sampleMap[tablename].append(dinx)
             dinx += 1
-sf.close()
+csf.close()
+dsf.close()
 json.dump(sampleMap, open(TABLE_SAMPLE_MAP, 'w'))
 for t, c in tableGoodLabels.items():
     if len(c) > 1:

@@ -19,7 +19,6 @@ gammas = params["gammas"]
 subsamples = params["subsamples"]
 lambdas = params["lambdas"]
 alphas = params["alphas"]
-
 nthread = 25
 lam = 2
 gridsearch_params = [
@@ -38,9 +37,16 @@ gridsearch_params = [
 samples = xgb.DMatrix(SAMPLES_FILE)
 labels = samples.get_label()
 print('num samples: %d' % len(labels))
-nclass = len(np.unique(labels))
 for l in list(np.unique(labels)):
-    print('%s: %d %f' %(l, list(labels).count(l),  float(list(labels).count(l))/float(len(labels))))
+    print('label %s - #samples: %d  %f of total' %(l, list(labels).count(l),  float(list(labels).count(l))/float(len(labels))))
+nclass = len(np.unique(samples.get_label()))
+sample_inx = [i for i in range(samples.num_row())]
+train_inx = sample_inx[:int(0.7 * samples.num_row())]
+test_inx = sample_inx[int(0.7 * samples.num_row()):]
+xg_train = samples.slice(train_inx)
+xg_test = samples.slice(test_inx)
+print('num of train: ' + str(xg_train.num_row()))
+print('num of test: ' + str(xg_test.num_row()))
 
 for eta, max_depth, num_boost_round, min_child_weight,                   early_stopping_rounds, gamma, subsample, lam, alpha in reversed(gridsearch_params):
     print("eta: %.2f, max_depth: %d, num_boost_round: %d, min_child_weight: %d, early_stopping_rounds: %d, gamma: %.2f, subsample: %d, lamda: %.2f, alpha: %.2f" % (eta, max_depth, num_boost_round, min_child_weight, early_stopping_rounds, gamma, subsample, lam, alpha))

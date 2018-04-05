@@ -36,9 +36,6 @@ func main() {
 		go func() {
 			for vf := range valuefreqs {
 				// calculating mean
-				if vf.Index != 1 {
-					continue
-				}
 				log.Printf("file: %s - %d", vf.Filename, vf.Index)
 				mean, size, err := ft.GetDomainEmbMean(vf.Values, vf.Freq)
 				if err != nil {
