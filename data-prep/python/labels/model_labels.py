@@ -51,17 +51,22 @@ kfold = StratifiedKFold(n_splits=5, shuffle=True, random_state=7)
 grid_search = GridSearchCV(model, param_grid, scoring="f1", n_jobs=20, cv=kfold, verbose=10)
 grid_result = grid_search.fit(X_train, y_train)
 # summarize training results
-print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
-means = grid_result.cv_results_['mean_test_score']
-stds = grid_result.cv_results_['std_test_score']
-params = grid_result.cv_results_['params']
-for mean, stdev, param in zip(means, stds, params):
-    print("%f (%f) with: %r" % (mean, stdev, param))
+print("Number of train samples: %d" % len(X_train))
+print("Number of test samples: %d" % len(y_test))
+print("Train Results:")
+print("Best Validation of 5-fold (mean F1): %f using parameters %s" % (grid_result.best_score_, grid_result.best_params_))
+#means = grid_result.cv_results_['mean_test_score']
+#stds = grid_result.cv_results_['std_test_score']
+#params = grid_result.cv_results_['params']
+#for mean, stdev, param in zip(means, stds, params):
+#    print("%f (%f) with: %r" % (mean, stdev, param))
 # test results
 test_pred = grid_search.predict(X_test)
 test_pred_prob = grid_search.predict_proba(X_test)
+print("Test Results:")
 print("Accuracy: %.4g" % metrics.accuracy_score(y_test, test_pred))
+print("Precision: %.4g" % metrics.average_precision_score(y_test, test_pred))
 print("Recall: %.4g" % metrics.recall_score(y_test, test_pred))
 print("F1: %.4g" % metrics.f1_score(y_test, test_pred))
-print("Confusion Matrix: ")
+print("Confusion Matrix: [tn, fp, fn, tp]")
 print(metrics.confusion_matrix(y_test, test_pred).ravel())
