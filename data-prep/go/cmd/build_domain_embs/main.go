@@ -47,7 +47,7 @@ func main() {
 					continue
 				}
 				vecFilename := filepath.Join(OutputDir, "domains", fmt.Sprintf("%s/%d.ft-mean", vf.Filename, vf.Index))
-				if err := WriteVecToDisk(mean, vecFilename); err != nil {
+				if err := WriteEmbVecToDisk(mean, vecFilename); err != nil {
 					panic(err)
 				}
 			}
