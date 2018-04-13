@@ -76,11 +76,13 @@ func (ft *FastText) GetEmb(word string) ([]float64, error) {
 }
 
 // Returns the mean of domain embedding matrix
-func (ft *FastText) GetDomainEmbMean(values []string, freqs []int) ([]float64, int, error) {
+func (ft *FastText) GetDomainEmbMean(values []string, freqs []int) ([]float64, float64, error) {
 	var sum []float64
+	var card int
 	ftValuesNum := 0
 	for i, value := range values {
 		freq := freqs[i]
+		card += freq
 		tokens := Tokenize(value, ft.tokenFun, ft.transFun)
 		vec, err := ft.getTokenizedValueEmb(tokens)
 		if err != nil {
@@ -97,10 +99,10 @@ func (ft *FastText) GetDomainEmbMean(values []string, freqs []int) ([]float64, i
 		}
 	}
 	if sum == nil {
-		return nil, 0, ErrNoEmbFound
+		return nil, 0.0, ErrNoEmbFound
 	}
 	mean := multVector(sum, 1.0/float64(ftValuesNum))
-	return mean, ftValuesNum, nil
+	return mean, float64(ftValuesNum)/float64(card), nil
 }
 
 func multVector(v []float64, s float64) []float64 {

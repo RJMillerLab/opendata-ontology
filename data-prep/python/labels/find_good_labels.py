@@ -21,12 +21,14 @@ counts = np.asarray(s)
 probs = counts/float(counts.sum())
 entropy = entr(list(probs))
 good_labels = labels[np.argsort(entropy)[-K:]].tolist()
-print(entropy[np.argsort(entropy)[-K:]])
+good_labels.reverse()
 print(good_labels)
+good_probs = probs[np.argsort(entropy)[-K:]].tolist()
+good_probs.reverse()
+print(probs)
 for l in good_labels:
     for k,v in label_names.items():
         if v == l:
             print(k)
-print(labels[np.asarray(good_labels)])
 json.dump(good_labels, open(GOOD_LABELS_FILE, 'w'))
 

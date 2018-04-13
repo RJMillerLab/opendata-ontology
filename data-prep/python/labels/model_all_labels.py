@@ -2,17 +2,17 @@ from xgboost import XGBClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import StratifiedKFold
 from pandas import read_csv
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 import os
 import numpy as np
 import json
+import pickle
 
-LABEL_MODEL_SOFTMAX = os.environ['LABEL_MODEL_SOFTMAX']
-LABEL_MODEL_SOFTPROB = os.environ['LABEL_MODEL_SOFTPROB']
 PARAM_FILE = os.environ['EMB_PARAM_FILE']
 LABEL_EMB_CSAMPLE_FILE = os.environ['LABEL_EMB_CSAMPLE_FILE']
+MODEL_DIR = os.environ['MODEL_DIR']
+LABEL_EMB_MODEL_FILE = os.environ['LABEL_EMB_MODEL_FILE']
 
 params= json.load(open(PARAM_FILE, 'r'))
 param_grid = {
@@ -29,8 +29,13 @@ param_grid = {
     "silent": [1],
 }
 
+labelModels = {}
 sampleFiles = json.load(open(LABEL_EMB_CSAMPLE_FILE, 'r'))
+lc = 0
 for l, sf in sampleFiles.items():
+    lc += 1
+    if lc > 3:
+        continue
     print("label %s" % l)
     # load data
     data = read_csv(sf)
@@ -41,11 +46,14 @@ for l, sf in sampleFiles.items():
     X = dataset[:,1:]
     y = dataset[:,0]
     # encode string class values as integers
-    label_encoded_y = LabelEncoder().fit_transform(y)
-    nclass = len(np.unique(label_encoded_y))
+    pos = list(y).count(1)
+    print("Number of positive samples %d out of %d" % (pos, len(y)))
+    if float(pos)/float(len(y)) < 0.02:
+        print("Not enough samples for this lable.")
+    nclass = len(np.unique(y))
     print(nclass)
     # split data into test and train
-    X_train, X_test, y_train, y_test = train_test_split(X, label_encoded_y, test_size=0.20, random_state=42, stratify=label_encoded_y)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42, stratify=y)
     print(len(X_train))
     print(len(y_test))
     model = XGBClassifier(num_class=nclass, early_stopping_rounds=50, num_boost_round=1000)
@@ -67,4 +75,8 @@ for l, sf in sampleFiles.items():
     print("F1: %.4g" % metrics.f1_score(y_test, test_pred))
     print("Confusion Matrix: [tn, fp, fn, tp]")
     print(metrics.confusion_matrix(y_test, test_pred).ravel())
+    # saving the model
+    pickle.dump(model, open(os.path.join(MODEL_DIR, "label_" + l + ".model"), "wb"))
+    labelModels[l] = os.path.join(MODEL_DIR, "label_" + l + ".model")
     print("-----------------------")
+json.dump(labelModels, LABEL_EMB_MODEL_FILE)

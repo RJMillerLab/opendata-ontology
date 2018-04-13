@@ -26,10 +26,11 @@ func main() {
 	fmt.Printf("fasttext.db loaded in %.2f seconds.\n", GetNow()-start)
 
 	filenames := StreamFilenames()
-	valuefreqs := StreamValueFreqFromCache(10, filenames)
+	valuefreqs := make(<-chan *ValueFreq, 500)
+	valuefreqs = StreamValueFreqFromCache(20, filenames)
 
 	progress := make(chan ProgressCounter)
-	fanout := 40
+	fanout := 45
 	wg := &sync.WaitGroup{}
 	wg.Add(fanout)
 	for i := 0; i < fanout; i++ {
@@ -37,13 +38,21 @@ func main() {
 			for vf := range valuefreqs {
 				// calculating mean
 				log.Printf("file: %s - %d", vf.Filename, vf.Index)
-				mean, size, err := ft.GetDomainEmbMean(vf.Values, vf.Freq)
+				if len(vf.Values) == 0 {
+					log.Printf("No values found for domin %s - %d: %s\n", vf.      Filename, vf.Index)
+					continue
+				}
+				mean, coverage, err := ft.GetDomainEmbMean(vf.Values, vf.Freq)
 				if err != nil {
 					log.Printf("Error in building embedding for %s - %d: %s\n", vf.Filename, vf.Index, err.Error())
 					continue
 				}
-				if size == 0 {
+				if coverage == 0 {
 					log.Printf("No embedding representation found for %s.%d.", vf.Filename, vf.Index)
+					continue
+				}
+				if coverage < 0.5 {
+					log.Printf("Not enough coverage of embedding: %f", coverage)
 					continue
 				}
 				vecFilename := filepath.Join(OutputDir, "domains", fmt.Sprintf("%s/%d.ft-mean", vf.Filename, vf.Index))

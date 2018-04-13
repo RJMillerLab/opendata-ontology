@@ -1,24 +1,38 @@
 OPENDATA_DIR = /home/fnargesian/FINDOPENDATA_DATASETS/10k
+#OPENDATA_DIR = /home/ekzhu/findopendata-datasets
 OUTPUT_DIR = /home/fnargesian/FINDOPENDATA_DATASETS/10k
 OPENDATA_JSON_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/datasets-10k.list
+OPENDATA_JSON_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/datasets-20k.list
 OPENDATA_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/datasets-10k.list
-OPENDATA_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/datasets-5k.list
-#OPENDATA_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/datasets-small.list
+OPENDATA_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/datasets-20k.list
 METADATA_DIR = /home/ekzhu/findopendata-datasets
-EMB_SAMPLES_CSV_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/emb_samples.csv
-EMB_SAMPLES_DMAT_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/emb_samples.dmat
+EMB_SAMPLES_CSV_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/samples/emb_samples.csv
+EMB_SAMPLES_CSV_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/samples/emb_samples_20k.csv
 LABELS_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/labels.json
+LABELS_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/labels_20k.json
 TABLE_LABELS_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/table_labels.json
+TABLE_LABELS_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/table_labels_20k.json
 FT_FILE = /home/fnargesian/FASTTEXT/fasttext.sqlite3
 GOOD_LABELS_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/good_labels.json
+GOOD_LABELS_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/good_labels_20k.json
 EMB_FILES_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/emb.files
+EMB_FILES_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/emb_20k.files
 TABLE_SAMPLE_MAP = /home/fnargesian/FINDOPENDATA_DATASETS/10k/table.samples
-LABEL_MODEL_SOFTMAX = /home/fnargesian/FINDOPENDATA_DATASETS/10k/model.softmax
-LABEL_MODEL_SOFTPROB = /home/fnargesian/FINDOPENDATA_DATASETS/10k/model.softprob
-NUM_LABELS = 10
+TABLE_SAMPLE_MAP = /home/fnargesian/FINDOPENDATA_DATASETS/10k/table_20k.samples
+NUM_LABELS = 100
 NUM_TABLE_SAMPLES = 100
-PARAM_FILE = /home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/labels/params_5k_2.json
-
+EMB_PARAM_FILE = /home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/labels/params_5k_3.json
+EMB_PARAM_FILE = /home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/labels/params_10k_2.json
+EMB_PARAM_FILE = /home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/labels/params_10k_100.json
+NUM_PARAM_FILE = /home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/labels/params_5k_3.json
+NUM_FILES_LIST = /home/fnargesian/FINDOPENDATA_DATASETS/10k/minhash.files
+NUM_SAMPLES_CSV_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/num_samples.csv
+LABEL_EMB_CSAMPLE_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/emb_csample_files.json
+LABEL_EMB_CSAMPLE_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/emb_csample_files_20k.json
+LABEL_EMB_DSAMPLE_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/emb_dsample_files.json
+LABEL_EMB_DSAMPLE_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/emb_dsample_files_20k.json
+ALL_EMB_SAMPLE_FILE = /home/fnargesian/FINDOPENDATA_DATASETS/10k/samples/emb.all
+MODEL_DIR = /home/fnargesian/FINDOPENDATA_DATASETS/10k/models
 
 build:
 	go build ./...
@@ -72,7 +86,6 @@ step6:
 step7: embfiles
 	EMB_FILES_LIST=$(EMB_FILES_LIST) \
 	EMB_SAMPLES_CSV_FILE=$(EMB_SAMPLES_CSV_FILE) \
-	EMB_SAMPLES_DMAT_FILE=$(EMB_SAMPLES_DMAT_FILE) \
 	GOOD_LABELS_FILE=$(GOOD_LABELS_FILE) \
 	TABLE_LABELS_FILE=$(TABLE_LABELS_FILE) \
 	OUTPUT_DIR=$(OUTPUT_DIR) \
@@ -81,13 +94,63 @@ step7: embfiles
 	python python/samples/emb2sample.py
 
 step8: 
-	LABEL_MODEL_SOFTMAX=$(LABEL_MODEL_SOFTMAX) \
-	LABEL_MODEL_SOFTPROB=$(LABEL_MODEL_SOFTPROB) \
 	EMB_SAMPLES_CSV_FILE=$(EMB_SAMPLES_CSV_FILE) \
-	PARAM_FILE=$(PARAM_FILE) \
+	EMB_PARAM_FILE=$(EMB_PARAM_FILE) \
 	python python/labels/model_labels.py
-	#python python/labels/cv_learn_labels.py
-	#python python/labels/learn_labels.py
+
+step9:
+	OUTPUT_DIR=$(OUTPUT_DIR) \
+	OPENDATA_LIST=$(OPENDATA_LIST) \
+	OPENDATA_DIR=$(OPENDATA_DIR) \
+	go run go/cmd/build_domain_minhash/main.go
+
+step10: minhashfiles
+	NUM_FILES_LIST=$(NUM_FILES_LIST) \
+	NUM_SAMPLES_CSV_FILE=$(NUM_SAMPLES_CSV_FILE) \
+	GOOD_LABELS_FILE=$(GOOD_LABELS_FILE) \
+	TABLE_LABELS_FILE=$(TABLE_LABELS_FILE) \
+	OUTPUT_DIR=$(OUTPUT_DIR) \
+	TABLE_SAMPLE_MAP=$(TABLE_SAMPLE_MAP) \
+	NUM_TABLE_SAMPLES=$(NUM_TABLE_SAMPLES) \
+	python python/samples/minhash2sample.py
+
+step11: 
+	NUM_SAMPLES_CSV_FILE=$(NUM_SAMPLES_CSV_FILE) \
+	NUM_PARAM_FILE=$(NUM_PARAM_FILE) \
+	python python/labels/num_model_binary_labels.py
+	#python python/labels/num_model_labels.py
+
+step12: embfiles
+	EMB_FILES_LIST=$(EMB_FILES_LIST) \
+	EMB_SAMPLES_CSV_FILE=$(EMB_SAMPLES_CSV_FILE) \
+	GOOD_LABELS_FILE=$(GOOD_LABELS_FILE) \
+	TABLE_LABELS_FILE=$(TABLE_LABELS_FILE) \
+	OUTPUT_DIR=$(OUTPUT_DIR) \
+	TABLE_SAMPLE_MAP=$(TABLE_SAMPLE_MAP) \
+	NUM_TABLE_SAMPLES=$(NUM_TABLE_SAMPLES) \
+	LABEL_EMB_CSAMPLE_FILE=$(LABEL_EMB_CSAMPLE_FILE) \
+	ALL_EMB_SAMPLE_FILE=$(ALL_EMB_SAMPLE_FILE) \
+	python python/samples/sep_model_emb2sample.py
+
+step13: 
+	ALL_EMB_SAMPLE_FILE=$(ALL_EMB_SAMPLE_FILE) \
+	EMB_PARAM_FILE=$(EMB_PARAM_FILE) \
+	LABEL_EMB_CSAMPLE_FILE=$(LABEL_EMB_CSAMPLE_FILE) \
+	LABEL_EMB_MODEL_FILE=$(LABEL_EMB_MODEL_FILE) \
+	MODEL_DIR=$(MODEL_DIR) \
+	python python/labels/model_all_labels.py
+
+step14: 
+	TABLE_LABELS_FILE=$(TABLE_LABELS_FILE) \
+	LABEL_EMB_MODEL_FILE=$(LABEL_EMB_MODEL_FILE) \
+	TABLE_BOOSTED_LABELS_FILE=$(TABLE_BOOSTED_LABELS_FILE) \
+	TABLE_SAMPLE_MAP=$(TABLE_SAMPLE_MAP) \
+	ALL_EMB_SAMPLE_FILE=$(ALL_EMB_SAMPLE_FILE) \
+	python python/annotate/annotate_table.py
+
 
 embfiles:
 	cd $(OUTPUT_DIR)/domains; find . -name "*.ft-mean" > $(EMB_FILES_LIST) 
+
+minhashfiles:
+	cd $(OUTPUT_DIR)/domains; find . -name "*.minhash" > $(NUM_FILES_LIST) 
