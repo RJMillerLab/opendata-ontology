@@ -15,7 +15,6 @@ ALL_EMB_SAMPLE_FILE = os.environ['ALL_EMB_SAMPLE_FILE']
 labelSampleCFiles = {}
 labelSampleDFiles = {}
 labelTables = {}
-sampleMap = {}
 dinx = 0
 tableLabels = json.load(open(TABLE_LABELS_FILE, 'r'))
 goodLabels = json.load(open(GOOD_LABELS_FILE, 'r'))

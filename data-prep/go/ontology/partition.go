@@ -13,6 +13,7 @@ var (
 	weights = make(map[string]float64)
 	coveredUniverse = make(map[string]bool)  
 	uncoveredSets = make(map[string]map[string]float64)
+	coveredSets = make(map[string]map[string]float64)
 	cost = 0.0
 )
 
@@ -21,7 +22,7 @@ type setCost struct {
 	cost float64
 }
 
-func preprocess() {
+func preprocess(tablenames []string) {
 	tableLabelsProbs := make(map[string]map[string]float64)
 	b, err := ioutil.ReadFile(TableLabelsProbs)
 	if err != nil {
@@ -32,6 +33,9 @@ func preprocess() {
 		panic(err)
 	}
 	for table, labelProbs := range tableLabelsProbs {
+		if !existsIn(table, tablenames) {
+			continue
+		}
 		if _, ok := universe[table]; !ok {
 			universe[table] = true
 		}
@@ -51,12 +55,13 @@ func preprocess() {
 	}
 } 
 
-func GreedySetCover() {
-	preprocess()
+func GreedySetCover(tablenames []string) map[string]map[string]float64 {
+	preprocess(tablenames)
 	for !coveredAllUniverse() {
 		nextSet := pickSet()
 		updateSets(nextSet)
 	}
+	return coveredSets
 }
 
 func updateSets(sc setCost) {
@@ -66,6 +71,7 @@ func updateSets(sc setCost) {
 		cost += 1.0/prob	
 	} 
 	delete(uncoveredSets, sc.name)
+	coveredSets[sc.name] = sets[sc.name]
 }
 
 func pickSet() setCost {
@@ -123,4 +129,13 @@ func computeUncoveredSetCostEffectiveness(name string) float64{
 		}
 	} 
 	return cost / float64(uncoveredCount)
+}
+
+func existsIn(elem string, list []string) bool {
+	for _, e := range list {
+		if e == elem {
+			return true
+		}
+	}
+	return false
 }

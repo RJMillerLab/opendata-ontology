@@ -22,6 +22,7 @@ probs = counts/float(counts.sum())
 entropy = entr(list(probs))
 good_labels = labels[np.argsort(entropy)[-K:]].tolist()
 good_labels.reverse()
+good_labels = [int(l) for l in good_labels]
 print(good_labels)
 good_probs = probs[np.argsort(entropy)[-K:]].tolist()
 good_probs.reverse()

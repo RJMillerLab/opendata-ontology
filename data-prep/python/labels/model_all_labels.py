@@ -7,7 +7,6 @@ from sklearn import metrics
 import os
 import numpy as np
 import json
-import pickle
 
 PARAM_FILE = os.environ['EMB_PARAM_FILE']
 LABEL_EMB_CSAMPLE_FILE = os.environ['LABEL_EMB_CSAMPLE_FILE']
@@ -31,11 +30,7 @@ param_grid = {
 
 labelModels = {}
 sampleFiles = json.load(open(LABEL_EMB_CSAMPLE_FILE, 'r'))
-lc = 0
 for l, sf in sampleFiles.items():
-    lc += 1
-    if lc > 3:
-        continue
     print("label %s" % l)
     # load data
     data = read_csv(sf)
@@ -76,7 +71,7 @@ for l, sf in sampleFiles.items():
     print("Confusion Matrix: [tn, fp, fn, tp]")
     print(metrics.confusion_matrix(y_test, test_pred).ravel())
     # saving the model
-    pickle.dump(model, open(os.path.join(MODEL_DIR, "label_" + l + ".model"), "wb"))
+    grid_result.best_estimator_._Booster.save_model(os.path.join(MODEL_DIR, "label_" + l + ".model"))
     labelModels[l] = os.path.join(MODEL_DIR, "label_" + l + ".model")
     print("-----------------------")
-json.dump(labelModels, LABEL_EMB_MODEL_FILE)
+json.dump(labelModels, open(LABEL_EMB_MODEL_FILE, 'w'))
