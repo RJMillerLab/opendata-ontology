@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"io/ioutil"
 	"encoding/json"
+	"strconv"
 )
 
 // Creates a channel of table names
@@ -24,8 +25,8 @@ func GetTablenames() []string {
 	return output
 }
 
-func GetLabelNames(labels []string) []string {
-	labelNames := make(map[int]string)
+func GetFacetNames(labels map[string]map[string]float64) []string {
+	labelNames := make(map[string]int)
 	b, err := ioutil.ReadFile(LabelsFile)
 	if err != nil {
 		panic(err)
@@ -34,9 +35,14 @@ func GetLabelNames(labels []string) []string {
 	if err != nil {
 		panic(err)
 	}
+	reverseLabels := make(map[int]string)
+	for k, v := range labelNames {
+		reverseLabels[v] = k
+	}
 	names := make([]string, 0)
-	for l := range labels{
-		names = append(names, labelNames[l])
+	for l, _ := range labels{
+		l, _ := strconv.Atoi(l)
+		names = append(names, reverseLabels[l])
 	}
 	return names
 }

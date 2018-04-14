@@ -13,7 +13,6 @@ func main() {
 	// Find the best partitioning based on table labels 
 	coveredSets := GreedySetCover(tablenames)
 
-	for l, _ := range coveredSets {
-		log.Printf(l)
-	}
+	facets := GetFacetNames(coveredSets)
+	log.Printf("%v", facets)
 }
