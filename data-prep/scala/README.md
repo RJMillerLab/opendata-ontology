@@ -1,4 +1,4 @@
-### Scripts for computing mutual information for pairs of labels
+### Scripts for computing mutual information of pairs of labels
 
 ```scala
 
