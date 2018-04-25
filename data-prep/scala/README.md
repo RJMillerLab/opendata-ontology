@@ -25,4 +25,5 @@
  
  val mis = pxys.map{case (l1,l2,p1,p2,f12) => ((l1,p1),(l2,p2,f12))}.join(pxs).map{case ((l1,p1),((l2,p2,f12),f1)) => ((l2,p2),(l1,p1,f12,f1))}.join(pxs).map{case ((l2,p2), ((l1,p1,f12,f1),f2)) => ((l1,l2),f12*(math.log(f12/(f1*f2))/math.log(2)))}.reduceByKey(_ + _)
 
+
  ```
