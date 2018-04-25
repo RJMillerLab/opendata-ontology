@@ -2,57 +2,27 @@
 
 ```scala
 
-import scala.collection.mutable.ListBuffer
-import scala.collection.mutable.HashMap
-
-// calculating marginal probabilities
- def mp(vNum: Int, vX: List[Int]) = {
-     1.0 * vX.filter(_ == vNum).size / vX.size
- }
-
-// calculating joint probabilities
- def jp(vNumA: Int, vA: List[Int], vNumB: Int, vB: List[Int]): Double = {
-     val size = vA.size
-     var count = 0
-     for (i <- 0 until size) { 
-         if (vA(i) == vNumA && vB(i) == vNumB) {
-             count += 1;
-         }
-     }
-     count * 1.0 / size
- }
+ val samplesFile = "/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/     data-prep/python/ontology/data/table_label.csv"
  
- // calculating mutual information
- def mi(a: List[Int], b: List[Int]): Double = {
-     val mpBuffer = HashMap[(String, Int), Double]()
-     val jpBuffer = HashMap[(Int, Int), Double]()
-     val ua = a.toSet.toList
-     val ub = b.toSet.toList
-     val r = for {
-         x <- ua
-         y <- ub
-     } yield {
-         val pxy = jpBuffer.getOrElseUpdate((x, y), jp(x, a, y, b))
-         val px = mpBuffer.getOrElseUpdate(("x", x), mp(x, a))
-         val py = mpBuffer.getOrElseUpdate(("y", y), mp(y, b))
-         val r = pxy * (math.log(pxy / (px * py))/math.log(2))
-         if (r.isInfinite() || r.isNaN()) 0 else r
-     }
-     r.sum
- }
- 
- val labelsFile = "/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data- prep/python/ontology/data/table_label.csv"
+ //val samplesFile = "/home/fnargesian/FINDOPENDATA_DATASETS/10k/samples/labels_samples.  txt"
  
  // bucketization parameter
  val binNum = 10
  
  // loading samples: an array of table relevance scores for each label
  // and bucketizing relevance scores
- val labels = sc.textFile(labelsFile).map(line => line.split(",")).map(line => (line(0).  toInt, line.drop(1).map(_.toDouble).map(x => math.floor(x*binNum).toInt)))
+ val samples = sc.textFile(samplesFile).map(line => line.split(",")).map(line =>          (line(0).toInt, line.drop(1).map(_.toDouble).map(x => math.floor(x*binNum).toInt)))
  
- // generating pairs of labels
- val pairs = labels.cartesian(labels).filter{case ((tid1, labels1), (tid2, labels2)) =>   tid1 < tid2}
+ val sampleNum = samples.count
  
- // computing mutual info for pairs
- val mis = pairs.map{case((tid1, labels1), (tid2, labels2)) => ((tid1, tid2), mi(labels1. toList, labels2.toList))}
-```
+ val tlps = samples.map{case (t,ps) => (t,ps.zipWithIndex)}.flatMap{case (t,pls) => pls.  map{case (p,l) => (t,l,p)}}
+ 
+ val pxs = sc.parallelize(tlps.map{case (t,l,p) => ((l,p),t)}.countByKey.toSeq).map{case  ((l,p),f) => ((l,p),f/sampleNum.toDouble)}
+ 
+ val xs = tlps.map{case (t,l,p) => (t,(l,p))}
+ 
+ val pxys = sc.parallelize(xs.join(xs).filter{case (t,((l1,p1),(l2,p2))) => l1<l2}.       map{case (t,((l1,p1),(l2,p2))) => ((l1, l2, p1, p2), t)}.countByKey.toSeq).map{case      ((l1,l2,p1,p2),f) => (l1,l2,p1,p2,f/sampleNum.toDouble)}
+ 
+ val mis = pxys.map{case (l1,l2,p1,p2,f12) => ((l1,p1),(l2,p2,f12))}.join(pxs).map{case   ((l1,p1),((l2,p2,f12),f1)) => ((l2,p2),(l1,p1,f12,f1))}.join(pxs).map{case ((l2,p2),     ((l1,p1,f12,f1),f2)) => ((l1,l2),f12*(math.log(f12/(f1*f2))/math.log(2)))}.reduceByKey(_ + _)
+
+ ```
