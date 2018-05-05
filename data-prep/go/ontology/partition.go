@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"sync"
+	"log"
 )
 
 var (
@@ -32,13 +33,16 @@ func preprocess(tablenames []string) {
 	if err != nil {
 		panic(err)
 	}
-	for table, labelProbs := range tableLabelsProbs {
-		if !existsIn(table, tablenames) {
+	//for table, labelProbs := range tableLabelsProbs {
+	for _, table := range tablenames {
+		if _, ok := tableLabelsProbs[table]; !ok{
+			log.Printf("Query %s does not exist in the repo!", table)
 			continue
 		}
 		if _, ok := universe[table]; !ok {
 			universe[table] = true
-		}
+		} 
+		labelProbs, _ := tableLabelsProbs[table]
 		for label, prob := range labelProbs {
 			if _, ok := sets[label]; !ok {
 				sets[label] = make(map[string]float64)
@@ -77,9 +81,12 @@ func updateSets(sc setCost) {
 func pickSet() setCost {
 	setCosts := make(chan setCost)
 	candSets := make(chan string)
-	for l, _ := range uncoveredSets {
-		candSets <- l
-	}
+	go func() {
+		for l, _ := range uncoveredSets {
+			candSets <- l
+		}
+		close(candSets)
+	}()
 	wg := &sync.WaitGroup{}
 	wg.Add(20)
 	for id := 0; id < 20; id++ {
