@@ -7,9 +7,10 @@ import (
 )
 
 func main() {
-
 	// Stream all possible organizations
 	organizations := ReadOrganzations()
+	os := Generate2DimOrganizations(4)
+	log.Println(os)
 	// Compute all possible overlaps
 	overlaps := ComputeLabelOverlaps()
 	// Find the best organization
