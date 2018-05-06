@@ -65,6 +65,11 @@ func ComputeLabelOverlaps() map[int]map[int]int {
 	if err != nil {
 		panic(err)
 	}
+	gln := make([]string, 0)
+	for _, gl := range goodLabels {
+		gln = append(gln, labelNames[strconv.Itoa(gl)])
+	}
+	log.Println("good lables: %v", gln)
 	err = loadJson(LabelTablesFile, &labelTables)
 	if err != nil {
 		panic(err)
@@ -76,11 +81,12 @@ func ComputeLabelOverlaps() map[int]map[int]int {
 			if il1 == il2 {
 				continue
 			}
-			overlaps[goodLabels[il1]][goodLabels[il2]] = computeOverlapSize(labelTables[strconv.Itoa(goodLabels[il1])], labelTables[strconv.Itoa(goodLabels[il2])])
+			co := computeOverlapSize(labelTables[strconv.Itoa(goodLabels[il1])], labelTables[strconv.Itoa(goodLabels[il2])])
+			if co != 0 {
+				overlaps[goodLabels[il1]][goodLabels[il2]] = co
+			}
 		}
-		//log.Printf("finished %d labels.", (il1 + 1))
 	}
-	log.Println(overlaps)
 	return overlaps
 }
 
@@ -94,14 +100,7 @@ func computeOverlapSize(t1s, t2s []string) int {
 	return overlap
 }
 
-func FindOrganization(allorgs [][][]int, overlaps map[int]map[int]int) ([][]int, float64) {
-	orgs := make(chan [][]int)
-	go func() {
-		for _, org := range allorgs {
-			orgs <- org
-		}
-		close(orgs)
-	}()
+func FindOrganization(orgs <-chan [][]int, overlaps map[int]map[int]int) []OrgEval {
 	results := make(chan OrgEval)
 	wg := &sync.WaitGroup{}
 	wg.Add(20)
@@ -114,7 +113,7 @@ func FindOrganization(allorgs [][][]int, overlaps map[int]map[int]int) ([][]int,
 					Org:           org,
 					Density:       density,
 					Nonuniformity: nonuniformity,
-					Score:         float64(density) / float64(nonuniformity),
+					Score:         float64(density) / float64(1+nonuniformity),
 				}
 				results <- oe
 			}
@@ -125,17 +124,23 @@ func FindOrganization(allorgs [][][]int, overlaps map[int]map[int]int) ([][]int,
 		wg.Wait()
 		close(results)
 	}()
+	resultCount := -1
 	bestOrgScore := -1.0
-	bestOrg := make([][]int, 0)
+	bestOrgs := make([]OrgEval, 0)
 	for oe := range results {
-		if oe.Score > bestOrgScore {
-			//bestOrgScore = oe.Uniformity
-			//bestOrgScore = oe.Density
+		resultCount += 1
+		if resultCount%1000 == 0 {
+			log.Printf("processed %d orgs and the best score is %f", resultCount, bestOrgScore)
+		}
+		if oe.Score == bestOrgScore {
+			bestOrgs = append(bestOrgs, oe)
+		} else if oe.Score > bestOrgScore {
+			bestOrgs = make([]OrgEval, 0)
+			bestOrgs = append(bestOrgs, oe)
 			bestOrgScore = oe.Score
-			bestOrg = oe.Org
 		}
 	}
-	return bestOrg, bestOrgScore
+	return bestOrgs
 }
 
 func evaluateOrganizationUniformity(org [][]int, overlaps map[int]map[int]int) int {
@@ -156,8 +161,12 @@ func evaluateOrganizationUniformity(org [][]int, overlaps map[int]map[int]int) i
 }
 
 func getOverlap(overlaps map[int]map[int]int, l1, l2 int) int {
-	if _, ok := overlaps[l1]; !ok {
-		return overlaps[l2][l1]
+	if _, ok := overlaps[l1][l2]; !ok {
+		if _, ok := overlaps[l2][l1]; !ok {
+			return 0
+		} else {
+			return overlaps[l2][l1]
+		}
 	}
 	return overlaps[l1][l2]
 }
@@ -174,59 +183,74 @@ func evaluateOrganizationDensity(org [][]int, overlaps map[int]map[int]int) int 
 	return score
 }
 
-func Generate2DimOrganizations() [][][]int {
+func Generate2DimOrganizations() <-chan [][]int {
 	// this function works with the index of labels
-	goodLabels := make([]int, 0)
-	err := loadJson(GoodLabelsFile, &goodLabels)
-	if err != nil {
-		panic(err)
-	}
-	goodLabels = goodLabels[:20]
-	labelsNum := len(goodLabels)
-	orgCount := int(math.Pow(2, float64(labelsNum)))
-	orgs := make([][][]int, 0)
-	for i := 1; i < orgCount/2; i++ {
-		org := [][]int{[]int{}, []int{}}
-		bs := strconv.FormatInt(int64(i), 2)
-		ps := strings.SplitN(bs, "", -1)
-		for k := labelsNum - 1; k > (len(ps) - 1); k-- {
-			org[0] = append(org[0], goodLabels[k])
+	orgs := make(chan [][]int, 500)
+	go func() {
+		goodLabels := make([]int, 0)
+		err := loadJson(GoodLabelsFile, &goodLabels)
+		if err != nil {
+			panic(err)
 		}
-		for j, p := range ps {
-			pi, _ := strconv.Atoi(p)
-			if pi == 0 {
-				org[0] = append(org[0], goodLabels[len(ps)-j-1])
-			} else {
-				org[1] = append(org[1], goodLabels[len(ps)-j-1])
+		goodLabels = goodLabels[:20]
+		labelsNum := len(goodLabels)
+		orgCount := int(math.Pow(2, float64(labelsNum)))
+		//orgs := make([][][]int, 0)
+		genOrgCount := -1
+		for i := 1; i < orgCount/2; i++ {
+			org := [][]int{[]int{}, []int{}}
+			bs := strconv.FormatUint(uint64(i), 2)
+			ps := strings.SplitN(bs, "", -1)
+			for k := labelsNum - 1; k > (len(ps) - 1); k-- {
+				org[0] = append(org[0], goodLabels[k])
+			}
+			for j, p := range ps {
+				pi, _ := strconv.Atoi(p)
+				if pi == 0 {
+					org[0] = append(org[0], goodLabels[len(ps)-j-1])
+				} else {
+					org[1] = append(org[1], goodLabels[len(ps)-j-1])
+				}
+			}
+			if len(org[0]) > 1 && len(org[1]) > 1 {
+				genOrgCount += 1
+				orgs <- org
+			}
+			if genOrgCount > 0 && genOrgCount%1000 == 0 {
+				log.Printf("generated %d orgs", genOrgCount)
 			}
 		}
-		if len(org[0]) > 1 && len(org[1]) > 1 {
-			orgs = append(orgs, org)
-		}
-		if len(orgs)%100 == 0 {
-			log.Printf("generated %d orgs", len(orgs))
-		}
-	}
+		close(orgs)
+	}()
 	return orgs
 }
 
-func PrintOrganization(org [][]int, overlaps map[int]map[int]int) {
+func PrintOrganization(orgEvals []OrgEval, overlaps map[int]map[int]int) {
 	labelNames := make(map[string]string)
 	err := loadJson(LabelNamesFile, &labelNames)
 	if err != nil {
 		panic(err)
 	}
-	d1names := make([]string, 0)
-	for _, l := range org[0] {
-		d1names = append(d1names, labelNames[strconv.Itoa(l)])
-	}
-	fmt.Println(d1names)
-	for _, l := range org[1] {
-		fmt.Printf("%s", labelNames[strconv.Itoa(l)])
-		os := make([]int, 0)
-		for _, k := range org[0] {
-			os = append(os, overlaps[l][k])
+	for i, orgEval := range orgEvals {
+		fmt.Printf("Organization %d with density %d and non-uniformity %d and total score %f\n", i, orgEval.Density, orgEval.Nonuniformity, orgEval.Score)
+		fmt.Println("-----------------------------------------------------------------")
+		org := orgEval.Org
+		d1names := make([]string, 0)
+		//d1names := make([]int, 0)
+		for _, l := range org[0] {
+			d1names = append(d1names, labelNames[strconv.Itoa(l)])
+			//d1names = append(d1names, l)
 		}
-		fmt.Println(os)
+		fmt.Println(d1names)
+		for _, l := range org[1] {
+			//fmt.Printf("%d", l)
+			fmt.Printf("%s", labelNames[strconv.Itoa(l)])
+			os := make([]int, 0)
+			for _, k := range org[0] {
+				os = append(os, getOverlap(overlaps, l, k))
+			}
+			fmt.Println(os)
+		}
+		fmt.Println("-----------------------------------------------------------------")
 	}
 }
