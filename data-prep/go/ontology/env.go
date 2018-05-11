@@ -13,6 +13,7 @@ var OrgsFile = os.Getenv("ORGS_FILE")
 var LabelNamesFile = os.Getenv("LABEL_NAMES_FILE")
 var GoodLabelsFile = os.Getenv("GOOD_LABELS_FILE")
 var LabelTablesFile = os.Getenv("LABEL_TABLES_FILE")
+var FasttextDb = os.Getenv("FASTTEXT_DB")
 
 func CheckEnv() {
 

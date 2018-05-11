@@ -1,7 +1,8 @@
 package ontology
 
 import (
-	"log"
+	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 	"unicode"
@@ -10,24 +11,51 @@ import (
 )
 
 var (
-	labels      []string
-	labelEmbs   map[string][]float64
-	labelTables map[string][]string
+	labels             map[string]bool
+	labelsList         []string
+	labelEmbs          map[string][]float64
+	labelTables        map[string][]string
+	relevanceThreshold = 0.1
 )
 
 type navigation struct {
-	paths [][]state
+	paths []state
 }
 
 type state struct {
-	labels   []string
-	semantic [][]float64
-	tables   []string
+	labels    map[string]bool
+	sem       []float64
+	tables    map[string]bool
+	coherence float64
 }
 
-func InitializeNavigationSimulation() {
+type path struct {
+	states        []state
+	isascores     []float64
+	seenLabels    map[string]bool
+	unseenLabels  map[string]bool
+	coveredTables map[string]bool
+}
+
+func newPath(startState state) path {
+	ls := CopyMap(labels)
+	for l, _ := range startState.labels {
+		delete(ls, l)
+	}
+	p := path{
+		states:        []state{startState},
+		seenLabels:    CopyMap(startState.labels),
+		unseenLabels:  ls,
+		isascores:     []float64{0.0},
+		coveredTables: CopyMap(startState.tables),
+	}
+	return p
+}
+
+func InitializeNavigation() {
 	// load labels
 	labelIds := make([]int, 0)
+	lts := make(map[string][]string)
 	labelTables = make(map[string][]string)
 	err := loadJson(GoodLabelsFile, &labelIds)
 	if err != nil {
@@ -39,22 +67,22 @@ func InitializeNavigationSimulation() {
 	if err != nil {
 		panic(err)
 	}
-	labels = make([]string, 0)
-	for _, gl := range labelIds {
-		labels = append(labels, labelNames[strconv.Itoa(gl)])
-	}
-	log.Printf("lables: %v", labels)
 	// load label table
-	err = loadJson(LabelTablesFile, &labelTables)
+	err = loadJson(LabelTablesFile, &lts)
 	if err != nil {
 		panic(err)
 	}
+	labels = make(map[string]bool)
+	for _, gl := range labelIds {
+		labels[labelNames[strconv.Itoa(gl)]] = true
+		labelsList = append(labelsList, labelNames[strconv.Itoa(gl)])
+		labelTables[labelNames[strconv.Itoa(gl)]] = lts[strconv.Itoa(gl)]
+	}
 	// load the embedding of each label
-	getLabelsEmbedding()
-	//nav := navigation{paths=make([][]state, 0),}
+	labelEmbs = getLabelsEmbedding()
 }
 
-func getLabelsEmbedding() {
+func getLabelsEmbedding() map[string][]float64 {
 	ft, err := InitInMemoryFastText(FasttextDb, func(v string) []string {
 		stopWords := []string{"ckan_topiccategory_", "ckan_keywords_", "ckan_tags_", "ckan_subject_", "socrata_domaincategory_", "socrata_domaintags_", "socrata_tags_"}
 		for _, st := range stopWords {
@@ -69,15 +97,16 @@ func getLabelsEmbedding() {
 		panic(err)
 	}
 	labelEmbs := make(map[string][]float64)
-	for _, label := range labels {
+	for label, _ := range labels {
 		embVec, err := ft.GetPhraseEmbMean(label)
 		if err != nil {
-			log.Printf("Error in building embedding for label %s : %s\n", label, err.Error())
+			fmt.Printf("Error in building embedding for label %s : %s\n", label, err.Error())
 			// TODO: what to do with labels with no embedding
 			continue
 		}
 		labelEmbs[label] = embVec
 	}
+	return labelEmbs
 }
 
 func getSemanticCoherence(st state) float64 {
@@ -86,28 +115,170 @@ func getSemanticCoherence(st state) float64 {
 
 // evaluate the semantic relevance of states (their label sets) by
 // computing cosine on their aggregate embedding vectors
-func SemanticRelevance(state1, labels2 state) float64 {
-	return 0.0
+func getSemanticRelevance(state1, state2 state) float64 {
+	return Cosine(state1.sem, state2.sem)
+}
+
+func getStatesCoverage(state1, state2 state) float64 {
+	overlap := 0
+	for t, _ := range state1.tables {
+		if _, ok := state2.tables[t]; ok {
+			overlap += 1
+		}
+	}
+	return float64(len(state1.tables)+len(state2.tables)-overlap) / float64(len(state1.tables))
 }
 
 // evaluate the is-A quality of two label by computing the co-occurrence of
 // labels for tables
-func IsAScore(state1, state2 state) float64 {
-	return 0.0
+func isAScore(state1, state2 state) float64 {
+	relevance := getSemanticRelevance(state1, state2)
+	//coverage := getStatesCoverage(state1, state2)
+	//return relevance * coverage
+	return relevance
+	//return coverage
+}
+
+func generateStartState() state {
+	li := rand.New(rand.NewSource(42)).Intn(len(labels))
+	label := labelsList[li]
+	st := state{
+		labels: map[string]bool{label: true},
+		sem:    labelEmbs[label],
+		tables: SliceToMap(labelTables[label]),
+	}
+	//log.Printf("start state labels: %v and tables %d", st.labels, len(st.tables))
+	return st
 }
 
 // given a navigation path (consisting of ordered list of label sets), generate next
 // possible states. Make sure the labels are not revisited and the semantic relevance is above a threshold.
-func GenerateNextStates(path [][][]float64) {
+func generateNextState(navPath path) (state, float64, bool) {
+	nextState := state{}
+	// enumerate possible states
+	allNextStates := enumerateAllNextStates(navPath)
+	// should the path be terminated?
+	if len(allNextStates) == 0 {
+		return nextState, -1.0, true
+	}
+	// generate the prob distribution on possible states
+	// compute semantic relevance of the current state to the potential next state: cosine of embs
+	scores, _, cdf := generateNextStateDistribution(allNextStates, navPath.states[len(navPath.states)-1])
+	// should the path be terminated?
+	maxScore := Max(scores)
+	if maxScore < relevanceThreshold {
+		//log.Printf("terminating because sem rel is below the threshold: %f", maxScore)
+		return nextState, -1.0, true
+	}
+	// choose a state based on the distribution
+	newState := pickAState(cdf)
+	nextState = allNextStates[newState]
+	return nextState, scores[newState], false
+}
+
+func pickAState(cdf []float64) int {
+	r := rand.New(rand.NewSource(101)).Float64()
+	for i, f := range cdf {
+		if r < f {
+			return i
+		}
+	}
+	return -1
+}
+
+// this method returns the CDF of the next state distribution
+func generateNextStateDistribution(states []state, prevState state) ([]float64, []float64, []float64) {
+	rels := make([]float64, 0)
+	ps := make([]float64, 0)
+	cdf := make([]float64, 0)
+	sum := 0.0
+	for _, st := range states {
+		//r := getSemanticRelevance(prevState, st)
+		r := isAScore(st, prevState)
+		rels = append(rels, r)
+		sum += r
+	}
+	acc := 0.0
+	for _, r := range rels {
+		p := r / sum
+		ps = append(ps, p)
+		cdf = append(cdf, p+acc)
+		acc += p
+	}
+	return rels, ps, cdf
+}
+
+func enumerateAllNextStates(navPath path) []state {
+	states := make([]state, 0)
+	for label, _ := range navPath.unseenLabels {
+		sem := labelEmbs[label]
+		st := state{
+			labels:    map[string]bool{label: true},
+			sem:       sem,
+			tables:    SliceToMap(labelTables[label]),
+			coherence: 0.0,
+		}
+		states = append(states, st)
+	}
+	return states
+}
+
+func (p *path) updatePath(st state, prevStateRelevance float64) bool {
+	// find the overlap of the tables covered by the path and those covered by the new state
+	cts := make(map[string]bool)
+	for t, _ := range p.coveredTables {
+		if _, ok := st.tables[t]; ok {
+			cts[t] = true
+		}
+	}
+	if len(cts) == 0 {
+		return false
+	}
+	p.coveredTables = cts
+	p.states = append(p.states, st)
+	for l, _ := range st.labels {
+		p.seenLabels[l] = true
+		delete(p.unseenLabels, l)
+	}
+	p.isascores = append(p.isascores, prevStateRelevance)
+	return true
 }
 
 // simulate user navigation
 func Simulate() {
-	// pick a start state
+	for i := 0; i < 5; i++ {
+		fmt.Printf("simulation %d\n", i)
+		// pick a start state
+		start := generateStartState()
+		navPath := newPath(start)
+		termination := false
+		for ok := false; !ok; ok = termination {
+			// generate next states and update path with the new state
+			next, relevance, flag := generateNextState(navPath)
+			termination = flag
+			if flag != true {
+				// update the path with the new state
+				openend := navPath.updatePath(next, relevance)
+				if openend == false {
+					termination = true
+					fmt.Println("dead end.")
+				} else if len(navPath.coveredTables) <= 1 {
+					fmt.Print("terminating because we reached a single table")
+					termination = true
+				}
+			}
+		}
+		printPath(navPath)
+		fmt.Println("----------------------------------")
+	}
+}
 
-	// generate next states
-
-	// randomly pick the next state
-
-	// check termination condition: the next state list is empty or all tables are reachable
+func printPath(p path) {
+	for i, s := range p.states {
+		ls := make([]string, 0)
+		for k, _ := range s.labels {
+			ls = append(ls, k)
+		}
+		fmt.Printf("state %d : %v %d\n", i, ls, len(s.tables))
+	}
 }

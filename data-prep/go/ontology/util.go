@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"io/ioutil"
+	"math"
 	"os"
 	"strconv"
 )
@@ -75,4 +76,44 @@ func ContainsStr(as []string, i string) bool {
 		}
 	}
 	return false
+}
+
+func CopyMap(m map[string]bool) map[string]bool {
+	cm := make(map[string]bool)
+	for k, v := range m {
+		cm[k] = v
+	}
+	return cm
+}
+
+func Cosine(x, y []float64) float64 {
+	if len(x) != len(y) {
+		panic("Length of vectors not equal")
+	}
+	dot := 0.0
+	modX, modY := 0.0, 0.0
+	for i := range x {
+		dot += x[i] * y[i]
+		modX += x[i] * x[i]
+		modY += y[i] * y[i]
+	}
+	return dot / (math.Sqrt(modX) * math.Sqrt(modY))
+}
+
+func Max(arr []float64) float64 {
+	max := arr[0]
+	for _, value := range arr {
+		if max < value {
+			max = value
+		}
+	}
+	return max
+}
+
+func SliceToMap(arr []string) map[string]bool {
+	m := make(map[string]bool)
+	for _, e := range arr {
+		m[e] = true
+	}
+	return m
 }

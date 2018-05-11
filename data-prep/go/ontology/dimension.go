@@ -12,10 +12,12 @@ import (
 )
 
 type OrgEval struct {
-	Org           [][]int
-	Nonuniformity int
-	Density       int
-	Score         float64
+	Org               [][]int
+	Nonuniformity     int
+	Entropy           float64
+	Density           int
+	IntraDisjointness int
+	Score             float64
 }
 
 func ReadOrganzations() <-chan [][]int {
@@ -100,50 +102,113 @@ func computeOverlapSize(t1s, t2s []string) int {
 	return overlap
 }
 
-func FindOrganization(orgs <-chan [][]int, overlaps map[int]map[int]int) []OrgEval {
-	results := make(chan OrgEval)
+func FindOrganization(orgs <-chan [][]int, overlaps map[int]map[int]int) ([]OrgEval, []OrgEval, []OrgEval) {
+	results1 := make(chan OrgEval)
+	results2 := make(chan OrgEval)
 	wg := &sync.WaitGroup{}
-	wg.Add(20)
-	for i := 0; i < 20; i++ {
+	wg.Add(35)
+	for i := 0; i < 35; i++ {
 		go func() {
 			for org := range orgs {
 				density := evaluateOrganizationDensity(org, overlaps)
-				nonuniformity := evaluateOrganizationUniformity(org, overlaps)
-				oe := OrgEval{
-					Org:           org,
-					Density:       density,
-					Nonuniformity: nonuniformity,
-					Score:         float64(density) / float64(1+nonuniformity),
+				if density == 0 {
+					continue
 				}
-				results <- oe
+				nonuniformity := evaluateOrganizationUniformityDiff(org, overlaps)
+				entropy := evaluateOrganizationUniformityEntropy(org, overlaps, density)
+				oe := OrgEval{
+					Org:               org,
+					Density:           density,
+					Nonuniformity:     nonuniformity,
+					Entropy:           entropy,
+					IntraDisjointness: evaluateIntradimension(org, overlaps),
+					Score:             float64(density) / float64(1+nonuniformity),
+				}
+				results1 <- oe
+				results2 <- oe
 			}
 			wg.Done()
 		}()
 	}
 	go func() {
-		wg.Wait()
-		close(results)
+		serializeOrganizations(results1)
 	}()
+	go func() {
+		wg.Wait()
+		close(results1)
+		close(results2)
+	}()
+	bestOrgsDensity, bestOrgsUniformity, bestOrgsAgg := findBestScores(results2)
+	return bestOrgsDensity, bestOrgsUniformity, bestOrgsAgg
+}
+
+func serializeOrganizations(results chan OrgEval) {
+	// ignoring all errors of IO
+	labelNames := make(map[string]string)
+	err := loadJson(LabelNamesFile, &labelNames)
+	if err != nil {
+		panic(err)
+	}
+	f, _ := os.Create(OrgsFile)
+	defer f.Close()
+	// each 2D org is serialized as three lines
+	// one line for labels in each dim (label_id|label_name)
+	// the last line is for scores: density, nonuniformity, entropy, disjointness
+	for orgEval := range results {
+		for _, ls := range orgEval.Org {
+			for i, l := range ls {
+				if i != 0 {
+					f.WriteString("|" + strconv.Itoa(l) + "|" + labelNames[strconv.Itoa(l)])
+				} else {
+					f.WriteString(strconv.Itoa(l) + "|" + labelNames[strconv.Itoa(l)])
+				}
+			}
+			f.WriteString("\n")
+		}
+		f.WriteString(strconv.Itoa(orgEval.Density) + "|" + strconv.Itoa(orgEval.Nonuniformity) + "|" + strconv.FormatFloat(orgEval.Entropy, 'f', -1, 64) + "|" + strconv.Itoa(orgEval.IntraDisjointness))
+		f.WriteString("\n")
+	}
+}
+
+func findBestScores(results chan OrgEval) ([]OrgEval, []OrgEval, []OrgEval) {
 	resultCount := -1
-	bestOrgScore := -1.0
-	bestOrgs := make([]OrgEval, 0)
+	bestOrgAggScore := -1.0
+	bestOrgDensityScore := -1
+	bestOrgUniformityScore := -1
+	bestOrgsDensity := make([]OrgEval, 0)
+	bestOrgsUniformity := make([]OrgEval, 0)
+	bestOrgsAgg := make([]OrgEval, 0)
 	for oe := range results {
 		resultCount += 1
 		if resultCount%1000 == 0 {
-			log.Printf("processed %d orgs and the best score is %f", resultCount, bestOrgScore)
+			log.Printf("processed %d orgs and the best score is %f", resultCount, bestOrgAggScore)
 		}
-		if oe.Score == bestOrgScore {
-			bestOrgs = append(bestOrgs, oe)
-		} else if oe.Score > bestOrgScore {
-			bestOrgs = make([]OrgEval, 0)
-			bestOrgs = append(bestOrgs, oe)
-			bestOrgScore = oe.Score
+		if oe.Score == bestOrgAggScore {
+			bestOrgsAgg = append(bestOrgsAgg, oe)
+		} else if oe.Score > bestOrgAggScore {
+			bestOrgsAgg = make([]OrgEval, 0)
+			bestOrgsAgg = append(bestOrgsAgg, oe)
+			bestOrgAggScore = oe.Score
+		}
+		if oe.Density == bestOrgDensityScore {
+			bestOrgsDensity = append(bestOrgsDensity, oe)
+		} else if oe.Density > bestOrgDensityScore {
+			bestOrgsDensity = make([]OrgEval, 0)
+			bestOrgsDensity = append(bestOrgsDensity, oe)
+			bestOrgDensityScore = oe.Density
+		}
+		if oe.Nonuniformity == bestOrgUniformityScore {
+			bestOrgsUniformity = append(bestOrgsUniformity, oe)
+		} else if oe.Nonuniformity < bestOrgUniformityScore {
+			bestOrgsUniformity = make([]OrgEval, 0)
+			bestOrgsUniformity = append(bestOrgsUniformity, oe)
+			bestOrgUniformityScore = oe.Nonuniformity
 		}
 	}
-	return bestOrgs
+	return bestOrgsDensity, bestOrgsUniformity, bestOrgsAgg
 }
 
-func evaluateOrganizationUniformity(org [][]int, overlaps map[int]map[int]int) int {
+func evaluateOrganizationUniformityDiff(org [][]int, overlaps map[int]map[int]int) int {
 	dim1 := org[0]
 	dim2 := org[1]
 	nonuniformity := 0.0
@@ -158,6 +223,34 @@ func evaluateOrganizationUniformity(org [][]int, overlaps map[int]map[int]int) i
 		nonuniformity += diff
 	}
 	return int(nonuniformity)
+}
+
+func evaluateOrganizationUniformityEntropy(org [][]int, overlaps map[int]map[int]int, density int) float64 {
+	dim1 := org[0]
+	dim2 := org[1]
+	entropy := 0.0
+	for _, l1 := range dim1 {
+		for _, l2 := range dim2 {
+			p := float64(getOverlap(overlaps, l1, l2)) / float64(density)
+			if p != 0 {
+				entropy -= p * math.Log(p)
+			}
+		}
+	}
+	return entropy
+}
+
+func evaluateIntradimension(org [][]int, overlaps map[int]map[int]int) int {
+	disjointness := 0
+	for _, ls := range org {
+		for i, l1 := range ls {
+			for j := i + 1; j < len(ls); j++ {
+				l2 := ls[j]
+				disjointness += getOverlap(overlaps, l1, l2)
+			}
+		}
+	}
+	return disjointness
 }
 
 func getOverlap(overlaps map[int]map[int]int, l1, l2 int) int {
@@ -251,6 +344,7 @@ func PrintOrganization(orgEvals []OrgEval, overlaps map[int]map[int]int) {
 			}
 			fmt.Println(os)
 		}
+		fmt.Println("disjoitness: %d", orgEval.IntraDisjointness)
 		fmt.Println("-----------------------------------------------------------------")
 	}
 }
