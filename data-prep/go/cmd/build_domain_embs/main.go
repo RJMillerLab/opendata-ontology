@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+
+	. "github.com/RJMillerLab/opendata-ontology/data-prep/go/embedding"
 	. "github.com/RJMillerLab/opendata-ontology/data-prep/go/opendata"
 )
 
@@ -39,7 +41,7 @@ func main() {
 				// calculating mean
 				log.Printf("file: %s - %d", vf.Filename, vf.Index)
 				if len(vf.Values) == 0 {
-					log.Printf("No values found for domin %s - %d: %s\n", vf.      Filename, vf.Index)
+					log.Printf("No values found for domin %s - %d: %s\n", vf.Filename, vf.Index)
 					continue
 				}
 				mean, coverage, err := ft.GetDomainEmbMean(vf.Values, vf.Freq)
