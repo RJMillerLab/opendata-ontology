@@ -171,7 +171,7 @@ func makeDomains(filenames <-chan string, out chan *Domain) {
 		f, err := os.Open(Filepath(filename))
 		if err != nil {
 			//panic(err)
-			log.Printf("%s does not exist.", filename)
+			log.Printf("%s does not exist.", Filepath(filename))
 			f.Close()
 			continue
 		}

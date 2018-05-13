@@ -14,5 +14,6 @@ func main() {
 	coveredSets := GreedySetCover(tablenames)
 
 	facets := GetFacetNames(coveredSets)
+	//log.Printf("%v", coveredSets)
 	log.Printf("%v", facets)
 }
