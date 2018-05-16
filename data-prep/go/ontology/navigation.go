@@ -2,9 +2,12 @@ package ontology
 
 import (
 	"fmt"
+	"log"
+	"math"
 	"math/rand"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	. "github.com/RJMillerLab/opendata-ontology/data-prep/go/embedding"
@@ -15,6 +18,7 @@ var (
 	labelsList         []string
 	labelEmbs          map[string][]float64
 	labelTables        map[string][]string
+	seenPaths          []path
 	relevanceThreshold = 0.1
 )
 
@@ -57,11 +61,14 @@ func InitializeNavigation() {
 	labelIds := make([]int, 0)
 	lts := make(map[string][]string)
 	labelTables = make(map[string][]string)
+	labels = make(map[string]bool)
+	labelEmbs = make(map[string][]float64)
+	labelsList = make([]string, 0)
 	err := loadJson(GoodLabelsFile, &labelIds)
 	if err != nil {
 		panic(err)
 	}
-	labelIds = labelIds[:20]
+	labelIds = labelIds //[:20]
 	labelNames := make(map[string]string)
 	err = loadJson(LabelNamesFile, &labelNames)
 	if err != nil {
@@ -72,17 +79,25 @@ func InitializeNavigation() {
 	if err != nil {
 		panic(err)
 	}
-	labels = make(map[string]bool)
 	for _, gl := range labelIds {
 		labels[labelNames[strconv.Itoa(gl)]] = true
-		labelsList = append(labelsList, labelNames[strconv.Itoa(gl)])
-		labelTables[labelNames[strconv.Itoa(gl)]] = lts[strconv.Itoa(gl)]
+		//labelsList = append(labelsList, labelNames[strconv.Itoa(gl)])
+		//labelTables[labelNames[strconv.Itoa(gl)]] = lts[strconv.Itoa(gl)]
 	}
 	// load the embedding of each label
-	labelEmbs = getLabelsEmbedding()
+	getLabelEmbeddings()
+	// eliminate labels without semantics
+	for _, gl := range labelIds {
+		if _, ok := labelEmbs[labelNames[strconv.Itoa(gl)]]; ok {
+			labelsList = append(labelsList, labelNames[strconv.Itoa(gl)])
+			labelTables[labelNames[strconv.Itoa(gl)]] = lts[strconv.Itoa(gl)]
+		} else {
+
+		}
+	}
 }
 
-func getLabelsEmbedding() map[string][]float64 {
+func getLabelEmbeddings() {
 	ft, err := InitInMemoryFastText(FasttextDb, func(v string) []string {
 		stopWords := []string{"ckan_topiccategory_", "ckan_keywords_", "ckan_tags_", "ckan_subject_", "socrata_domaincategory_", "socrata_domaintags_", "socrata_tags_"}
 		for _, st := range stopWords {
@@ -96,7 +111,6 @@ func getLabelsEmbedding() map[string][]float64 {
 	if err != nil {
 		panic(err)
 	}
-	labelEmbs := make(map[string][]float64)
 	for label, _ := range labels {
 		embVec, err := ft.GetPhraseEmbMean(label)
 		if err != nil {
@@ -106,7 +120,7 @@ func getLabelsEmbedding() map[string][]float64 {
 		}
 		labelEmbs[label] = embVec
 	}
-	return labelEmbs
+	return
 }
 
 func getSemanticCoherence(st state) float64 {
@@ -140,7 +154,7 @@ func isAScore(state1, state2 state) float64 {
 }
 
 func generateStartState() state {
-	li := rand.New(rand.NewSource(42)).Intn(len(labels))
+	li := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(labelsList))
 	label := labelsList[li]
 	st := state{
 		labels: map[string]bool{label: true},
@@ -153,13 +167,14 @@ func generateStartState() state {
 
 // given a navigation path (consisting of ordered list of label sets), generate next
 // possible states. Make sure the labels are not revisited and the semantic relevance is above a threshold.
-func generateNextState(navPath path) (state, float64, bool) {
+func (navPath *path) generateNextState() bool {
 	nextState := state{}
 	// enumerate possible states
 	allNextStates := enumerateAllNextStates(navPath)
 	// should the path be terminated?
 	if len(allNextStates) == 0 {
-		return nextState, -1.0, true
+		log.Println("no next state")
+		return false
 	}
 	// generate the prob distribution on possible states
 	// compute semantic relevance of the current state to the potential next state: cosine of embs
@@ -167,23 +182,43 @@ func generateNextState(navPath path) (state, float64, bool) {
 	// should the path be terminated?
 	maxScore := Max(scores)
 	if maxScore < relevanceThreshold {
-		//log.Printf("terminating because sem rel is below the threshold: %f", maxScore)
-		return nextState, -1.0, true
+		log.Printf("terminating because sem rel is below the threshold: %f", maxScore)
+		return false
 	}
 	// choose a state based on the distribution
-	newState := pickAState(cdf)
-	nextState = allNextStates[newState]
-	return nextState, scores[newState], false
+	nextStateNotFound := true
+	//checkedStateIds := make(map[int]bool)
+	attemptCount := 0
+	for nextStateNotFound && attemptCount < 10 { //len(checkedStateIds) < len(allNextStates) && len(checkedStateIds) < 10 {
+		attemptCount += 1
+		newsid := pickAState(cdf)
+		nextState = allNextStates[newsid]
+		nextStateNotFound = !navPath.updatePath(nextState, scores[newsid])
+	}
+	return !nextStateNotFound //, navPath
 }
 
 func pickAState(cdf []float64) int {
-	r := rand.New(rand.NewSource(101)).Float64()
+	r := rand.New(rand.NewSource(time.Now().UnixNano())).Float64()
 	for i, f := range cdf {
 		if r < f {
 			return i
 		}
 	}
 	return -1
+}
+
+func pickStates(cdf []float64) []int {
+	is := make([]int, 0)
+	for float64(len(is)) < math.Max(10.0, float64(len(cdf))) {
+		r := rand.New(rand.NewSource(time.Now().UnixNano())).Float64()
+		for i, f := range cdf {
+			if r < f {
+				is = append(is, i)
+			}
+		}
+	}
+	return is
 }
 
 // this method returns the CDF of the next state distribution
@@ -194,6 +229,10 @@ func generateNextStateDistribution(states []state, prevState state) ([]float64, 
 	sum := 0.0
 	for _, st := range states {
 		//r := getSemanticRelevance(prevState, st)
+		// discard states with no embedding
+		if len(st.sem) == 0 {
+			continue
+		}
 		r := isAScore(st, prevState)
 		rels = append(rels, r)
 		sum += r
@@ -208,7 +247,7 @@ func generateNextStateDistribution(states []state, prevState state) ([]float64, 
 	return rels, ps, cdf
 }
 
-func enumerateAllNextStates(navPath path) []state {
+func enumerateAllNextStates(navPath *path) []state {
 	states := make([]state, 0)
 	for label, _ := range navPath.unseenLabels {
 		sem := labelEmbs[label]
@@ -221,6 +260,19 @@ func enumerateAllNextStates(navPath path) []state {
 		states = append(states, st)
 	}
 	return states
+}
+
+func (s *state) endsPath(p path) bool {
+	cts := make(map[string]bool)
+	for t, _ := range p.coveredTables {
+		if _, ok := s.tables[t]; ok {
+			cts[t] = true
+		}
+	}
+	if len(cts) == 0 {
+		return true
+	}
+	return false
 }
 
 func (p *path) updatePath(st state, prevStateRelevance float64) bool {
@@ -246,7 +298,7 @@ func (p *path) updatePath(st state, prevStateRelevance float64) bool {
 
 // simulate user navigation
 func Simulate() {
-	for i := 0; i < 5; i++ {
+	for i := 0; i <= 20; i = len(seenPaths) {
 		fmt.Printf("simulation %d\n", i)
 		// pick a start state
 		start := generateStartState()
@@ -254,22 +306,19 @@ func Simulate() {
 		termination := false
 		for ok := false; !ok; ok = termination {
 			// generate next states and update path with the new state
-			next, relevance, flag := generateNextState(navPath)
-			termination = flag
-			if flag != true {
-				// update the path with the new state
-				openend := navPath.updatePath(next, relevance)
-				if openend == false {
-					termination = true
-					fmt.Println("dead end.")
-				} else if len(navPath.coveredTables) <= 1 {
-					fmt.Print("terminating because we reached a single table")
-					termination = true
-				}
+			openend := navPath.generateNextState()
+			if openend == false {
+				termination = true
+			} else if len(navPath.coveredTables) <= 1 {
+				fmt.Print("terminating because we reached a single table")
+				termination = true
 			}
 		}
-		printPath(navPath)
-		fmt.Println("----------------------------------")
+		if len(navPath.states) > 1 && navPath.seenPath() == false {
+			printPath(navPath)
+			fmt.Println("----------------------------------")
+			seenPaths = append(seenPaths, navPath)
+		}
 	}
 }
 
@@ -281,4 +330,34 @@ func printPath(p path) {
 		}
 		fmt.Printf("state %d : %v %d\n", i, ls, len(s.tables))
 	}
+}
+
+func (p *path) seenPath() bool {
+	for _, op := range seenPaths {
+		if p.equalPath(op) == true {
+			return true
+		}
+	}
+	return false
+}
+
+func (p1 *path) equalPath(p2 path) bool {
+	if len(p1.states) != len(p2.states) {
+		return false
+	}
+	for i, s1 := range p1.states {
+		if s1.equalState(p2.states[i]) == false {
+			return false
+		}
+	}
+	return true
+}
+
+func (s1 state) equalState(s2 state) bool {
+	for l, _ := range s1.labels {
+		if _, ok := s2.labels[l]; !ok {
+			return false
+		}
+	}
+	return true
 }

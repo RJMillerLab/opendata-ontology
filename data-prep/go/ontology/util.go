@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"strconv"
@@ -88,6 +89,7 @@ func CopyMap(m map[string]bool) map[string]bool {
 
 func Cosine(x, y []float64) float64 {
 	if len(x) != len(y) {
+		log.Printf("%d vs %d", len(x), len(y))
 		panic("Length of vectors not equal")
 	}
 	dot := 0.0
