@@ -182,7 +182,7 @@ func (navPath *path) generateNextState() bool {
 	// should the path be terminated?
 	maxScore := Max(scores)
 	if maxScore < relevanceThreshold {
-		log.Printf("terminating because sem rel is below the threshold: %f", maxScore)
+		log.Printf("terminating because sem rel is below the threshold: %f\n", maxScore)
 		return false
 	}
 	// choose a state based on the distribution
@@ -299,7 +299,6 @@ func (p *path) updatePath(st state, prevStateRelevance float64) bool {
 // simulate user navigation
 func Simulate() {
 	for i := 0; i <= 20; i = len(seenPaths) {
-		fmt.Printf("simulation %d\n", i)
 		// pick a start state
 		start := generateStartState()
 		navPath := newPath(start)
@@ -315,6 +314,7 @@ func Simulate() {
 			}
 		}
 		if len(navPath.states) > 1 && navPath.seenPath() == false {
+			fmt.Printf("simulation %d\n", i)
 			printPath(navPath)
 			fmt.Println("----------------------------------")
 			seenPaths = append(seenPaths, navPath)
@@ -328,7 +328,7 @@ func printPath(p path) {
 		for k, _ := range s.labels {
 			ls = append(ls, k)
 		}
-		fmt.Printf("state %d : %v %d\n", i, ls, len(s.tables))
+		fmt.Printf("state %d : %v (tables: %d) covered tables %d\n", i, ls, len(s.tables), len(p.coveredTables))
 	}
 }
 
