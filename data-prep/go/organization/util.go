@@ -123,22 +123,101 @@ func SliceToMap(arr []string) map[string]bool {
 	return m
 }
 
-func Flatten2DSlide(s [][]float64) []float64 {
-	f := make([]float64, len(s)*len(s[0]))
+func flatten2DSlide(s [][]float64) []float64 {
+	f := make([]float64, 0)
 	for _, r := range s {
 		f = append(f, r...)
 	}
 	return f
 }
 
+func stringSlideToFloat(s [][]string) [][]float64 {
+	fs := make([][]float64, 0)
+	for _, r := range s {
+		rf := make([]float64, 0)
+		for _, e := range r {
+			if f, err := strconv.ParseFloat(e, 64); err == nil {
+				rf = append(rf, f)
+			} else {
+				panic(err)
+			}
+		}
+		fs = append(fs, rf)
+	}
+	return fs
+}
+
 func getNormalDKL(s1, s2 [][]float64) float64 {
+	eps := 0.0001
+	//s1 := [][]float64{[]float64{0.1, 0.2, 0.4}, []float64{0.1, 0.4, 0.1}}
+	//s2 := [][]float64{[]float64{0.1, 0.2, 0.1}, []float64{0.5, 0.4, 0.1}}
 	dim := len(s1[0])
-	fs1 := Flatten2DSlide(s1)
-	//fs2 := Flatten2DSlide(s2)
-	p := mat.NewDense(1, dim, fs1)
-	//q := mat.NewDense(1, dim, fs2)
-	//pv := mat64.NewDense(dim, dim, nil)
+	fs1 := flatten2DSlide(s1)
+	fs2 := flatten2DSlide(s2)
+	p := mat.NewDense(len(s1), dim, fs1)
+	q := mat.NewDense(len(s2), dim, fs2)
 	pv := stat.CovarianceMatrix(nil, p, nil)
-	log.Println("%v", pv)
-	return 0.0
+	qv := stat.CovarianceMatrix(nil, q, nil)
+	dpv := mat.Det(pv)
+	dqv := mat.Det(qv)
+	pm := mean(s1)
+	qm := mean(s2)
+	mdiff := mat.NewDense(1, dim, nil)
+	mdiff.Sub(mat.NewDense(1, dim, qm), mat.NewDense(1, dim, pm))
+	qvi := mat.NewDense(0, 0, nil)
+	qvi.Inverse(qv)
+	iqvMpv := mat.NewDense(dim, dim, nil)
+	iqvMpv.Mul(qvi, pv)
+	diffMiqv := mat.NewDense(1, dim, nil)
+	diffMiqv.Mul(mdiff, qvi)
+	diffMiqvMdiff := mat.NewDense(1, 1, nil)
+	diffMiqvMdiff.Mul(diffMiqv, mdiff.T())
+	log.Printf("%f  %f ", math.Abs(dpv), math.Abs(dqv))
+	return 0.5 + mat.Sum(diffMiqvMdiff) + mat.Sum(iqvMpv) + math.Log((math.Abs(dpv)+eps)/(math.Abs(dqv)+eps)) - float64(dim)
+}
+
+func hasNan(m *mat.Dense) bool {
+	r, c := m.Dims()
+	for i := 0; i < r; i++ {
+		for j := 0; j < c; j++ {
+			if math.IsNaN(m.At(i, j)) || math.IsInf(m.At(i, j), 0) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func mean(d [][]float64) []float64 {
+	m := make([]float64, len(d[0]))
+	for _, r := range d {
+		for i, v := range r {
+			m[i] += v
+		}
+	}
+	for i, _ := range m {
+		m[i] = m[i] / float64(len(d))
+	}
+	return m
+}
+
+func (s1 state) equalState(s2 state) bool {
+	for l, _ := range s1.labels {
+		if _, ok := s2.labels[l]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func (p1 *path) equalPath(p2 path) bool {
+	if len(p1.states) != len(p2.states) {
+		return false
+	}
+	for i, s1 := range p1.states {
+		if s1.equalState(p2.states[i]) == false {
+			return false
+		}
+	}
+	return true
 }

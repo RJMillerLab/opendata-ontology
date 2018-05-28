@@ -13,19 +13,6 @@ import (
 	. "github.com/RJMillerLab/opendata-ontology/data-prep/go/embedding"
 )
 
-var (
-	labels             map[string]bool
-	labelNames         map[string]string
-	labelsList         []string
-	labelEmbs          map[string][]float64
-	labelDomainEmbs    map[string][][]float64
-	tableEmbsMap       map[string][]int
-	labelTables        map[string][]string
-	domainEmbs         [][]float64
-	seenPaths          []path
-	relevanceThreshold = 0.1
-)
-
 type navigation struct {
 	paths []state
 }
@@ -35,29 +22,7 @@ type state struct {
 	sem       []float64
 	tables    map[string]bool
 	coherence float64
-}
-
-type path struct {
-	states        []state
-	isascores     []float64
-	seenLabels    map[string]bool
-	unseenLabels  map[string]bool
-	coveredTables map[string]bool
-}
-
-func newPath(startState state) path {
-	ls := CopyMap(labels)
-	for l, _ := range startState.labels {
-		delete(ls, l)
-	}
-	p := path{
-		states:        []state{startState},
-		seenLabels:    CopyMap(startState.labels),
-		unseenLabels:  ls,
-		isascores:     []float64{0.0},
-		coveredTables: CopyMap(startState.tables),
-	}
-	return p
+	name      string
 }
 
 func InitializeNavigation() {
@@ -73,7 +38,7 @@ func InitializeNavigation() {
 		panic(err)
 	}
 	labelIds = labelIds //[:20]
-	labelNames = make(map[string]string)
+	labelNames := make(map[string]string)
 	err = loadJson(LabelNamesFile, &labelNames)
 	if err != nil {
 		panic(err)
@@ -85,41 +50,18 @@ func InitializeNavigation() {
 	}
 	for _, gl := range labelIds {
 		labels[labelNames[strconv.Itoa(gl)]] = true
-	}
-	// reading all domain embeddings
-	domainEmbs = make([][]float64, 0)
-	err = loadJson(DomainEmbsFile, &domainEmbs)
-	if err != nil {
-		panic(err)
-	}
-	// reading table to emb id map
-	tableEmbsMap = make(map[string][]int)
-	err = loadJson(TableEmbsMap, &tableEmbsMap)
-	if err != nil {
-		panic(err)
+		//labelsList = append(labelsList, labelNames[strconv.Itoa(gl)])
+		//labelTables[labelNames[strconv.Itoa(gl)]] = lts[strconv.Itoa(gl)]
 	}
 	// load the embedding of each label
-	//getLabelEmbeddings()
-	getLabelDomainEmbeddings()
+	getLabelEmbeddings()
 	// eliminate labels without semantics
-	// eliminate labels without embeddings
 	for _, gl := range labelIds {
-		if _, ok := labelDomainEmbs[labelNames[strconv.Itoa(gl)]]; ok {
-			//if _, ok := labelEmbs[labelNames[strconv.Itoa(gl)]]; ok {
+		if _, ok := labelEmbs[labelNames[strconv.Itoa(gl)]]; ok {
 			labelsList = append(labelsList, labelNames[strconv.Itoa(gl)])
 			labelTables[labelNames[strconv.Itoa(gl)]] = lts[strconv.Itoa(gl)]
-		}
-	}
-}
+		} else {
 
-func getLabelDomainEmbeddings() {
-	for l, _ := range labels {
-		labelDomainEmbs[l] = make([][]float64, 0)
-		for _, t := range labelTables[labelNames[l]] {
-			embIds := tableEmbsMap[t]
-			for _, i := range embIds {
-				labelDomainEmbs[l] = append(labelDomainEmbs[l], domainEmbs[i])
-			}
 		}
 	}
 }
@@ -142,7 +84,15 @@ func getLabelEmbeddings() {
 		embVec, err := ft.GetPhraseEmbMean(label)
 		if err != nil {
 			fmt.Printf("Error in building embedding for label %s : %s\n", label, err.Error())
-			// TODO: what to do with labels with no embedding
+			// TODO:
+			// what
+			// to
+			// do
+			// with
+			// labels
+			// with
+			// no
+			// embedding
 			continue
 		}
 		labelEmbs[label] = embVec
@@ -154,8 +104,23 @@ func getSemanticCoherence(st state) float64 {
 	return 0.0
 }
 
-// evaluate the semantic relevance of states (their label sets) by
-// computing cosine on their aggregate embedding vectors
+// evaluate
+// the
+// semantic
+// relevance
+// of
+// states
+// (their
+// label
+// sets)
+// by
+// computing
+// cosine
+// on
+// their
+// aggregate
+// embedding
+// vectors
 func getSemanticRelevance(state1, state2 state) float64 {
 	return Cosine(state1.sem, state2.sem)
 }
@@ -167,29 +132,38 @@ func getStatesCoverage(state1, state2 state) float64 {
 			overlap += 1
 		}
 	}
-	return float64(len(state1.tables)+len(state2.tables)-overlap) / float64(len(state1.tables))
+	return float64(overlap) / float64(len(state1.tables))
+	//return float64(len(state1.tables)+len(state2.tables)-overlap) / float64(len(state1.tables))
 }
 
-// evaluate the is-A quality of two label by computing the co-occurrence of
-// labels for tables
+// evaluate
+// the
+// is-A
+// quality
+// of
+// two
+// label
+// by
+// computing
+// the
+// co-occurrence
+// of
+// labels
+// for
+// tables
 func isAScore(state1, state2 state) float64 {
-	//relevance := getSemanticRelevance(state1, state2)
-	//coverage := getStatesCoverage(state1, state2)
-	dkl := getKullbackLeibler(state1, state2)
-	return dkl
-	//return relevance
-}
-
-func getKullbackLeibler(state1, state2 state) float64 {
-	d1 := make([][]float64, 0)
-	d2 := make([][]float64, 0)
-	for l1, _ := range state1.labels {
-		d1 = append(d1, labelDomainEmbs[l1]...)
-	}
-	for l2, _ := range state2.labels {
-		d2 = append(d2, labelDomainEmbs[l2]...)
-	}
-	return getNormalDKL(d1, d2)
+	relevance := getSemanticRelevance(state1, state2)
+	//coverage
+	//:=
+	//getStatesCoverage(state1,
+	//state2)
+	//return
+	//relevance
+	//*
+	//coverage
+	return relevance
+	//return
+	//coverage
 }
 
 func generateStartState() state {
@@ -199,34 +173,100 @@ func generateStartState() state {
 		labels: map[string]bool{label: true},
 		sem:    labelEmbs[label],
 		tables: SliceToMap(labelTables[label]),
+		name:   label,
 	}
-	//log.Printf("start state labels: %v and tables %d", st.labels, len(st.tables))
 	return st
 }
 
-// given a navigation path (consisting of ordered list of label sets), generate next
-// possible states. Make sure the labels are not revisited and the semantic relevance is above a threshold.
+// given
+// a
+// navigation
+// path
+// (consisting
+// of
+// ordered
+// list
+// of
+// label
+// sets),
+// generate
+// next
+// possible
+// states.
+// Make
+// sure
+// the
+// labels
+// are
+// not
+// revisited
+// and
+// the
+// semantic
+// relevance
+// is
+// above
+// a
+// threshold.
 func (navPath *path) generateNextState() bool {
 	nextState := state{}
-	// enumerate possible states
+	// enumerate
+	// possible
+	// states
 	allNextStates := enumerateAllNextStates(navPath)
-	// should the path be terminated?
+	// should
+	// the
+	// path
+	// be
+	// terminated?
 	if len(allNextStates) == 0 {
 		log.Println("no next state")
 		return false
 	}
-	// generate the prob distribution on possible states
-	// compute semantic relevance of the current state to the potential next state: cosine of embs
+	// generate
+	// the
+	// prob
+	// distribution
+	// on
+	// possible
+	// states
+	// compute
+	// semantic
+	// relevance
+	// of
+	// the
+	// current
+	// state
+	// to
+	// the
+	// potential
+	// next
+	// state:
+	// cosine
+	// of
+	// embs
 	scores, _, cdf := generateNextStateDistribution(allNextStates, navPath.states[len(navPath.states)-1])
-	// should the path be terminated?
+	// should
+	// the
+	// path
+	// be
+	// terminated?
 	maxScore := Max(scores)
 	if maxScore < relevanceThreshold {
 		log.Printf("terminating because sem rel is below the threshold: %f\n", maxScore)
 		return false
 	}
-	// choose a state based on the distribution
+	// choose
+	// a
+	// state
+	// based
+	// on
+	// the
+	// distribution
 	nextStateNotFound := true
-	//checkedStateIds := make(map[int]bool)
+	//checkedStateIds
+	//:=
+	//make(map[int]bool)
 	attemptCount := 0
 	for nextStateNotFound && attemptCount < 10 { //len(checkedStateIds) < len(allNextStates) && len(checkedStateIds) < 10 {
 		attemptCount += 1
@@ -260,15 +300,31 @@ func pickStates(cdf []float64) []int {
 	return is
 }
 
-// this method returns the CDF of the next state distribution
+// this
+// method
+// returns
+// the
+// CDF
+// of
+// the
+// next
+// state
+// distribution
 func generateNextStateDistribution(states []state, prevState state) ([]float64, []float64, []float64) {
 	rels := make([]float64, 0)
 	ps := make([]float64, 0)
 	cdf := make([]float64, 0)
 	sum := 0.0
 	for _, st := range states {
-		//r := getSemanticRelevance(prevState, st)
-		// discard states with no embedding
+		//r
+		//:=
+		//getSemanticRelevance(prevState,
+		//st)
+		// discard
+		// states
+		// with
+		// no
+		// embedding
 		if len(st.sem) == 0 {
 			continue
 		}
@@ -335,15 +391,29 @@ func (p *path) updatePath(st state, prevStateRelevance float64) bool {
 	return true
 }
 
-// simulate user navigation
+// simulate
+// user
+// navigation
 func Simulate() {
 	for i := 0; i <= 20; i = len(seenPaths) {
-		// pick a start state
+		// pick
+		// a
+		// start
+		// state
 		start := generateStartState()
 		navPath := newPath(start)
 		termination := false
 		for ok := false; !ok; ok = termination {
-			// generate next states and update path with the new state
+			// generate
+			// next
+			// states
+			// and
+			// update
+			// path
+			// with
+			// the
+			// new
+			// state
 			openend := navPath.generateNextState()
 			if openend == false {
 				termination = true
@@ -378,25 +448,4 @@ func (p *path) seenPath() bool {
 		}
 	}
 	return false
-}
-
-func (p1 *path) equalPath(p2 path) bool {
-	if len(p1.states) != len(p2.states) {
-		return false
-	}
-	for i, s1 := range p1.states {
-		if s1.equalState(p2.states[i]) == false {
-			return false
-		}
-	}
-	return true
-}
-
-func (s1 state) equalState(s2 state) bool {
-	for l, _ := range s1.labels {
-		if _, ok := s2.labels[l]; !ok {
-			return false
-		}
-	}
-	return true
 }
