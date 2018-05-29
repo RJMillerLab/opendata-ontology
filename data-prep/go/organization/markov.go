@@ -94,7 +94,19 @@ func getTransitionScore(state1, state2 state, tablename string) float64 {
 	// for each domain in the table compute the emb similarity to the
 	// state and return the best similarity.
 	// normalize sim scores across all states.
-	return 1.0
+	st2emb := labelAvgEmb[state1.name]
+	embIds := tableEmbsMap[tablename]
+	maxTransScore := 0.0
+	dim := len(domainEmbs[0])
+	for _, i := range embIds {
+		// the first entry of an embedding slice is 0 and should be removed.
+		de := domainEmbs[i][1:dim]
+		tscore := Cosine(de, st2emb)
+		if tscore > maxTransScore {
+			maxTransScore = tscore
+		}
+	}
+	return maxTransScore
 }
 
 func getCognitiveComplexity(nextStates []state) float64 {

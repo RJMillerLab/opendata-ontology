@@ -14,6 +14,7 @@ var (
 	labelsList         []string
 	labelEmbs          map[string][]float64
 	labelDomainEmbs    map[string][][]float64
+	labelAvgEmb        map[string][]float64
 	tableEmbsMap       map[string][]int
 	labelTables        map[string][]string
 	domainEmbs         [][]float64
@@ -127,6 +128,7 @@ func getLabelDomainEmbeddings() {
 			}
 		}
 		labelDomainEmbs[l] = lde
+		labelAvgEmb[l] = avg(lde)
 	}
 }
 

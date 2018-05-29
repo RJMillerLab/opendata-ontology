@@ -221,3 +221,17 @@ func (p1 *path) equalPath(p2 path) bool {
 	}
 	return true
 }
+
+func avg(vecs [][]float64) []float64 {
+	s := make([]float64, len(vecs[0]))
+	a := make([]float64, len(vecs[0]))
+	for _, vec := range vecs {
+		for j, v := range vec {
+			a[j] += v
+		}
+	}
+	for j, _ := range s {
+		a[j] = s[j] / float64(len(vecs))
+	}
+	return a
+}
