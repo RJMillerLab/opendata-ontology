@@ -143,6 +143,7 @@ func (cing *clustering) mergeClusters(clusterPair pair) {
 	cinx2 := clusterPair.c2
 	c1 := cing.clusters[cinx1]
 	c2 := cing.clusters[cinx2]
+	//log.Printf("%d and %d", len(c1.labels), len(c2.labels))
 	nc := cluster{
 		labels:     append(c1.labels, c2.labels...),
 		population: append(c1.population, c2.population...),
