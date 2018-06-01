@@ -1,4 +1,5 @@
-package ontology
+//package ontology
+package organization
 
 import (
 	"bufio"

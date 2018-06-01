@@ -1,4 +1,5 @@
-package ontology
+//package ontology
+package organization
 
 import (
 	"fmt"
@@ -12,10 +13,6 @@ import (
 
 	. "github.com/RJMillerLab/opendata-ontology/data-prep/go/embedding"
 )
-
-type navigation struct {
-	paths []state
-}
 
 type state struct {
 	labels    map[string]bool

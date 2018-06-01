@@ -1,4 +1,5 @@
-package ontology
+//package ontology
+package organization
 
 import (
 	"fmt"
@@ -21,6 +22,8 @@ var (
 	seenPaths          []path
 	relevanceThreshold = 0.1
 	z                  = 10.0
+	seenTables         map[int]bool
+	mistakeProb        float64
 )
 
 type path struct {
@@ -50,7 +53,7 @@ func newPath(startState state) path {
 	return p
 }
 
-func InitializeNavigationPlus() {
+func (org *Organization) InitializeNavigationPlus() {
 	// load labels
 	labelIds := make([]int, 0)
 	lts := make(map[int][]string)
@@ -58,11 +61,13 @@ func InitializeNavigationPlus() {
 	labels = make(map[string]bool)
 	labelEmbs = make(map[string][]float64)
 	labelsList = make([]string, 0)
+	seenTables = make(map[int]bool)
 	err := loadJson(GoodLabelsFile, &labelIds)
 	if err != nil {
 		panic(err)
 	}
-	labelIds = labelIds //[:20]
+	labelIds = labelIds //[:100]
+	log.Printf("len(labelIds): %d", len(labelIds))
 	labelNames = make(map[string]string)
 	err = loadJson(LabelNamesFile, &labelNames)
 	if err != nil {
@@ -118,6 +123,7 @@ func InitializeNavigationPlus() {
 func getLabelDomainEmbeddings() {
 	dim := len(domainEmbs[0])
 	labelDomainEmbs = make(map[string][][]float64)
+	labelAvgEmb = make(map[string][]float64)
 	for l, _ := range labels {
 		lde := make([][]float64, 0)
 		for _, t := range labelTables[l] {

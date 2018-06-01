@@ -1,5 +1,4 @@
-//package ontology
-package organization
+package space
 
 import (
 	"os"

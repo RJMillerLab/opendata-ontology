@@ -1,57 +1,15 @@
-//package ontology
-package organization
+package space
 
 import (
-	"bufio"
 	"encoding/json"
 	"io/ioutil"
 	"log"
 	"math"
-	"os"
 	"strconv"
 
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
 )
-
-// Creates a channel of table names
-func GetTablenames() []string {
-	output := make([]string, 0)
-	f, err := os.Open(QueryResultList)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		tablename := scanner.Text()
-		output = append(output, tablename)
-	}
-	return output
-}
-
-func GetFacetNames(labels map[string]map[string]float64) []string {
-	labelNames := make(map[string]int)
-	b, err := ioutil.ReadFile(LabelsFile)
-	if err != nil {
-		panic(err)
-	}
-	err = json.Unmarshal(b, &labelNames)
-	if err != nil {
-		panic(err)
-	}
-	reverseLabels := make(map[int]string)
-	for k, v := range labelNames {
-		reverseLabels[v] = k
-	}
-	names := make([]string, 0)
-	for l, _ := range labels {
-		l, _ := strconv.Atoi(l)
-		names = append(names, reverseLabels[l])
-	}
-	return names
-}
 
 func loadJson(file string, v interface{}) (err error) {
 	buffer, err := ioutil.ReadFile(file)
@@ -200,27 +158,6 @@ func mean(d [][]float64) []float64 {
 		m[i] = m[i] / float64(len(d))
 	}
 	return m
-}
-
-func (s1 state) equalState(s2 state) bool {
-	for l, _ := range s1.labels {
-		if _, ok := s2.labels[l]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
-func (p1 *path) equalPath(p2 path) bool {
-	if len(p1.states) != len(p2.states) {
-		return false
-	}
-	for i, s1 := range p1.states {
-		if s1.equalState(p2.states[i]) == false {
-			return false
-		}
-	}
-	return true
 }
 
 func avg(vecs [][]float64) []float64 {

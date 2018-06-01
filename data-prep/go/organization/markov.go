@@ -1,4 +1,5 @@
-package ontology
+//package ontology
+package organization
 
 import (
 	"fmt"
@@ -8,17 +9,30 @@ import (
 	"time"
 )
 
-var (
-	cognitiveComplexity   map[string][]float64
-	transitionProbability map[string]map[string][]float64
-	mistakeProb           float64
-	seenTables            map[int]bool
-)
+type Organization struct {
+	paths                    []path
+	cognitiveComplexity      map[string][]float64
+	transitionProbability    map[string]map[string][]float64
+	expCognitiveComplexity   map[string]float64
+	expTransitionProbability map[string]map[string]float64
+	tableLabelSelectivity    map[string][]int
+}
+
+func NewOrganization() *Organization {
+	return &Organization{
+		paths:                    make([]path, 0),
+		cognitiveComplexity:      make(map[string][]float64),
+		transitionProbability:    make(map[string]map[string][]float64),
+		expCognitiveComplexity:   make(map[string]float64),
+		expTransitionProbability: make(map[string]map[string]float64),
+		tableLabelSelectivity:    make(map[string][]int),
+	}
+}
 
 func selectTable() string {
 	// selecting an unseen table to generate a run for.
 	count := 0
-	for i := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(tables)); count <= len(tables); i = rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(tables)) {
+	for i := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(tables)); count <= 2*len(tables); i = rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(tables)) {
 		count += 1
 		if _, ok := seenTables[i]; !ok {
 			seenTables[i] = true
@@ -29,37 +43,109 @@ func selectTable() string {
 }
 
 // simulate user navigation
-func GenerateRuns(runNum int) {
-	for i := 0; i <= runNum; i = len(seenPaths) {
+func (org *Organization) GenerateRuns(runNum int) {
+	log.Printf("number of tables: %d", len(tables))
+	for i := 0; i < runNum; i += 1 { //{i = len(org.paths) {
+		tablename := tables[i]
+		//log.Printf("%d tablename: %s", i, tablename)
 		// pick an unseen table
-		tablename := selectTable()
-		if tablename == "" {
-			log.Printf("couldn't find an unseen table.")
-			return
-		}
-		log.Printf("table: %s", tablename)
+		//tablename := selectTable()
+		//if tablename == "" {
+		//i -= 1
+		//	continue
+		//}
 		// pick a start state
-		start := generateStartState()
-		navPath := newPath(start)
+		// alternatively, we can have multiple start states
+		start, found := generateSelectableStartState(tablename)
+		if found == false {
+			//log.Printf("could not find a selectable state for table %s.", tablename)
+			continue
+			//i -= 1
+		}
+		navPath := newMPath(start, tablename)
 		indivisible := false
 		for ok := false; !ok; ok = indivisible {
 			// generate next states and update path with the new state
 			nextStates := navPath.getNextStates()
 			// finding the next state and computing the transition prob
-			ns, np, nzStates := navPath.selectNextState(nextStates)
-			if np < 0.0 {
+			if len(nextStates) == 0 {
+				indivisible = true
 				continue
+				//i -= 1
 			}
-			transitionProbability[navPath.states[len(navPath.states)-1].name][ns.name] = append(transitionProbability[navPath.states[len(navPath.states)-1].name][ns.name], np)
-			cognitiveComplexity[navPath.states[len(navPath.states)-1].name] = append(cognitiveComplexity[navPath.states[len(navPath.states)-1].name], getCognitiveComplexity(nzStates))
+			ns, np, nzStates := navPath.selectNextState(nextStates)
+			if _, ok := org.tableLabelSelectivity[tablename]; !ok {
+				org.tableLabelSelectivity[tablename] = make([]int, 0)
+			}
+			org.tableLabelSelectivity[tablename] = append(org.tableLabelSelectivity[tablename], len(nzStates))
 			if len(nzStates) == 0 {
 				indivisible = true
+				continue
+				//i -= 1
 			}
+			if _, ok := org.transitionProbability[navPath.states[len(navPath.states)-1].name]; !ok {
+				org.transitionProbability[navPath.states[len(navPath.states)-1].name] = make(map[string][]float64)
+			}
+			org.transitionProbability[navPath.states[len(navPath.states)-1].name][ns.name] = append(org.transitionProbability[navPath.states[len(navPath.states)-1].name][ns.name], np)
+			org.cognitiveComplexity[navPath.states[len(navPath.states)-1].name] = append(org.cognitiveComplexity[navPath.states[len(navPath.states)-1].name], getCognitiveComplexity(nzStates, len(navPath.states)))
 			// updating path
 			navPath.addState(ns, np)
 		}
+		if len(navPath.states) < 2 {
+			//i -= 1
+			continue
+		}
+		log.Printf("run %d", len(seenTables))
+		seenTables[i] = true
 		printTablePath(navPath)
+		org.paths = append(org.paths, navPath)
 	}
+	log.Printf("seenTables: %d", len(seenTables))
+}
+
+func (org *Organization) ProcessRuns() {
+	for s1, s2m := range org.transitionProbability {
+		org.expTransitionProbability[s1] = make(map[string]float64)
+		for s2, ps := range s2m {
+			org.expTransitionProbability[s1][s2] = expectedValue(ps, 1.0/float64(len(org.paths)))
+			//fmt.Printf("%s  to  %s : %f   %v\n", s1, s2, expectedValue(ps, 1.0/float64(len(org.paths))), ps)
+		}
+	}
+	for s, cs := range org.cognitiveComplexity {
+		org.expCognitiveComplexity[s] = expectedValue(cs, 1.0/float64(len(org.paths)))
+		//fmt.Printf("complexity of %s : %f   %v\n", s, expectedValue(cs, 1.0/float64(len(org.paths))), cs)
+	}
+	dumpJson(TransitionProbabilityFile, &org.expTransitionProbability)
+	dumpJson(StateProbabilityFile, &org.expCognitiveComplexity)
+	dumpJson(TableLabelSelectivityFile, &org.tableLabelSelectivity)
+}
+
+func generateSelectableStartState(tablename string) (state, bool) {
+	seenlis := make(map[int]bool)
+	li := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(labelsList))
+	label := labelsList[li]
+	st := state{
+		labels: map[string]bool{label: true},
+		sem:    labelEmbs[label],
+		tables: SliceToMap(labelTables[label]),
+		name:   label,
+	}
+	for i := li; len(seenlis) < len(labelsList); i = rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(labelsList)) {
+		if _, ok := seenlis[i]; !ok {
+			seenlis[i] = true
+			label = labelsList[li]
+			st = state{
+				labels: map[string]bool{label: true},
+				sem:    labelEmbs[label],
+				tables: SliceToMap(labelTables[label]),
+				name:   label,
+			}
+			if st.selectable(tablename) {
+				return st, true
+			}
+		}
+	}
+	return st, false
 }
 
 func (p *path) selectNextState(nextStates []state) (state, float64, []state) {
@@ -87,6 +173,7 @@ func (p *path) selectNextState(nextStates []state) (state, float64, []state) {
 		}
 		return nextStates[incorrectStateId], probs[incorrectStateId], nzStates
 	}
+	//log.Printf("len(scores): %d", len(scores))
 	return nextStates[correctStateId], probs[correctStateId], nzStates
 }
 
@@ -109,10 +196,11 @@ func getTransitionScore(state1, state2 state, tablename string) float64 {
 	return maxTransScore
 }
 
-func getCognitiveComplexity(nextStates []state) float64 {
+func getCognitiveComplexity(nextStates []state, seenPathLen int) float64 {
 	// delta - find states that lead to the table
 	// cognitive complexity
-	return math.Exp(float64(len(nextStates)) / math.Max(float64(len(nextStates)), z))
+	//return math.Exp(float64(len(nextStates)) / math.Max(float64(len(nextStates)), z))
+	return math.Exp(float64(len(nextStates)) / float64(len(labels)-seenPathLen))
 }
 
 func (navPath *path) getNextStates() []state {
@@ -127,7 +215,7 @@ func (navPath *path) getNextStates() []state {
 			coherence: 0.0,
 			name:      label,
 		}
-		if navPath.selectable(st) == true {
+		if st.selectable(navPath.tablename) == true {
 			//ts := getTransitionProbability(p.states[len(p.states)-1], st)
 			//if tp > 0 {
 			states = append(states, st)
@@ -138,15 +226,15 @@ func (navPath *path) getNextStates() []state {
 	return states
 }
 
-func (p *path) selectable(st state) bool {
-	if _, ok := st.tables[p.tablename]; ok {
+func (st *state) selectable(tablename string) bool {
+	if _, ok := st.tables[tablename]; ok {
 		return true
 	}
 	return false
 }
 
 func printTablePath(p path) {
-	fmt.Printf("table: %s", p.tablename)
+	fmt.Printf("table: %s\n", p.tablename)
 	for i, s := range p.states {
 		ls := make([]string, 0)
 		for k, _ := range s.labels {
@@ -189,4 +277,21 @@ func getSoftmax(scores []float64) []float64 {
 		probs = append(probs, v/expSum)
 	}
 	return probs
+}
+
+func newMPath(startState state, tablename string) path {
+	ls := CopyMap(labels)
+	for l, _ := range startState.labels {
+		delete(ls, l)
+	}
+	p := path{
+		states:          []state{startState},
+		seenLabels:      CopyMap(startState.labels),
+		unseenLabels:    ls,
+		isascores:       []float64{0.0},
+		coveredTables:   CopyMap(startState.tables),
+		transitionProbs: make([]float64, 0),
+		tablename:       tablename,
+	}
+	return p
 }

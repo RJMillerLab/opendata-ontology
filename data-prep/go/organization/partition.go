@@ -1,21 +1,22 @@
-package ontology
+//package ontology
+package organization
 
 import (
-	"io/ioutil"
 	"encoding/json"
+	"io/ioutil"
+	"log"
 	"math"
 	"sync"
-	"log"
 )
 
 var (
-	sets = make(map[string]map[string]float64)
-	universe = make(map[string]bool)
-	weights = make(map[string]float64)
-	coveredUniverse = make(map[string]bool)  
-	uncoveredSets = make(map[string]map[string]float64)
-	coveredSets = make(map[string]map[string]float64)
-	cost = 0.0
+	sets            = make(map[string]map[string]float64)
+	universe        = make(map[string]bool)
+	weights         = make(map[string]float64)
+	coveredUniverse = make(map[string]bool)
+	uncoveredSets   = make(map[string]map[string]float64)
+	coveredSets     = make(map[string]map[string]float64)
+	cost            = 0.0
 )
 
 type setCost struct {
@@ -35,13 +36,13 @@ func preprocess(tablenames []string) {
 	}
 	//for table, labelProbs := range tableLabelsProbs {
 	for _, table := range tablenames {
-		if _, ok := tableLabelsProbs[table]; !ok{
+		if _, ok := tableLabelsProbs[table]; !ok {
 			log.Printf("Query %s does not exist in the repo!", table)
 			continue
 		}
 		if _, ok := universe[table]; !ok {
 			universe[table] = true
-		} 
+		}
 		labelProbs, _ := tableLabelsProbs[table]
 		for label, prob := range labelProbs {
 			if _, ok := sets[label]; !ok {
@@ -50,14 +51,14 @@ func preprocess(tablenames []string) {
 				uncoveredSets[label] = make(map[string]float64)
 				uncoveredSets[label][table] = prob
 				weights[label] = prob
-			} else { 
+			} else {
 				sets[label][table] = prob
 				uncoveredSets[label][table] = prob
 				weights[label] += prob
 			}
-		}	
+		}
 	}
-} 
+}
 
 func GreedySetCover(tablenames []string) map[string]map[string]float64 {
 	preprocess(tablenames)
@@ -72,8 +73,8 @@ func updateSets(sc setCost) {
 	for t, prob := range sets[sc.name] {
 		coveredUniverse[t] = true
 		// the cost might change
-		cost += 1.0/prob	
-	} 
+		cost += 1.0 / prob
+	}
 	delete(uncoveredSets, sc.name)
 	coveredSets[sc.name] = sets[sc.name]
 }
@@ -91,16 +92,16 @@ func pickSet() setCost {
 	wg.Add(20)
 	for id := 0; id < 20; id++ {
 		go func(id int) {
-			for name := range candSets { 
+			for name := range candSets {
 				cost := computeUncoveredSetCostEffectiveness(name)
-				setCosts <- setCost {
+				setCosts <- setCost{
 					name: name,
 					cost: cost,
-				}			
+				}
 			}
 			wg.Done()
 		}(id)
-	}           
+	}
 	go func() {
 		wg.Wait()
 		close(setCosts)
@@ -111,30 +112,30 @@ func pickSet() setCost {
 func coveredAllUniverse() bool {
 	if len(coveredUniverse) == len(universe) {
 		return true
-	} 
+	}
 	return false
 }
 
-func pickMinCostSet(setCosts <- chan setCost) setCost {
-	var nextSet setCost 
+func pickMinCostSet(setCosts <-chan setCost) setCost {
+	var nextSet setCost
 	maxCost := math.MaxFloat64
 	for sc := range setCosts {
 		if sc.cost <= maxCost {
 			nextSet = sc
-		}		
+		}
 	}
 	return nextSet
 }
 
-func computeUncoveredSetCostEffectiveness(name string) float64{
+func computeUncoveredSetCostEffectiveness(name string) float64 {
 	var cost float64
 	var uncoveredCount int
 	for t, p := range sets[name] {
 		if coveredUniverse[t] == false {
-			cost += 1.0/p
+			cost += 1.0 / p
 			uncoveredCount += 1
 		}
-	} 
+	}
 	return cost / float64(uncoveredCount)
 }
 
