@@ -23,6 +23,7 @@ var (
 	labelTables     map[string][]string
 	domainEmbs      [][]float64
 
+	domains       []string
 	tagSem        map[string][]float64
 	tagDatasets   map[string]map[string][]string
 	startStateNum = 5
@@ -178,7 +179,12 @@ func Initialize() {
 	for l, _ := range labels {
 		fmt.Printf("%s\n", l)
 	}
-
+	// create domains
+	for t, eids := range tableEmbsMap {
+		for _, id := range eids {
+			domains = append(domains, t+"_"+strconv.Itoa(id))
+		}
+	}
 	// load the embedding of each label
 	getTagDomainEmbeddings()
 	// eliminate labels without embeddings

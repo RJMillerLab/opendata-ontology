@@ -43,7 +43,7 @@ func evaluateOrganization(org organization) navigation {
 	runs := make(map[string][]run)
 	datasetSuccessProbs := make(map[string]float64)
 	orgSuccessProb := 0.0
-	for _, d := range tables {
+	for _, d := range domains {
 		rs := org.generateRuns(d, numRuns)
 		runs[d] = rs
 		datasetSuccessProbs[d] = getDatasetSuccessProb(rs)
