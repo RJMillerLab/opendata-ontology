@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+
+	. "github.com/RJMillerLab/opendata-ontology/go/embedding"
 )
 
 var (
@@ -16,26 +19,27 @@ var (
 	tables          []string
 	labelNames      map[string]string
 	labelsList      []string
-	labelEmbs       map[string][]float64
 	labelDomainEmbs map[string][][]float64
-	labelAvgEmb     map[string][]float64
+	tagNameEmb      map[string][]float64
 	tableEmbsMap    map[string][]int
-	labelTables     map[string][]string
+	tagDatasets     map[string][]string
 	domainEmbs      [][]float64
 
 	domains       []string
 	tagSem        map[string][]float64
-	tagDatasets   map[string]map[string][]string
+	tagNameSem    map[string][]float64
+	tagDomains    map[string][]string
 	startStateNum = 5
 	stateStopProb = 0.5
 	numRuns       = 5
 )
 
 type state struct {
-	tags []string
-	sem  []float64
-	name string
-	id   string
+	tags     []string
+	sem      []float64
+	name     string
+	id       string
+	datasets []string
 }
 
 type organization struct {
@@ -66,15 +70,18 @@ func ReadOrganization() organization {
 		id := parts[0]
 		tags := parts[1:]
 		sem := getStateSem(tags)
-		s := state{
-			id:   id,
-			tags: tags,
-			sem:  sem,
+		datasets := make([]string, 0)
+		for _, t := range tags {
+			datasets = append(datasets, tagDomains[t]...)
 		}
-		fmt.Printf("state %s\n", id)
+		s := state{
+			id:       id,
+			tags:     tags,
+			sem:      sem,
+			datasets: datasets,
+		}
 		states[id] = s
 	}
-	fmt.Printf("len(states): %d\n", len(states))
 	// reading transitions
 	for scanner.Scan() {
 		line = strings.TrimSpace(scanner.Text())
@@ -89,7 +96,6 @@ func ReadOrganization() organization {
 		}
 		transitions[sid1] = append(transitions[sid1], sid2)
 	}
-	fmt.Printf("transitions: %v\n", transitions)
 	org := organization{
 		states:      states,
 		transitions: transitions,
@@ -104,7 +110,6 @@ func ReadOrganization() organization {
 		starts = org.generateSourceStates()
 	}
 	org.starts = starts
-	fmt.Printf("starts: %v\n", starts)
 	return org
 }
 
@@ -138,10 +143,11 @@ func getStateSem(tags []string) []float64 {
 func Initialize() {
 	labelIds := make([]int, 0)
 	lts := make(map[int][]string)
-	labelTables = make(map[string][]string)
+	tagDatasets = make(map[string][]string)
 	labels = make(map[string]bool)
-	labelEmbs = make(map[string][]float64)
 	labelsList = make([]string, 0)
+	tagDomains = make(map[string][]string)
+	tagNameSem = make(map[string][]float64)
 	err := loadJson(GoodLabelsFile, &labelIds)
 	if err != nil {
 		panic(err)
@@ -159,7 +165,7 @@ func Initialize() {
 	}
 	for _, gl := range labelIds {
 		labels[labelNames[strconv.Itoa(gl)]] = true
-		labelTables[labelNames[strconv.Itoa(gl)]] = lts[gl]
+		tagDatasets[labelNames[strconv.Itoa(gl)]] = lts[gl]
 	}
 	// reading all domain embeddings
 	domainSEmbs := make([][]string, 0)
@@ -175,24 +181,32 @@ func Initialize() {
 	if err != nil {
 		panic(err)
 	}
-	log.Println(labels)
-	for l, _ := range labels {
-		fmt.Printf("%s\n", l)
-	}
 	// create domains
 	for t, eids := range tableEmbsMap {
 		for _, id := range eids {
 			domains = append(domains, t+"_"+strconv.Itoa(id))
 		}
 	}
+	// mapping tag to domains
+	for _, gl := range labelIds {
+		tagDomains[labelNames[strconv.Itoa(gl)]] = make([]string, 0)
+		for _, d := range lts[gl] {
+			for _, e := range tableEmbsMap[d] {
+				tagDomains[labelNames[strconv.Itoa(gl)]] = append(tagDomains[labelNames[strconv.Itoa(gl)]], d+"_"+strconv.Itoa(e))
+			}
+		}
+	}
 	// load the embedding of each label
 	getTagDomainEmbeddings()
+	getTagNameEmbeddings()
+	log.Println("len(tagNameSem): %d", len(tagNameSem))
 	// eliminate labels without embeddings
+	labels = make(map[string]bool)
 	tm := make(map[string]bool)
 	for _, gl := range labelIds {
 		if _, ok := labelDomainEmbs[labelNames[strconv.Itoa(gl)]]; ok {
 			labelsList = append(labelsList, labelNames[strconv.Itoa(gl)])
-			labelTables[labelNames[strconv.Itoa(gl)]] = lts[gl]
+			tagDatasets[labelNames[strconv.Itoa(gl)]] = lts[gl]
 			labels[labelNames[strconv.Itoa(gl)]] = true
 			// adding tables of this label
 			for _, t := range lts[gl] {
@@ -206,7 +220,6 @@ func Initialize() {
 	for t, _ := range tm {
 		tables = append(tables, t)
 	}
-	log.Printf("len(tagSem): %d", len(tagSem))
 }
 
 func getTagDomainEmbeddings() {
@@ -215,7 +228,7 @@ func getTagDomainEmbeddings() {
 	tagSem = make(map[string][]float64)
 	for l, _ := range labels {
 		lde := make([][]float64, 0)
-		for _, t := range labelTables[l] {
+		for _, t := range tagDatasets[l] {
 			embIds := tableEmbsMap[t]
 			for _, i := range embIds {
 				// the first entry of an embedding slice is 0 and should be removed.
@@ -225,4 +238,29 @@ func getTagDomainEmbeddings() {
 		labelDomainEmbs[l] = lde
 		tagSem[l] = avg(lde)
 	}
+}
+
+func getTagNameEmbeddings() {
+	ft, err := InitInMemoryFastText(FasttextDb, func(v string) []string {
+		stopWords := []string{"ckan_topiccategory_", "ckan_keywords_", "ckan_tags_", "ckan_subject_", "socrata_domaincategory_", "socrata_domaintags_", "socrata_tags_"}
+		for _, st := range stopWords {
+			v = strings.Replace(v, st, "", -1)
+		}
+		v = strings.Replace(strings.Replace(v, "_", " ", -1), "-", " ", -1)
+		return strings.Split(v, " ")
+	}, func(v string) string {
+		return strings.ToLower(strings.TrimFunc(strings.TrimSpace(v), unicode.IsPunct))
+	})
+	if err != nil {
+		panic(err)
+	}
+	for label, _ := range labels {
+		embVec, err := ft.GetPhraseEmbMean(label)
+		if err != nil {
+			fmt.Printf("Error in building embedding for label %s : %s\n", label, err.Error())
+			continue
+		}
+		tagNameSem[label] = embVec
+	}
+	return
 }

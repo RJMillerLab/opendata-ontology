@@ -50,7 +50,6 @@ func CopyMap(m map[string]bool) map[string]bool {
 
 func Cosine(x, y []float64) float64 {
 	if len(x) != len(y) {
-		log.Printf("%d vs %d", len(x), len(y))
 		panic("Length of vectors not equal")
 	}
 	dot := 0.0
@@ -179,16 +178,16 @@ func sort(a []float64) ([]float64, []int) {
 }
 
 func intersect(a map[string]bool, b []string) map[string]bool {
-	// make each set a map
 	bm := make(map[string]bool)
 	for _, v := range b {
 		bm[v] = true
 	}
 	intersection := make(map[string]bool)
 	for k, _ := range a {
-		if bm[k] {
+		if _, ok := bm[k]; ok {
 			intersection[k] = true
 		}
 	}
+	log.Printf("len(intersection): %d", len(intersection))
 	return intersection
 }

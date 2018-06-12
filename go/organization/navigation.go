@@ -1,6 +1,8 @@
 package organization
 
 import (
+	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"strconv"
@@ -11,8 +13,7 @@ import (
 type query struct {
 	tags      []string            // all tags
 	stateTags map[string][]string // tags selected in each state
-	//states    []string            // state ids
-	sem []float64
+	sem       []float64
 }
 
 type dataset struct {
@@ -39,28 +40,38 @@ type navigation struct {
 	orgSuccessProb      float64
 }
 
-func evaluateOrganization(org organization) navigation {
+func EvaluateOrganization(org organization) float64 {
 	runs := make(map[string][]run)
 	datasetSuccessProbs := make(map[string]float64)
 	orgSuccessProb := 0.0
-	for _, d := range domains {
+	//count := 0
+	for _, d := range domains[:5] {
+		//for d, _ := range tagNameSem {
+		//	count += 1
+		//	if count > 5 {
+		//		continue
+		//	}
+		log.Printf("domain: %s", d)
 		rs := org.generateRuns(d, numRuns)
 		runs[d] = rs
-		datasetSuccessProbs[d] = getDatasetSuccessProb(rs)
+		dsp := getDatasetSuccessProb(rs)
+		datasetSuccessProbs[d] = dsp
+		orgSuccessProb += dsp
 	}
-	orgSuccessProb = (1.0 / float64(len(tables))) * orgSuccessProb
-	return navigation{
-		organization:        org,
-		runs:                runs,
-		datasetSuccessProbs: datasetSuccessProbs,
-		orgSuccessProb:      orgSuccessProb,
-	}
+	orgSuccessProb = (1.0 / float64(len(domains[:5]))) * orgSuccessProb
+	return orgSuccessProb
+	//return navigation{
+	//	organization:        org,
+	//	runs:                runs,
+	//	datasetSuccessProbs: datasetSuccessProbs,
+	//	orgSuccessProb:      orgSuccessProb,
+	//}
 }
 
 func getDatasetSuccessProb(runs []run) float64 {
 	dsp := 0.0
 	for _, r := range runs {
-		dsp += r.successProb
+		dsp += (r.prob * r.successProb)
 	}
 	return dsp
 }
@@ -89,23 +100,29 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 		dataset := newDataset(datasetname)
 		start, startProb := org.selectStartState(dataset)
 		tags, tagProbs := org.selectTags(dataset, start)
-		query := newQuery(tags) //start, tags)
+		query := newQuery(tags)
 		r := newRun(dataset, start, startProb, tags, tagProbs, query)
 		stop := false
 		currentState := start
 		for !org.terminal(currentState) && !stop {
 			next, nextProb := org.selectNextState(r)
+			if nextProb == -1.0 {
+				stop = true
+				continue
+			}
 			currentState = next
 			tags, tagProbs = org.selectTags(dataset, next)
 			query.updateQuery(next, tags)
 			r.updateRun(next, nextProb, tags, tagProbs, query)
 			stop = doStop()
 		}
+		fmt.Printf("run %d: ", len(runs))
+		fmt.Println(r.states)
+		fmt.Println(r.selectedTags)
+		fmt.Println("-------------")
 		//r.prob = r.getQueryProbability()
 		if r.isSuccessful() {
-			pTargetSelection := r.getTargetSelectionProbability()
-			pRun := r.prob * pTargetSelection
-			r.successProb = pRun
+			r.successProb = r.getTargetSelectionProbability()
 		} else {
 			r.successProb = 0.0
 		}
@@ -113,28 +130,26 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 			runs = append(runs, r)
 		}
 	}
+	log.Printf("len(runs): %d", len(runs))
 	return runs
 }
 
-func newQuery(tags []string) query { //(start string, tags []string) query {
-	//states := make([]string, 0)
-	//states = append(states, start)
-	//stateTags := make(map[int][]string)
-	//stateTags[0] = tags
+func newQuery(tags []string) query {
 	q := query{
 		tags: tags,
-		//stateTags: stateTags,
-		//	states:    states,
 	}
-	q.sem = q.updateSem(tags)
+	if len(tags) > 0 {
+		q.sem = q.updateSem(tags)
+	}
 	return q
 }
 
 func (q query) updateQuery(next string, tags []string) {
-	//q.states = append(q.states, next)
 	q.tags = append(q.tags, next)
 	q.stateTags[next] = tags
-	q.updateSem(tags)
+	if len(tags) > 0 {
+		q.updateSem(tags)
+	}
 }
 
 func (q query) updateSem(tags []string) []float64 {
@@ -143,7 +158,7 @@ func (q query) updateSem(tags []string) []float64 {
 		sems = append(sems, q.sem)
 	}
 	for _, t := range tags {
-		sems = append(sems, labelAvgEmb[t])
+		sems = append(sems, tagSem[t])
 	}
 	return sum(sems)
 }
@@ -154,13 +169,15 @@ func (org organization) selectTags(d dataset, s string) ([]string, []float64) {
 	denom := 0.0
 	nums := make([]float64, 0)
 	for _, t := range tags {
-		f := math.Exp(norm(diff(d.sem, labelAvgEmb[t])))
+		f := math.Exp(norm(diff(d.sem, tagSem[t])))
 		nums = append(nums, f)
 		denom += f
 	}
 	for i, _ := range nums {
 		ps = append(ps, nums[i]/denom)
 	}
+	log.Printf("tags ps: %v", ps)
+	log.Printf("tags: %v", tags)
 	// user selects random number of tags
 	tnum := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(tags))
 	sps, idxs := sort(ps)
@@ -183,7 +200,9 @@ func getDatasetSem(datasetname string) []float64 {
 	// index of domain emb in tableEmbsMap, delimiter: '_'
 	parts := strings.Split(datasetname, "_")
 	i, _ := strconv.Atoi(parts[len(parts)-1])
-	sem := domainEmbs[i]
+	sem := domainEmbs[i][1:]
+	// for now, working with labels as dataset
+	//sem := tagNameSem[datasetname]
 	return sem
 }
 
@@ -256,12 +275,12 @@ func (q query) evaluate() map[string]bool {
 	datasets := make(map[string]bool)
 	for i := 0; i < len(q.tags); i++ {
 		if i == 0 {
-			for _, d := range labelTables[q.tags[0]] {
+			for _, d := range tagDatasets[q.tags[0]] {
 				datasets[d] = true
 			}
 			continue
 		}
-		datasets = intersect(datasets, labelTables[q.tags[i]])
+		datasets = intersect(datasets, tagDatasets[q.tags[i]])
 	}
 	return datasets
 }
@@ -304,6 +323,7 @@ func (org organization) terminal(s string) bool {
 }
 
 func (org organization) selectNextState(r run) (string, float64) {
+	// TODO: adding backtracking to parent
 	nextStateProbs := org.getTransitionProbabilities(r)
 	// find the state with max prob
 	nextState := ""
@@ -318,7 +338,8 @@ func (org organization) selectNextState(r run) (string, float64) {
 }
 
 func (org organization) getTransitionProbabilities(r run) map[string]float64 {
-	nexts := org.transitions[r.states[len(r.states)-1]]
+	nexts := org.reachableNextStates(r)
+	//nexts := org.transitions[r.states[len(r.states)-1]]
 	ps := make(map[string]float64)
 	denom := 0.0
 	nums := make([]float64, 0)
@@ -373,4 +394,16 @@ func equalRuns(r1, r2 run) bool {
 		}
 	}
 	return true
+}
+
+func (org organization) reachableNextStates(r run) []string {
+	reachable := make([]string, 0)
+	s := r.states[len(r.states)-1]
+	for _, n := range org.transitions[s] {
+		if len(intersect(r.datasets, org.states[n].datasets)) > 0 {
+			reachable = append(reachable, n)
+		}
+	}
+	fmt.Printf("reachable states from %s: %v", s, reachable)
+	return reachable
 }
