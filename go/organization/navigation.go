@@ -40,17 +40,11 @@ type navigation struct {
 	orgSuccessProb      float64
 }
 
-func EvaluateOrganization(org organization) float64 {
+func EvaluateOrganization(org organization, numRuns int) float64 {
 	runs := make(map[string][]run)
 	datasetSuccessProbs := make(map[string]float64)
 	orgSuccessProb := 0.0
-	//count := 0
 	for _, d := range domains[:5] {
-		//for d, _ := range tagNameSem {
-		//	count += 1
-		//	if count > 5 {
-		//		continue
-		//	}
 		log.Printf("domain: %s", d)
 		rs := org.generateRuns(d, numRuns)
 		runs[d] = rs
@@ -100,12 +94,13 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 		dataset := newDataset(datasetname)
 		start, startProb := org.selectStartState(dataset)
 		tags, tagProbs := org.selectTags(dataset, start)
-		query := newQuery(tags)
+		query := newQuery(start, tags)
 		r := newRun(dataset, start, startProb, tags, tagProbs, query)
 		stop := false
 		currentState := start
 		for !org.terminal(currentState) && !stop {
 			next, nextProb := org.selectNextState(r)
+			log.Printf("next: %s, prob: %f", next, nextProb)
 			if nextProb == -1.0 {
 				stop = true
 				continue
@@ -115,10 +110,11 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 			query.updateQuery(next, tags)
 			r.updateRun(next, nextProb, tags, tagProbs, query)
 			stop = doStop()
+			log.Println(stop)
 		}
 		fmt.Printf("run %d: ", len(runs))
 		fmt.Println(r.states)
-		fmt.Println(r.selectedTags)
+		//fmt.Println(r.selectedTags)
 		fmt.Println("-------------")
 		//r.prob = r.getQueryProbability()
 		if r.isSuccessful() {
@@ -130,14 +126,16 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 			runs = append(runs, r)
 		}
 	}
-	log.Printf("len(runs): %d", len(runs))
+	//log.Printf("len(runs): %d", len(runs))
 	return runs
 }
 
-func newQuery(tags []string) query {
+func newQuery(state string, tags []string) query {
 	q := query{
-		tags: tags,
+		tags:      tags,
+		stateTags: make(map[string][]string),
 	}
+	q.stateTags[state] = tags
 	if len(tags) > 0 {
 		q.sem = q.updateSem(tags)
 	}
@@ -176,8 +174,8 @@ func (org organization) selectTags(d dataset, s string) ([]string, []float64) {
 	for i, _ := range nums {
 		ps = append(ps, nums[i]/denom)
 	}
-	log.Printf("tags ps: %v", ps)
-	log.Printf("tags: %v", tags)
+	//log.Printf("tags ps: %v", ps)
+	//log.Printf("tags: %v", tags)
 	// user selects random number of tags
 	tnum := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(tags))
 	sps, idxs := sort(ps)
@@ -280,7 +278,7 @@ func (q query) evaluate() map[string]bool {
 			}
 			continue
 		}
-		datasets = intersect(datasets, tagDatasets[q.tags[i]])
+		datasets = intersect(datasets, tagDatasets[q.tags[0]])
 	}
 	return datasets
 }
@@ -317,8 +315,10 @@ func (org organization) selectStartState(d dataset) (string, float64) {
 
 func (org organization) terminal(s string) bool {
 	if len(org.transitions[s]) == 0 {
+		log.Printf("terminal")
 		return true
 	}
+	log.Printf("non terminal")
 	return false
 }
 
@@ -404,6 +404,8 @@ func (org organization) reachableNextStates(r run) []string {
 			reachable = append(reachable, n)
 		}
 	}
-	fmt.Printf("reachable states from %s: %v", s, reachable)
+	if len(reachable) > 0 {
+		fmt.Printf("reachable states from %s: %v\n", s, reachable)
+	}
 	return reachable
 }

@@ -3,7 +3,6 @@ package organization
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"math"
 	"strconv"
 
@@ -188,6 +187,30 @@ func intersect(a map[string]bool, b []string) map[string]bool {
 			intersection[k] = true
 		}
 	}
-	log.Printf("len(intersection): %d", len(intersection))
 	return intersection
+}
+
+func haveOverlap(a, b []string) bool {
+	am := make(map[string]bool)
+	bm := make(map[string]bool)
+	for _, v := range a {
+		am[v] = true
+	}
+	for _, v := range b {
+		bm[v] = true
+	}
+	for v, _ := range am {
+		if _, ok := bm[v]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func mapToSlice(m map[string]bool) []string {
+	s := make([]string, 0)
+	for v, _ := range m {
+		s = append(s, v)
+	}
+	return s
 }
