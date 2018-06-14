@@ -220,12 +220,10 @@ func newRun(d dataset, start string, startProb float64, tags []string, tagProbs 
 		stateTagProbs[startId][tags[i]] = tagProbs[i]
 		prob *= tagProbs[i]
 	}
-	datasets := q.evaluate()
 	selectedTags := make(map[int][]string)
 	selectedTags[startId] = tags
-	return run{
+	r := run{
 		query:           q,
-		datasets:        datasets,
 		target:          d,
 		states:          states,
 		selectedTags:    selectedTags,
@@ -233,6 +231,8 @@ func newRun(d dataset, start string, startProb float64, tags []string, tagProbs 
 		tagProbs:        stateTagProbs,
 		prob:            prob,
 	}
+	r.evaluate()
+	return r
 }
 
 func (r *run) updateRun(next string, nextProb float64, tags []string, tagProbs []float64, q query) {
@@ -243,7 +243,7 @@ func (r *run) updateRun(next string, nextProb float64, tags []string, tagProbs [
 	r.transitionProbs[currentId] = make(map[int]float64)
 	r.transitionProbs[currentId][nextId] = nextProb
 	r.selectedTags[nextId] = tags
-	r.datasets = q.evaluate()
+	r.evaluate()
 	r.tagProbs[nextId] = make(map[string]float64)
 	r.prob *= nextProb
 	for i, _ := range tags {
@@ -269,6 +269,24 @@ func (r run) getTargetSelectionProbability() float64 {
 	return -1.0
 }
 
+func (r run) evaluate() {
+	s := r.states[len(r.states)-1]
+	ts := r.query.stateTags[s]
+	// the evaluation of the tags selected in a state is a disjunctive query
+	ds := make(map[string]bool)
+	for _, t := range ts {
+		for _, d := range tagDatasets[t] {
+			ds[d] = true
+		}
+	}
+	// the evaluation of a query on a sequence of states in a conjunctive query
+	if len(r.states) > 1 {
+		r.datasets = intersect(ds, r.datasets)
+	} else {
+		r.datasets = ds
+	}
+}
+
 func (q query) evaluate() map[string]bool {
 	datasets := make(map[string]bool)
 	for i := 0; i < len(q.tags); i++ {
@@ -278,7 +296,7 @@ func (q query) evaluate() map[string]bool {
 			}
 			continue
 		}
-		datasets = intersect(datasets, tagDatasets[q.tags[0]])
+		datasets = intersectPlus(datasets, tagDatasets[q.tags[0]])
 	}
 	return datasets
 }
@@ -401,7 +419,7 @@ func (org organization) reachableNextStates(r run) []string {
 	reachable := make([]string, 0)
 	s := r.states[len(r.states)-1]
 	for _, n := range org.transitions[s] {
-		if len(intersect(r.datasets, org.states[n].datasets)) > 0 {
+		if len(intersectPlus(r.datasets, org.states[n].datasets)) > 0 {
 			reachable = append(reachable, n)
 		}
 	}

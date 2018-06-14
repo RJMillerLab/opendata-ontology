@@ -176,7 +176,7 @@ func sort(a []float64) ([]float64, []int) {
 	return s, inds
 }
 
-func intersect(a map[string]bool, b []string) map[string]bool {
+func intersectPlus(a map[string]bool, b []string) map[string]bool {
 	bm := make(map[string]bool)
 	for _, v := range b {
 		bm[v] = true
@@ -184,6 +184,16 @@ func intersect(a map[string]bool, b []string) map[string]bool {
 	intersection := make(map[string]bool)
 	for k, _ := range a {
 		if _, ok := bm[k]; ok {
+			intersection[k] = true
+		}
+	}
+	return intersection
+}
+
+func intersect(a, b map[string]bool) map[string]bool {
+	intersection := make(map[string]bool)
+	for k, _ := range a {
+		if _, ok := b[k]; ok {
 			intersection[k] = true
 		}
 	}

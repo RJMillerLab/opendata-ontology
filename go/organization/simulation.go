@@ -20,7 +20,7 @@ var (
 )
 
 func GenerateOrganizations(orgNum int) []organization {
-	//ODTransitions()
+	ODTransitions()
 	log.Printf("generating %d orgs.", orgNum)
 	orgs := make([]organization, 0)
 	for len(orgs) < orgNum {
@@ -46,7 +46,7 @@ func generateRandomOrganization() organization {
 	nodes := make([]node, 0)
 	edges := make(map[string][]string)
 	for len(starts) < numStarts {
-		stateTags := generateRandomState()
+		stateTags := generateRandomStart()
 		if !duplicateState(stateTags, seenStates) {
 			stateId := "s" + strconv.Itoa(len(nodes))
 			//log.Printf("Not a duplicates. Assigned %s to state.", stateId)
@@ -78,7 +78,7 @@ func generateRandomOrganization() organization {
 			}
 			//log.Printf("generating %d children for %s.", childrenNum, n.id)
 			for i := 0; i < childrenNum; i++ {
-				stateTags := generateRandomState()
+				stateTags := generateRandomState(n)
 				if !duplicateState(stateTags, seenStates) {
 					stateId := "s" + strconv.Itoa(len(nodes))
 					//log.Printf("Not a duplicates. Assigned %s to state.", stateId)
@@ -142,10 +142,11 @@ func (n node) expand() bool {
 }
 
 func ODTransitions() {
-	overlappingTags := make(map[string][]string)
+	overlappingTags = make(map[string][]string)
 	seenPairs := make(map[string]bool)
 	overlapCount := 0
 	pairCount := 0
+	log.Printf("tagDatasets: %d", len(tagDatasets))
 	for t1, ds1 := range tagDatasets {
 		for t2, ds2 := range tagDatasets {
 			if t1 != t2 && !seenPairs[t1+"@"+t2] && !seenPairs[t2+"@"+t1] {
@@ -166,15 +167,34 @@ func ODTransitions() {
 			}
 		}
 	}
-	//log.Printf("number of pairs: %d", pairCount)
-	//log.Printf("number of pairs with overlap: %d", overlapCount)
+	log.Printf("number of pairs: %d", pairCount)
+	log.Printf("number of pairs with overlap: %d", overlapCount)
 }
 
-func generateRandomState() map[string]bool {
-	// each state consists of up to 10% of tags
+func generateRandomStart() map[string]bool {
+	// each state consists of up to 10% of tags)
 	tags := make(map[string]bool)
 	// each state has at least one tag
-	tagNum := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(int(0.1*float64(len(tagSem)))) + 1
+	tagNum := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(int(0.1*float64(len(overlappingTags)))) + 1
+	for len(tags) < tagNum {
+		t := labelsList[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(overlappingTags))]
+		if len(overlappingTags[t]) > 0 {
+			tags[t] = true
+		}
+	}
+	return tags
+}
+
+func generateRandomState(n node) map[string]bool {
+	options := make(map[string]bool)
+	for _, t := range n.tags {
+		for _, r := range overlappingTags[t] {
+			options[r] = true
+		}
+	}
+	tags := make(map[string]bool)
+	// each state has at least one tag
+	tagNum := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(options)) + 1
 	for len(tags) < tagNum {
 		t := labelsList[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(tagSem))]
 		tags[t] = true
@@ -215,7 +235,7 @@ func getDatasets(tags []string) []string {
 			}
 			continue
 		}
-		datasets = intersect(datasets, tagDatasets[tags[i]])
+		datasets = intersectPlus(datasets, tagDatasets[tags[i]])
 	}
 	return mapToSlice(datasets)
 }
