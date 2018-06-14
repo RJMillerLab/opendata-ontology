@@ -164,7 +164,7 @@ func Initialize() {
 	for _, gl := range labelIds {
 		labels[labelNames[strconv.Itoa(gl)]] = true
 		tagDatasets[labelNames[strconv.Itoa(gl)]] = lts[gl]
-		tagDatasets[labelNames[strconv.Itoa(gl)]] = append(tagDatasets[labelNames[strconv.Itoa(gl)]], "testdataset")
+		//tagDatasets[labelNames[strconv.Itoa(gl)]] = append(tagDatasets[labelNames[strconv.Itoa(gl)]], "testdataset")
 	}
 	// reading all domain embeddings
 	domainSEmbs := make([][]string, 0)
@@ -206,7 +206,7 @@ func Initialize() {
 		if _, ok := labelDomainEmbs[labelNames[strconv.Itoa(gl)]]; ok {
 			labelsList = append(labelsList, labelNames[strconv.Itoa(gl)])
 			tagDatasets[labelNames[strconv.Itoa(gl)]] = lts[gl]
-			tagDatasets[labelNames[strconv.Itoa(gl)]] = append(tagDatasets[labelNames[strconv.Itoa(gl)]], "testdataset")
+			//tagDatasets[labelNames[strconv.Itoa(gl)]] = append(tagDatasets[labelNames[strconv.Itoa(gl)]], "testdataset")
 			labels[labelNames[strconv.Itoa(gl)]] = true
 			// adding tables of this label
 			for _, t := range lts[gl] {

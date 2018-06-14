@@ -137,12 +137,12 @@ func newQuery(state string, tags []string) query {
 	}
 	q.stateTags[state] = tags
 	if len(tags) > 0 {
-		q.sem = q.updateSem(tags)
+		q.updateSem(tags)
 	}
 	return q
 }
 
-func (q query) updateQuery(next string, tags []string) {
+func (q *query) updateQuery(next string, tags []string) {
 	q.tags = append(q.tags, next)
 	q.stateTags[next] = tags
 	if len(tags) > 0 {
@@ -150,7 +150,7 @@ func (q query) updateQuery(next string, tags []string) {
 	}
 }
 
-func (q query) updateSem(tags []string) []float64 {
+func (q *query) updateSem(tags []string) {
 	sems := make([][]float64, 0)
 	if len(q.sem) > 0 {
 		sems = append(sems, q.sem)
@@ -158,7 +158,7 @@ func (q query) updateSem(tags []string) []float64 {
 	for _, t := range tags {
 		sems = append(sems, tagSem[t])
 	}
-	return sum(sems)
+	q.sem = sum(sems)
 }
 
 func (org organization) selectTags(d dataset, s string) ([]string, []float64) {
@@ -235,13 +235,13 @@ func newRun(d dataset, start string, startProb float64, tags []string, tagProbs 
 	}
 }
 
-func (r run) updateRun(next string, nextProb float64, tags []string, tagProbs []float64, q query) {
+func (r *run) updateRun(next string, nextProb float64, tags []string, tagProbs []float64, q query) {
 	r.query = q
-	current := len(r.states) - 1
+	currentId := len(r.states) - 1
 	r.states = append(r.states, next)
 	nextId := len(r.states) - 1
-	r.transitionProbs[current] = make(map[int]float64)
-	r.transitionProbs[current][nextId] = nextProb
+	r.transitionProbs[currentId] = make(map[int]float64)
+	r.transitionProbs[currentId][nextId] = nextProb
 	r.selectedTags[nextId] = tags
 	r.datasets = q.evaluate()
 	r.tagProbs[nextId] = make(map[string]float64)
@@ -338,6 +338,7 @@ func (org organization) selectNextState(r run) (string, float64) {
 }
 
 func (org organization) getTransitionProbabilities(r run) map[string]float64 {
+	log.Printf("r.states[len(r.states)-1]: %s", r.states[len(r.states)-1])
 	nexts := org.reachableNextStates(r)
 	//nexts := org.transitions[r.states[len(r.states)-1]]
 	ps := make(map[string]float64)
