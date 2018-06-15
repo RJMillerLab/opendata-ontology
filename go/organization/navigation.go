@@ -91,12 +91,10 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 		tags, tagProbs := org.selectTags(dataset, start)
 		query := newQuery(start, tags)
 		r := newRun(dataset, start, startProb, tags, tagProbs, query)
-		log.Printf("len(r.datasets): %d", len(r.datasets))
 		stop := false
 		currentState := start
 		for !org.terminal(currentState) && !stop {
 			next, nextProb := org.selectNextState(r)
-			log.Printf("next: %s, prob: %f", next, nextProb)
 			if nextProb == -1.0 {
 				stop = true
 				continue
@@ -154,7 +152,7 @@ func (q *query) updateSem(tags []string) {
 	for _, t := range tags {
 		sems = append(sems, tagSem[t])
 	}
-	q.sem = updateAvg(q.sem, len(tags), sems)
+	q.sem = updateAvg(q.sem, len(q.tags), sems)
 }
 
 func (q *query) updateSemPlus(tags []string) {
@@ -288,9 +286,7 @@ func (r *run) evaluate() {
 	}
 	// the evaluation of a query on a sequence of states in a conjunctive query
 	if len(r.states) > 2 {
-		log.Printf("ds: %d r.datasets: %d", len(ds), len(r.datasets))
 		r.datasets = intersect(ds, r.datasets)
-		log.Printf("r.datasets: %d", len(r.datasets))
 	}
 	// the first state is null
 	if len(r.states) == 2 {
@@ -330,10 +326,8 @@ func (org organization) selectStartState(d dataset) (string, float64) {
 
 func (org organization) terminal(s string) bool {
 	if len(org.transitions[s]) == 0 {
-		log.Printf("terminal")
 		return true
 	}
-	log.Printf("non terminal")
 	return false
 }
 
@@ -360,10 +354,6 @@ func (org organization) getTransitionProbabilities(r run) map[string]float64 {
 	nums := make([]float64, 0)
 	for _, n := range nexts {
 		f := math.Exp(dot(diff(r.target.sem, r.query.sem), org.states[n].sem))
-		if f == 0.0 {
-			log.Printf("f is 0")
-		}
-		log.Printf("dot: %f f: %f", dot(diff(r.target.sem, r.query.sem), org.states[n].sem), f)
 		nums = append(nums, f)
 		denom += f
 	}
