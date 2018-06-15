@@ -115,6 +115,22 @@ func sum(a [][]float64) []float64 {
 	return s
 }
 
+func updateAvg(old []float64, size int, new [][]float64) []float64 {
+	s := make([]float64, len(new[0]))
+	for i, v := range old {
+		s[i] = v * float64(size)
+	}
+	for i, _ := range s {
+		for _, n := range new {
+			s[i] += n[i]
+		}
+	}
+	for i, v := range s {
+		s[i] = v / float64(size+len(new))
+	}
+	return s
+}
+
 func stringSlideToFloat(s [][]string) [][]float64 {
 	fs := make([][]float64, 0)
 	for _, r := range s {

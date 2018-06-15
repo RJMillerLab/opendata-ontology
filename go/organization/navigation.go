@@ -78,11 +78,6 @@ func (r run) isSuccessful() bool {
 	return false
 }
 
-// the probability of selecting a tag in a state, given a target
-func (run run) tagSelectionProbability() float64 {
-	return 0.0
-}
-
 // state transition probability
 func (org organization) tansitionProbability(state string) map[string]float64 {
 	return make(map[string]float64)
@@ -96,6 +91,7 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 		tags, tagProbs := org.selectTags(dataset, start)
 		query := newQuery(start, tags)
 		r := newRun(dataset, start, startProb, tags, tagProbs, query)
+		log.Printf("len(r.datasets): %d", len(r.datasets))
 		stop := false
 		currentState := start
 		for !org.terminal(currentState) && !stop {
@@ -135,22 +131,33 @@ func newQuery(state string, tags []string) query {
 		tags:      tags,
 		stateTags: make(map[string][]string),
 	}
-	q.stateTags[state] = tags
 	if len(tags) > 0 {
 		q.updateSem(tags)
 	}
+	q.stateTags[state] = tags
 	return q
 }
 
 func (q *query) updateQuery(next string, tags []string) {
 	q.tags = append(q.tags, next)
-	q.stateTags[next] = tags
 	if len(tags) > 0 {
 		q.updateSem(tags)
 	}
+	q.stateTags[next] = tags
 }
 
 func (q *query) updateSem(tags []string) {
+	sems := make([][]float64, 0)
+	if len(q.sem) > 0 {
+		sems = append(sems, q.sem)
+	}
+	for _, t := range tags {
+		sems = append(sems, tagSem[t])
+	}
+	q.sem = updateAvg(q.sem, len(tags), sems)
+}
+
+func (q *query) updateSemPlus(tags []string) {
 	sems := make([][]float64, 0)
 	if len(q.sem) > 0 {
 		sems = append(sems, q.sem)
@@ -269,7 +276,7 @@ func (r run) getTargetSelectionProbability() float64 {
 	return -1.0
 }
 
-func (r run) evaluate() {
+func (r *run) evaluate() {
 	s := r.states[len(r.states)-1]
 	ts := r.query.stateTags[s]
 	// the evaluation of the tags selected in a state is a disjunctive query
@@ -280,25 +287,15 @@ func (r run) evaluate() {
 		}
 	}
 	// the evaluation of a query on a sequence of states in a conjunctive query
-	if len(r.states) > 1 {
+	if len(r.states) > 2 {
+		log.Printf("ds: %d r.datasets: %d", len(ds), len(r.datasets))
 		r.datasets = intersect(ds, r.datasets)
-	} else {
+		log.Printf("r.datasets: %d", len(r.datasets))
+	}
+	// the first state is null
+	if len(r.states) == 2 {
 		r.datasets = ds
 	}
-}
-
-func (q query) evaluate() map[string]bool {
-	datasets := make(map[string]bool)
-	for i := 0; i < len(q.tags); i++ {
-		if i == 0 {
-			for _, d := range tagDatasets[q.tags[0]] {
-				datasets[d] = true
-			}
-			continue
-		}
-		datasets = intersectPlus(datasets, tagDatasets[q.tags[0]])
-	}
-	return datasets
 }
 
 func doStop() bool {
@@ -356,7 +353,6 @@ func (org organization) selectNextState(r run) (string, float64) {
 }
 
 func (org organization) getTransitionProbabilities(r run) map[string]float64 {
-	log.Printf("r.states[len(r.states)-1]: %s", r.states[len(r.states)-1])
 	nexts := org.reachableNextStates(r)
 	//nexts := org.transitions[r.states[len(r.states)-1]]
 	ps := make(map[string]float64)
@@ -364,6 +360,10 @@ func (org organization) getTransitionProbabilities(r run) map[string]float64 {
 	nums := make([]float64, 0)
 	for _, n := range nexts {
 		f := math.Exp(dot(diff(r.target.sem, r.query.sem), org.states[n].sem))
+		if f == 0.0 {
+			log.Printf("f is 0")
+		}
+		log.Printf("dot: %f f: %f", dot(diff(r.target.sem, r.query.sem), org.states[n].sem), f)
 		nums = append(nums, f)
 		denom += f
 	}

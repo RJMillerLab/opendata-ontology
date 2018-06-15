@@ -229,13 +229,9 @@ func getSem(tags []string) []float64 {
 func getDatasets(tags []string) []string {
 	datasets := make(map[string]bool)
 	for i := 0; i < len(tags); i++ {
-		if i == 0 {
-			for _, d := range tagDatasets[tags[0]] {
-				datasets[d] = true
-			}
-			continue
+		for _, d := range tagDatasets[tags[i]] {
+			datasets[d] = true
 		}
-		datasets = intersectPlus(datasets, tagDatasets[tags[i]])
 	}
 	return mapToSlice(datasets)
 }
