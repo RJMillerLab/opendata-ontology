@@ -43,13 +43,13 @@ func generateRandomOrganization() organization {
 	starts := make([]string, 0)
 	seenStates := make([]map[string]bool, 0)
 	expandableLeaves := make([]node, 0)
+	reachables := make(map[string]bool)
 	nodes := make([]node, 0)
 	edges := make(map[string][]string)
 	for len(starts) < numStarts {
 		stateTags := generateRandomStart()
 		if !duplicateState(stateTags, seenStates) {
 			stateId := "s" + strconv.Itoa(len(nodes))
-			//log.Printf("Not a duplicates. Assigned %s to state.", stateId)
 			n := node{
 				tags:  mapToSlice(stateTags),
 				depth: 1,
@@ -66,9 +66,11 @@ func generateRandomOrganization() organization {
 	i := 0
 	for len(expandableLeaves) > 0 {
 		n := expandableLeaves[i]
-		//log.Printf("len(expandableLeaves): %d", len(expandableLeaves))
 		shouldExpand := n.expand()
 		isStartNode := containsStr(starts, n.id)
+		for _, d := range getDatasets(n.tags) {
+			reachables[d] = true
+		}
 		if shouldExpand || isStartNode {
 			childrenNum := 0
 			if isStartNode {
@@ -76,12 +78,10 @@ func generateRandomOrganization() organization {
 			} else {
 				childrenNum = rand.New(rand.NewSource(time.Now().UnixNano())).Intn(5)
 			}
-			//log.Printf("generating %d children for %s.", childrenNum, n.id)
 			for i := 0; i < childrenNum; i++ {
 				stateTags := generateRandomState(n)
 				if !duplicateState(stateTags, seenStates) {
 					stateId := "s" + strconv.Itoa(len(nodes))
-					//log.Printf("Not a duplicates. Assigned %s to state.", stateId)
 					c := node{
 						id:    stateId,
 						tags:  mapToSlice(stateTags),
@@ -98,21 +98,17 @@ func generateRandomOrganization() organization {
 			}
 			nodes[n.index] = n
 		}
-		//else {
-		//	log.Printf("should not expand %s", n.id)
-		//}
 		if len(expandableLeaves) == 1 {
 			expandableLeaves = make([]node, 0)
 		} else {
 			expandableLeaves = append(expandableLeaves[:i], expandableLeaves[i+1:]...)
 		}
-		//log.Printf("len(expandableLeaves): %d", len(expandableLeaves))
 	}
-	//log.Printf("There is %d nodes in the list.", len(expandableLeaves))
 	return organization{
 		states:      nodesToStates(nodes),
 		transitions: edges,
 		starts:      starts,
+		reachables:  reachables,
 	}
 }
 
@@ -122,7 +118,7 @@ func nodesToStates(ns []node) map[string]state {
 		s := state{
 			tags:     n.tags,
 			id:       n.id,
-			sem:      getSem(n.tags),
+			sem:      getTagSem(n.tags),
 			datasets: getDatasets(n.tags),
 		}
 		states[n.id] = s
@@ -146,7 +142,6 @@ func ODTransitions() {
 	seenPairs := make(map[string]bool)
 	overlapCount := 0
 	pairCount := 0
-	log.Printf("tagDatasets: %d", len(tagDatasets))
 	for t1, ds1 := range tagDatasets {
 		for t2, ds2 := range tagDatasets {
 			if t1 != t2 && !seenPairs[t1+"@"+t2] && !seenPairs[t2+"@"+t1] {
@@ -218,12 +213,12 @@ func duplicateState(tags map[string]bool, seenStates []map[string]bool) bool {
 	return false
 }
 
-func getSem(tags []string) []float64 {
+func getTagSem(tags []string) []float64 {
 	sems := make([][]float64, 0)
 	for _, t := range tags {
 		sems = append(sems, tagSem[t])
 	}
-	return sum(sems)
+	return avg(sems)
 }
 
 func getDatasets(tags []string) []string {

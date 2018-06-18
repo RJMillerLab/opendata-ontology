@@ -44,7 +44,12 @@ func EvaluateOrganization(org organization, numRuns int) float64 {
 	runs := make(map[string][]run)
 	datasetSuccessProbs := make(map[string]float64)
 	orgSuccessProb := 0.0
-	for _, d := range domains[:5] {
+	count := 0
+	for d, _ := range org.reachables {
+		count += 1
+		if count > 100 {
+			continue
+		}
 		log.Printf("domain: %s", d)
 		rs := org.generateRuns(d, numRuns)
 		runs[d] = rs
@@ -52,14 +57,11 @@ func EvaluateOrganization(org organization, numRuns int) float64 {
 		datasetSuccessProbs[d] = dsp
 		orgSuccessProb += dsp
 	}
-	orgSuccessProb = (1.0 / float64(len(domains[:5]))) * orgSuccessProb
+	orgSuccessProb = (1.0 / float64(len(org.reachables))) * orgSuccessProb
+	if orgSuccessProb > 0.0 {
+		log.Printf("orgSuccessProb is not zero.")
+	}
 	return orgSuccessProb
-	//return navigation{
-	//	organization:        org,
-	//	runs:                runs,
-	//	datasetSuccessProbs: datasetSuccessProbs,
-	//	orgSuccessProb:      orgSuccessProb,
-	//}
 }
 
 func getDatasetSuccessProb(runs []run) float64 {
@@ -104,23 +106,24 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 			query.updateQuery(next, tags)
 			r.updateRun(next, nextProb, tags, tagProbs, query)
 			stop = doStop()
-			log.Println(stop)
 		}
 		fmt.Printf("run %d: ", len(runs))
 		fmt.Println(r.states)
 		//fmt.Println(r.selectedTags)
-		fmt.Println("-------------")
 		//r.prob = r.getQueryProbability()
 		if r.isSuccessful() {
+			log.Printf("issuccessful")
 			r.successProb = r.getTargetSelectionProbability()
 		} else {
+			log.Printf("isnotsuccessful")
 			r.successProb = 0.0
 		}
+		fmt.Printf("successProb: %f\n", r.successProb)
+		fmt.Println("-------------")
 		if !r.duplicate(runs) {
 			runs = append(runs, r)
 		}
 	}
-	//log.Printf("len(runs): %d", len(runs))
 	return runs
 }
 

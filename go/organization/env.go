@@ -15,6 +15,7 @@ var LabelTablesFile = os.Getenv("LABEL_TABLES_FILE")
 var DomainEmbsFile = os.Getenv("EMB_SAMPLES_FILE")
 var TableEmbsMap = os.Getenv("TABLE_SAMPLE_MAP")
 var FasttextDb = os.Getenv("FASTTEXT_DB")
+var YagoDBFile = os.Getenv("YAGO_DB")
 
 func CheckEnv() {
 

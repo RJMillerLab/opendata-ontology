@@ -240,3 +240,11 @@ func mapToSlice(m map[string]bool) []string {
 	}
 	return s
 }
+
+func getKeys(m map[string][]string) []string {
+	keys := make([]string, 0)
+	for k, _ := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}

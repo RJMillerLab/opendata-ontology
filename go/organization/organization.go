@@ -44,6 +44,7 @@ type organization struct {
 	states      map[string]state    // mapping from id to state
 	transitions map[string][]string // state transitions
 	starts      []string            // a list of state ids
+	reachables  map[string]bool     // reachable datasets by this organization
 }
 
 func ReadOrganization() organization {
@@ -235,6 +236,10 @@ func getTagDomainEmbeddings() {
 				lde = append(lde, domainEmbs[i][1:dim])
 			}
 		}
+		if len(lde) == 0 {
+			log.Printf("no emb for label %s", l)
+			continue
+		}
 		labelDomainEmbs[l] = lde
 		tagSem[l] = avg(lde)
 	}
@@ -263,4 +268,12 @@ func getTagNameEmbeddings() {
 		tagNameSem[label] = embVec
 	}
 	return
+}
+
+func (org organization) Print() {
+	for id, s := range org.states {
+		fmt.Printf("%s: %v\n", id, s.tags)
+	}
+	log.Printf("transitions: %v", org.transitions)
+	log.Printf("starts: %v", org.starts)
 }
