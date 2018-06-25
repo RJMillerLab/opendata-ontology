@@ -131,7 +131,7 @@ func updateAvg(old []float64, size int, new [][]float64) []float64 {
 	return s
 }
 
-func stringSlideToFloat(s [][]string) [][]float64 {
+func stringSliceToFloat(s [][]string) [][]float64 {
 	fs := make([][]float64, 0)
 	for _, r := range s {
 		rf := make([]float64, 0)
@@ -177,7 +177,7 @@ func norm(a []float64) float64 {
 	return math.Sqrt(d)
 }
 
-func sort(a []float64) ([]float64, []int) {
+func sortFloats(a []float64) ([]float64, []int) {
 	cUP := make([]float64, len(a))
 	copy(cUP, a)
 	s := cUP

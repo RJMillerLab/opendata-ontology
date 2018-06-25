@@ -15,22 +15,22 @@ import (
 )
 
 var (
-	labels          map[string]bool
-	tables          []string
-	labelNames      map[string]string
-	labelsList      []string
-	labelDomainEmbs map[string][][]float64
-	tagNameEmb      map[string][]float64
-	tableEmbsMap    map[string][]int
-	tagDatasets     map[string][]string
-	domainEmbs      [][]float64
+	labels        map[string]bool
+	tables        []string
+	labelNames    map[string]string
+	labelsList    []string
+	tagDomainEmbs map[string][][]float64
+	tagNameEmb    map[string][]float64
+	tableEmbsMap  map[string][]int
+	datasetEmbs   map[string][]float64
+	domainRawEmbs [][]float64
 
 	domains       []string
 	tagSem        map[string][]float64
 	tagNameSem    map[string][]float64
-	tagDomains    map[string][]string
+	tagDatasets   map[string][]string
 	startStateNum = 5
-	stateStopProb = 0.5
+	stateStopProb = 0.2
 )
 
 type state struct {
@@ -45,6 +45,23 @@ type organization struct {
 	transitions map[string][]string // state transitions
 	starts      []string            // a list of state ids
 	reachables  map[string]bool     // reachable datasets by this organization
+	successProb float64
+	id          int
+}
+
+type JState struct {
+	Tags     []string `json:"tags"`
+	Id       string   `json:"id"`
+	Datasets []string `json:"datasets"`
+}
+
+type JOrganization struct {
+	States      map[string]JState   `json:"states"`      // mapping from id to state
+	Transitions map[string][]string `json:"transitions"` // state transitions
+	Starts      []string            `json:"starts"`      // a list of state ids
+	Reachables  map[string]bool     `json:"reachables"`  // reachable datasets by this organization
+	SuccessProb float64             `json:"successProb"`
+	Id          int                 `json:"id"`
 }
 
 func ReadOrganization() organization {
@@ -71,7 +88,7 @@ func ReadOrganization() organization {
 		sem := getStateSem(tags)
 		datasets := make([]string, 0)
 		for _, t := range tags {
-			datasets = append(datasets, tagDomains[t]...)
+			datasets = append(datasets, tagDatasets[t]...)
 		}
 		s := state{
 			id:       id,
@@ -145,7 +162,7 @@ func Initialize() {
 	tagDatasets = make(map[string][]string)
 	labels = make(map[string]bool)
 	labelsList = make([]string, 0)
-	tagDomains = make(map[string][]string)
+	tagDatasets = make(map[string][]string)
 	tagNameSem = make(map[string][]float64)
 	err := loadJson(GoodLabelsFile, &labelIds)
 	if err != nil {
@@ -173,8 +190,8 @@ func Initialize() {
 	if err != nil {
 		panic(err)
 	}
-	domainEmbs = make([][]float64, 0)
-	domainEmbs = stringSlideToFloat(domainSEmbs)
+	domainRawEmbs = make([][]float64, 0)
+	domainRawEmbs = stringSliceToFloat(domainSEmbs)
 	// reading table to emb id map
 	tableEmbsMap = make(map[string][]int)
 	err = loadJson(TableEmbsMap, &tableEmbsMap)
@@ -189,10 +206,10 @@ func Initialize() {
 	}
 	// mapping tag to domains
 	for _, gl := range labelIds {
-		tagDomains[labelNames[strconv.Itoa(gl)]] = make([]string, 0)
+		tagDatasets[labelNames[strconv.Itoa(gl)]] = make([]string, 0)
 		for _, d := range lts[gl] {
 			for _, e := range tableEmbsMap[d] {
-				tagDomains[labelNames[strconv.Itoa(gl)]] = append(tagDomains[labelNames[strconv.Itoa(gl)]], d+"_"+strconv.Itoa(e))
+				tagDatasets[labelNames[strconv.Itoa(gl)]] = append(tagDatasets[labelNames[strconv.Itoa(gl)]], d+"_"+strconv.Itoa(e))
 			}
 		}
 	}
@@ -204,7 +221,7 @@ func Initialize() {
 	labels = make(map[string]bool)
 	tm := make(map[string]bool)
 	for _, gl := range labelIds {
-		if _, ok := labelDomainEmbs[labelNames[strconv.Itoa(gl)]]; ok {
+		if _, ok := tagDomainEmbs[labelNames[strconv.Itoa(gl)]]; ok {
 			labelsList = append(labelsList, labelNames[strconv.Itoa(gl)])
 			tagDatasets[labelNames[strconv.Itoa(gl)]] = lts[gl]
 			//tagDatasets[labelNames[strconv.Itoa(gl)]] = append(tagDatasets[labelNames[strconv.Itoa(gl)]], "testdataset")
@@ -224,8 +241,9 @@ func Initialize() {
 }
 
 func getTagDomainEmbeddings() {
-	dim := len(domainEmbs[0])
-	labelDomainEmbs = make(map[string][][]float64)
+	datasetEmbs = make(map[string][]float64)
+	dim := len(domainRawEmbs[0])
+	tagDomainEmbs = make(map[string][][]float64)
 	tagSem = make(map[string][]float64)
 	for l, _ := range labels {
 		lde := make([][]float64, 0)
@@ -233,14 +251,15 @@ func getTagDomainEmbeddings() {
 			embIds := tableEmbsMap[t]
 			for _, i := range embIds {
 				// the first entry of an embedding slice is 0 and should be removed.
-				lde = append(lde, domainEmbs[i][1:dim])
+				lde = append(lde, domainRawEmbs[i][1:dim])
+				datasetEmbs[t+"_"+strconv.Itoa(i)] = domainRawEmbs[i][1:dim]
 			}
 		}
 		if len(lde) == 0 {
 			log.Printf("no emb for label %s", l)
 			continue
 		}
-		labelDomainEmbs[l] = lde
+		tagDomainEmbs[l] = lde
 		tagSem[l] = avg(lde)
 	}
 }
@@ -271,6 +290,8 @@ func getTagNameEmbeddings() {
 }
 
 func (org organization) Print() {
+	log.Printf("org id: %d", org.id)
+	log.Printf("success prob: %f", org.successProb)
 	for id, s := range org.states {
 		fmt.Printf("%s: %v\n", id, s.tags)
 	}

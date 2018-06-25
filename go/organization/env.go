@@ -16,6 +16,8 @@ var DomainEmbsFile = os.Getenv("EMB_SAMPLES_FILE")
 var TableEmbsMap = os.Getenv("TABLE_SAMPLE_MAP")
 var FasttextDb = os.Getenv("FASTTEXT_DB")
 var YagoDBFile = os.Getenv("YAGO_DB")
+var OrgsEvaluationFile = os.Getenv("ORGS_EVALUATION_FILE")
+var OrgsFile = os.Getenv("BENCHMARK_ORGS_FILE")
 
 func CheckEnv() {
 
