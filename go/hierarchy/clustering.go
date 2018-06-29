@@ -9,16 +9,21 @@ import (
 )
 
 var (
-	tags          map[string]bool
-	tables        []string
-	tagNames      map[string]string
-	tagsList      []string
-	tagEmbs       map[string][]float64
-	tagDomainEmbs map[string][][]float64
-	tagAvgEmb     map[string][]float64
-	tableEmbsMap  map[string][]int
+	tags         map[string]bool
+	tables       []string
+	tagNames     map[string]string
+	tagsList     []string
+	tagSems      map[string][]float64
+	tableEmbsMap map[string][]int
+	domainEmbs   [][]float64
+
+	//
+	domainSems    map[string][]float64
+	domainTags    map[string]string
+	tableTags     map[string][]string
 	tagDomains    map[string][]string
-	domainEmbs    [][]float64
+	tagTables     map[string][]string
+	tagDomainSems map[string][][]float64
 )
 
 type pair struct {
@@ -52,8 +57,8 @@ func newCluster(tagname string, id int) cluster {
 	tags = append(tags, tagname)
 	return cluster{
 		tags:       tags,
-		population: tagDomainEmbs[tagname],
-		sem:        tagAvgEmb[tagname],
+		population: tagDomainSems[tagname],
+		sem:        tagSems[tagname],
 		id:         id,
 	}
 }
@@ -75,9 +80,11 @@ func newClustering() *clustering {
 
 func initializeClusters() []cluster {
 	clusters := make([]cluster, 0)
-	for _, l := range tagsList {
+	//for _, l := range tagsList {
+	for l, _ := range tagSems {
 		clusters = append(clusters, newCluster(l, len(clusters)))
 	}
+	log.Printf("len(clusters): %d", len(clusters))
 	return clusters
 }
 
@@ -340,12 +347,16 @@ func (cing *clustering) mergeClustersOld(clusterPair pair) {
 }
 
 func Initialize() *clustering {
+	domainSems, domainTags, tableTags, tagDomains, tagTables, tagDomainSems, tagSems = buildContext()
+	return newClustering()
+}
+
+func InitializePlus() *clustering {
 	// load tags
 	tagIds := make([]int, 0)
 	lts := make(map[int][]string)
 	tagDomains = make(map[string][]string)
 	tags = make(map[string]bool)
-	tagEmbs = make(map[string][]float64)
 	tagsList = make([]string, 0)
 	err := loadJson(GoodTagsFile, &tagIds)
 	if err != nil {
@@ -385,7 +396,7 @@ func Initialize() *clustering {
 	// eliminate tags without embeddings
 	tm := make(map[string]bool)
 	for _, gl := range tagIds {
-		if _, ok := tagDomainEmbs[tagNames[strconv.Itoa(gl)]]; ok {
+		if _, ok := tagDomainSems[tagNames[strconv.Itoa(gl)]]; ok {
 			tagsList = append(tagsList, tagNames[strconv.Itoa(gl)])
 			tagDomains[tagNames[strconv.Itoa(gl)]] = lts[gl]
 			tags[tagNames[strconv.Itoa(gl)]] = true
@@ -406,8 +417,8 @@ func Initialize() *clustering {
 
 func getTagDomainEmbeddings() (map[string][][]float64, map[string][]float64) {
 	dim := len(domainEmbs[0])
-	tagDomainEmbs = make(map[string][][]float64)
-	tagAvgEmb = make(map[string][]float64)
+	tagDomainSems = make(map[string][][]float64)
+	tagSems = make(map[string][]float64)
 	for l, _ := range tags {
 		lde := make([][]float64, 0)
 		for _, t := range tagDomains[l] {
@@ -417,10 +428,10 @@ func getTagDomainEmbeddings() (map[string][][]float64, map[string][]float64) {
 				lde = append(lde, domainEmbs[i][1:dim])
 			}
 		}
-		tagDomainEmbs[l] = lde
-		tagAvgEmb[l] = avg(lde)
+		tagDomainSems[l] = lde
+		tagSems[l] = avg(lde)
 	}
-	return tagDomainEmbs, tagAvgEmb
+	return tagDomainSems, tagSems
 }
 
 func (cing *clustering) doneClustering() bool {

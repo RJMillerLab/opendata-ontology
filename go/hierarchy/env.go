@@ -19,6 +19,8 @@ var TableEmbsMap = os.Getenv("TABLE_SAMPLE_MAP")
 var TransitionProbabilityFile = os.Getenv("TRANSITION_PROB_FILE")
 var StateProbabilityFile = os.Getenv("STATE_PROB_FILE")
 var TableTagSelectivityFile = os.Getenv("TABLE_LABEL_SELECTIVITY")
+var TablesFile = os.Getenv("TABLES_FILE")
+var TablesDir = os.Getenv("TABLES_DIR")
 
 func CheckEnv() {
 

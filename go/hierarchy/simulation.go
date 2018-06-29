@@ -74,14 +74,13 @@ func (org *organization) selectNextState(s state, d dataset) (state, float64) {
 	return bestNext, maxProb
 }
 
-func (org *organization) EvaluateOrganization(ds []dataset) float64 {
-	// precompute all transitions
+func (org *organization) Evaluate() float64 {
 	probSum := 0.0
-	for _, d := range ds {
+	for _, d := range org.reachables {
 		// work with log
 		probSum += org.navigationSimulation(d)
 	}
-	successExpectation := probSum / float64(len(ds))
+	successExpectation := probSum / float64(len(org.reachables))
 	return successExpectation
 }
 
