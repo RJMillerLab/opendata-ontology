@@ -34,10 +34,14 @@ type space struct {
 	tagSem      map[string][]float64
 }
 
-func SynthesizeMetadata(numClass, datasetNum int) (map[string][]float64, map[string][]string, map[string][]float64, map[string][]string) {
+// datasetNum: total number of datasets
+// perClassDatasetNum: max number of datasets for each class
+func SynthesizeMetadata(numClass, datasetNum, perClassDatasetNum int) (map[string][]float64, map[string][]string, map[string][]float64, map[string][]string) {
 	classes := selectClasses(numClass)
-	log.Printf("generateTagsDatasetsFromClasses")
-	tagSem, tagDatasets, datasetTags, datasetEmbs := generateTagsDatasetsFromClasses(classes, numClass, datasetNum)
+	log.Printf("generateTagsDatasetsFromClassesPlus")
+	//tagSem, tagDatasets, datasetTags, datasetEmbs := generateTagsDatasetsFromClasses(classes, numClass, datasetNum)
+	tagSem, tagDatasets, datasetTags, datasetEmbs := generateTagsDatasetsFromClassesPlus(classes, datasetNum, perClassDatasetNum)
+	log.Printf("len(tagSem): %d  len(tagDatasets): %d  len(datasetTags): %d  len(datasetEmbs): %d", len(tagSem), len(tagDatasets), len(datasetTags), len(datasetEmbs))
 	return tagSem, tagDatasets, datasetEmbs, datasetTags
 }
 
@@ -75,14 +79,52 @@ func selectClasses(numClass int) []string {
 	return classes
 }
 
+func generateTagsDatasetsFromClassesPlus(classes []string, datasetNum, perClassDatasetNum int) (map[string][]float64, map[string][]string, map[string][]string, map[string][]float64) {
+	tagDatasets := make(map[string][]string)
+	datasetTags := make(map[string][]string)
+	datasetEmbs := make(map[string][]float64)
+	tagSem := make(map[string][]float64)
+	datasets := make([]string, 0)
+	for i := 0; i < datasetNum; i++ {
+		datasets = append(datasets, "d_"+strconv.Itoa(i))
+	}
+	for _, c := range classes {
+		values := getClassValues(c)
+		sem, err := getSem(values)
+		if err == nil {
+			tagSem[c] = sem
+			classDatasetNum := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(perClassDatasetNum-5) + 5
+			tagDatasets[c] = make([]string, 0)
+			for len(tagDatasets[c]) < classDatasetNum {
+				did := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(datasetNum)
+				if !containsStr(tagDatasets[c], datasets[did]) {
+					tagDatasets[c] = append(tagDatasets[c], datasets[did])
+					if _, ok := datasetTags[datasets[did]]; !ok {
+						datasetTags[datasets[did]] = make([]string, 0)
+					}
+					datasetTags[datasets[did]] = append(datasetTags[datasets[did]], c)
+				}
+			}
+		} else {
+			log.Printf("no sem for this tag.")
+		}
+	}
+	for _, dname := range datasets {
+		d := generateDomainEmbsFromClasses(datasetTags[dname], dname)
+		if len(d.sem) > 0 {
+			datasetEmbs[d.name] = d.sem
+		}
+	}
+	return tagSem, tagDatasets, datasetTags, datasetEmbs
+}
+
 func generateTagsDatasetsFromClasses(classes []string, numClass, datasetNum int) (map[string][]float64, map[string][]string, map[string][]string, map[string][]float64) {
-	//datasetNum = rand.New(rand.NewSource(time.Now().UnixNano())).Intn(datasetNum-10) + 10
+	datasetNum = rand.New(rand.NewSource(time.Now().UnixNano())).Intn(datasetNum-10) + 10
 	tagDatasets := make(map[string][]string)
 	datasetTags := make(map[string][]string)
 	datasetEmbs := make(map[string][]float64)
 	tagSem := make(map[string][]float64)
 	seen := make(map[string]bool)
-	//for _, c := range classes {
 	for len(tagSem) < numClass {
 		i := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(classes))
 		c := classes[i]
@@ -114,7 +156,6 @@ func generateTagsDatasetsFromClasses(classes []string, numClass, datasetNum int)
 		ds = append(ds, d)
 		es = append(es, de)
 	}
-	log.Printf("len(datasetEmbs): %d", len(datasetEmbs))
 	return tagSem, tagDatasets, datasetTags, datasetEmbs
 }
 
@@ -150,6 +191,43 @@ func getSem(values []string) ([]float64, error) {
 	return sem, err
 }
 
+// returns the sem vector of a domain randomly generated from a set of classes.
+// equal number of values are sampled from each class
+func generateDomainEmbsFromClasses(classes []string, datasetname string) dataset {
+	domain := make([]string, 0)
+	dcount := 0
+	for dcount < 5 {
+		dcount += 1
+		for _, class := range classes {
+			values := getClassValues(class)
+			card := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(values)-20) + 20
+			// limiting the number of values in domains
+			card = int(math.Min(float64(card), 100.0))
+			domainm := make(map[string]bool)
+			count := 0
+			for len(domain) < card && count < (5*card) {
+				einx := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(values))
+				if _, ok := domainm[values[einx]]; !ok {
+					domainm[values[einx]] = true
+					domain = append(domain, values[einx])
+				}
+				count += 1
+			}
+		}
+		dsem, err := getSem(domain)
+		if err == nil {
+			ds := dataset{
+				name: datasetname,
+				sem:  dsem,
+			}
+			return ds
+		} else {
+			log.Printf("dsem is nil")
+		}
+	}
+	return dataset{}
+}
+
 // return the sem vector of a domain randomly generated from a class
 func generateDomainEmbsFromClass(class string, domainNum int) []dataset {
 	values := getClassValues(class)
@@ -164,7 +242,7 @@ func generateDomainEmbsFromClass(class string, domainNum int) []dataset {
 		domain := make([]string, 0)
 		domainStr := make([]string, 0)
 		for len(domain) < card {
-			einx := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(card)
+			einx := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(values))
 			if _, ok := domainm[values[einx]]; !ok {
 				domainm[values[einx]] = true
 				domain = append(domain, values[einx])
@@ -202,7 +280,7 @@ func generateStateSpace(tagSem map[string][]float64, tagDatasets map[string][]st
 	// considering the tags with datasets
 	tagsNum := len(tagDatasets)
 	stateCount := int(math.Pow(2, float64(tagsNum)))
-	log.Printf("stateCount: %d", stateCount)
+	log.Printf("raw stateCount: %d", stateCount)
 	for i := 1; i < stateCount; i++ {
 		s := make([]string, 0)
 		bs := strconv.FormatUint(uint64(i), 2)
@@ -213,11 +291,16 @@ func generateStateSpace(tagSem map[string][]float64, tagDatasets map[string][]st
 				s = append(s, tags[len(ps)-j-1])
 			}
 		}
+		// for now, discarding states with only one tag
+		if len(s) < 2 {
+			continue
+		}
 		stateTags = append(stateTags, s)
 		if i%50 == 0 {
 			log.Printf("generated %d states", i)
 		}
 	}
+	log.Printf("number of states: %d", len(stateTags))
 	states := make(map[string]state)
 	for _, ts := range stateTags {
 		sem, err := getSem(ts)
@@ -267,20 +350,23 @@ func (p *space) generateTransitions() {
 		}
 	}
 	p.transitions = transitions
+	//log.Printf("transitions: %v", transitions)
 }
 
 func (p *space) generateOrganizations(orgNum int) []organization {
 	if orgNum < 0 {
-		orgNum = len(p.states)
-		log.Printf("Input orgNum is negative, generating %d orgs.", len(p.states))
+		orgNum = len(p.transitions)
+		log.Printf("Input orgNum is negative, generating %d orgs.", len(p.transitions))
 	}
 	orgs := make([]organization, 0)
 	seenStarts := make(map[string]bool)
-	for len(orgs) < orgNum && len(seenStarts) < len(p.states) {
+	log.Printf("len(p.transitions): %d", len(p.transitions))
+	for len(orgs) < orgNum && len(seenStarts) < len(p.transitions) {
 		start := p.randomStart()
 		for seenStarts[start] {
 			start = p.randomStart()
 		}
+		seenStarts[start] = true
 		subgraph := p.traverseBreadthFirstSearch(start)
 		org := p.subgraphToOrganization(subgraph, start, len(orgs))
 		if org.isValid(len(p.tagDatasets), len(p.datasetTags)) {
@@ -288,7 +374,6 @@ func (p *space) generateOrganizations(orgNum int) []organization {
 		} else {
 			log.Printf("org is not valid.")
 		}
-		seenStarts[start] = true
 	}
 	log.Printf("len(orgs): %d", len(orgs))
 	return orgs
@@ -338,18 +423,33 @@ func (p *space) traverseBreadthFirstSearch(start string) map[string][]string {
 	depths[start] = 1
 	sgdepth := 1
 	seen := make(map[string]bool)
+	ancestors := make(map[string][]string)
 	for len(nodes) > 0 && len(seen) < len(p.transitions) {
 		n := nodes[0]
 		nodes = nodes[1:]
 		seen[n] = true
+		if _, ok := ancestors[n]; !ok {
+			ancestors[n] = make([]string, 0)
+		}
 		cs := make([]string, 0)
 		for _, c := range p.transitions[n] {
+			seen[c] = true
+			if containsStr(ancestors[n], c) {
+				log.Printf("loop")
+				continue
+			}
 			// creating a spanning DAG
-			//if _, ok := seen[c]; !ok {
+			//	if _, ok := seen[c]; !ok {
 			cs = append(cs, c)
+			if _, ok := ancestors[c]; !ok {
+				ancestors[c] = make([]string, 0)
+			}
+			if len(ancestors[n]) > 0 {
+				ancestors[c] = append(ancestors[c], ancestors[n]...)
+			}
+			ancestors[c] = append(ancestors[c], n)
 			//subgraph[n] = append(subgraph[n], c)
 			nodes = append(nodes, c)
-			seen[c] = true
 			if _, ok := depths[c]; !ok {
 				depths[c] = depths[n] + 1
 				sgdepth = int(math.Max(float64(sgdepth), float64(depths[c])))
@@ -357,6 +457,7 @@ func (p *space) traverseBreadthFirstSearch(start string) map[string][]string {
 				depths[c] = int(math.Max(float64(depths[n]+1), float64(depths[c])))
 				sgdepth = int(math.Max(float64(sgdepth), float64(depths[c])))
 			}
+			//	}
 		}
 		if len(cs) > 0 {
 			if _, ok := subgraph[n]; !ok {
@@ -366,24 +467,26 @@ func (p *space) traverseBreadthFirstSearch(start string) map[string][]string {
 			}
 		}
 	}
+	log.Printf("done ")
 	//log.Printf("subgraph: %v", subgraph)
 	return subgraph
 }
 
 // returns the id of a random start state
 func (p *space) randomStart() string {
-	sid := p.stateIds[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(p.stateIds))]
+	sid := p.stateIds[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(p.transitions))]
 	// restricting the number of search for start state
-	count := 0
-	for len(p.transitions[sid]) < 1 && count < 1000 {
-		sid = p.stateIds[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(p.stateIds))]
-		count += 1
-	}
+	//count := 0
+	//for len(p.transitions[sid]) < 1 && count < 500 {
+	//	sid = p.stateIds[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(p.transitions))]
+	//	count += 1
+	//}
 	return sid
 }
 
 func isLinked(s1, s2 state) bool {
-	return haveOverlap(s1.datasets, s2.datasets)
+	// do no have tags overlap and do have dataset overlap
+	return (!haveOverlap(s1.tags, s2.tags) && haveOverlap(s1.datasets, s2.datasets))
 }
 
 func getStateIds(m map[string]state) []string {

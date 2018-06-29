@@ -1,9 +1,11 @@
 package organization
 
 import (
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -163,12 +165,14 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 		currentState := start
 		for !org.terminal(currentState) && !stop && !r.deadend() {
 			next, nextProb := org.selectNextState(r)
+			//	log.Printf("selectNextState")
 			if nextProb == -1.0 {
 				stop = true
 				continue
 			}
 			currentState = next
 			tags, tagProbs = org.selectTags(query, dataset, next)
+			//	log.Printf("select tags")
 			query.updateQuery(next, tags)
 			r.updateRun(next, nextProb, tags, tagProbs, query)
 			stop = false //doStop()
@@ -178,6 +182,7 @@ func (org organization) generateRuns(datasetname string, numRuns int) []run {
 			if r.isSuccessful() {
 				successCount += 1
 				r.successProb = r.getTargetSelectionProbability()
+				org.PrintRun(r)
 			} else {
 				r.successProb = 0.0
 			}
@@ -421,6 +426,7 @@ func (org organization) selectStartState(d dataset) (string, float64) {
 
 func (org organization) terminal(s string) bool {
 	if len(org.transitions[s]) == 0 {
+		log.Printf("terminal")
 		return true
 	}
 	return false
@@ -553,7 +559,21 @@ func (org organization) toJsonOrg() JOrganization {
 
 func (r run) deadend() bool {
 	if len(r.datasets) == 0 {
+		log.Printf("deadend")
 		return true
 	}
 	return false
+}
+
+func (org organization) PrintRun(r run) {
+	runStr := "org " + strconv.Itoa(org.id) + " : " + strconv.Itoa(len(r.states)) + " - " + strconv.FormatFloat(r.successProb, 'E', -1, 64) + " - " + "\n"
+	for _, s := range r.states {
+		st := org.states[s]
+		runStr += st.id + " : "
+		for _, t := range st.tags {
+			runStr += t + " | "
+		}
+		runStr += "\n"
+	}
+	fmt.Println(runStr)
 }
