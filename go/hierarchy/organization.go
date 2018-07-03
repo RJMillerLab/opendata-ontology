@@ -3,7 +3,9 @@ package hierarchy
 import "log"
 
 type organization struct {
-	states      []state
+	//states      []state
+	stateIds    []int
+	states      map[int]state
 	transitions map[int][]int
 	root        state
 	reachables  []dataset
@@ -24,7 +26,9 @@ func (cing *clustering) ToOrganization() *organization {
 	log.Printf("root: %d", cing.root.id)
 	log.Printf("len(clusters): %d", len(cing.clusters))
 	log.Printf("len(cing.transitions): %d", len(cing.hierarchy))
-	states := make([]state, 0)
+	//states := make([]state, 0)
+	stateIds := make([]int, 0)
+	states := make(map[int]state)
 	reachables := make([]dataset, 0)
 	for _, c := range cing.clusters {
 		s := state{
@@ -35,7 +39,9 @@ func (cing *clustering) ToOrganization() *organization {
 			id:         c.id,
 			parents:    c.parents,
 		}
-		states = append(states, s)
+		stateIds = append(stateIds, c.id)
+		states[s.id] = s
+		//states = append(states, s)
 		for _, t := range c.tags {
 			for _, domain := range tagDomains[t] {
 				d := dataset{
@@ -56,6 +62,7 @@ func (cing *clustering) ToOrganization() *organization {
 	}
 	return &organization{
 		states:      states,
+		stateIds:    stateIds,
 		transitions: cing.hierarchy,
 		root:        root,
 		reachables:  reachables,

@@ -5,24 +5,32 @@ import (
 	"math"
 	"math/rand"
 	"time"
+
+	"github.com/RJMillerLab/opendata-ontology/data-prep/go/pqueue"
 )
 
 var (
-	coherence map[int]float64
+	coherence      map[int]float64
+	coherenceQueue *pqueue.TopKQueue
 )
 
 // this operator changes the parent of a node to a random node
 func (org organization) adopt() *organization {
 	newOrg := org.deepCopy()
-	child := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(org.states))
-	parent := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(org.states))
+	child := org.stateIds[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(org.states))]
+	for child == org.root.id {
+		child = org.stateIds[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(org.states))]
+	}
+	parent := org.stateIds[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(org.states))]
 	for parent == child || containsInt(org.transitions[parent], child) {
-		parent = rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(org.states))
+		parent = org.stateIds[rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(org.states))]
 	}
 	newOrg.transitions[parent] = append(newOrg.transitions[parent], child)
 	delParent := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(org.states[child].parents))
-	newOrg.states[child].parents = removeSlice(newOrg.states[child].parents, newOrg.states[child].parents[delParent])
-	newOrg.states[child].parents = append(newOrg.states[child].parents, parent)
+	chs := newOrg.states[child]
+	chs.parents = removeSlice(chs.parents, newOrg.states[child].parents[delParent])
+	chs.parents = append(chs.parents, parent)
+	newOrg.states[child] = chs
 	log.Printf("child: %d parent: %d", child, parent)
 	newOrg.updateAncestorsTags(child, parent)
 	return newOrg
@@ -35,23 +43,111 @@ func (org *organization) updateAncestorsTags(child, parent int) {
 	next := parent
 	queue := make([]int, 0)
 	queue = append(queue, parent)
-	for next != org.root.id {
+	for next != org.root.id && len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
 		for _, p := range org.states[current].parents {
 			if p == org.root.id {
 				continue
 			}
-			queue = append(queue, p)
-			toupdate[p] = true
+			if _, ok := toupdate[p]; !ok {
+				queue = append(queue, p)
+				toupdate[p] = true
+			}
 		}
 	}
 	for p, _ := range toupdate {
-		org.states[p].tags = mergeset(org.states[p].tags, org.states[child].tags)
+		pst := org.states[p]
+		pst.tags = mergeset(org.states[p].tags, org.states[child].tags)
+		org.states[p] = pst
 	}
 }
 
-//func split()
+func (org *organization) split() {
+	rsid, _ := coherenceQueue.Pop()
+	sid := rsid.(int)
+	for sid == org.root.id {
+		rsid, _ = coherenceQueue.Pop()
+		sid = rsid.(int)
+	}
+	tosplit := org.states[sid]
+	delete(org.states, sid)
+	split1, split2 := org.splitState(tosplit)
+	org.states[split1.id] = split1
+	org.states[split2.id] = split2
+	// update parents
+	for _, pid := range tosplit.parents {
+		org.transitions[pid] = append(org.transitions[pid], split1.id)
+		org.transitions[pid] = append(org.transitions[pid], split2.id)
+	}
+	// update children
+	org.updateChildrenAfterSplit(tosplit, split1, split2)
+}
+
+func (org *organization) updateChildrenAfterSplit(parent, split1, split2 state) {
+	org.transitions[split1.id] = make([]int, 0)
+	org.transitions[split2.id] = make([]int, 0)
+	for _, chid := range org.transitions[parent.id] {
+		child := org.states[chid]
+		for _, t := range child.tags {
+			if containsStr(split1.tags, t) {
+				org.transitions[split1.id] = append(org.transitions[split1.id], child.id)
+				break
+			}
+			if containsStr(split2.tags, t) {
+				org.transitions[split2.id] = append(org.transitions[split2.id], child.id)
+				break
+			}
+		}
+	}
+	delete(org.transitions, parent.id)
+}
+
+func (org *organization) splitState(tosplit state) (state, state) {
+	stags1, stags2 := splitStateTags(tosplit)
+	st1 := org.splitStateByTags(stags1, tosplit, len(org.states))
+	st2 := org.splitStateByTags(stags2, tosplit, len(org.states)+1)
+	return st1, st2
+}
+
+func (org organization) splitStateByTags(tags []string, st state, sid int) state {
+	population := make([][]float64, 0)
+	sems := make([][]float64, 0)
+	for _, t := range tags {
+		sems = append(sems, tagSems[t])
+		population = append(population, tagDomainSems[t]...)
+	}
+	return state{
+		tags:       tags,
+		population: population,
+		sem:        avg(sems),
+		id:         sid,
+		parents:    st.parents,
+		label:      make([]string, 0),
+		datasets:   getDatasets(tags),
+	}
+}
+
+func splitStateTags(pst state) ([]string, []string) {
+	l1 := len(pst.tags) / 2.0
+	//l2 := len(pst.tags) - l1
+	mctags1 := make(map[string]bool)
+	for len(mctags1) < l1 {
+		tid := rand.New(rand.NewSource(time.Now().UnixNano())).Intn(len(pst.tags))
+		mctags1[pst.tags[tid]] = true
+	}
+	ctags1 := make([]string, 0)
+	ctags2 := make([]string, 0)
+	for t, _ := range mctags1 {
+		ctags1 = append(ctags1, t)
+	}
+	for _, t := range pst.tags {
+		if _, ok := mctags1[t]; !ok {
+			ctags2 = append(ctags2, t)
+		}
+	}
+	return ctags1, ctags2
+}
 
 func (org *organization) Optimize() *organization {
 	oldOrg := org.deepCopy()
@@ -90,7 +186,7 @@ func (org *organization) Optimize() *organization {
 		} else {
 			log.Printf("Cannot improve the org.")
 		}
-		if bestOpAcceptProb > bestAcceptProb {
+		if bestOrgOpSuccessProb > bestOrgSuccessProb {
 			bestAcceptProb = bestOpAcceptProb
 			bestOrg = bestOpOrg
 			bestOrgSuccessProb = bestOrgOpSuccessProb
@@ -104,7 +200,11 @@ func (org *organization) Optimize() *organization {
 }
 
 func initSearch(org organization) {
-	org.computeStateCoherence()
+	coherenceQueue = pqueue.NewTopKQueue(len(org.states))
+	coherence = org.computeStateCoherence()
+	for sid, c := range coherence {
+		coherenceQueue.Push(sid, c)
+	}
 }
 
 func (org organization) computeStateCoherence() map[int]float64 {
