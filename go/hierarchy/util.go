@@ -23,7 +23,7 @@ func loadJson(file string, v interface{}) (err error) {
 	return nil
 }
 
-func ContainsInt(as []int, i int) bool {
+func containsInt(as []int, i int) bool {
 	for _, v := range as {
 		if v == i {
 			return true
@@ -194,20 +194,6 @@ func dumpJson(file string, v interface{}) error {
 	return nil
 }
 
-func Cosine(x, y []float64) float64 {
-	if len(x) != len(y) {
-		panic("Length of vectors not equal")
-	}
-	dot := 0.0
-	modX, modY := 0.0, 0.0
-	for i := range x {
-		dot += x[i] * y[i]
-		modX += x[i] * x[i]
-		modY += y[i] * y[i]
-	}
-	return dot / (math.Sqrt(modX) * math.Sqrt(modY))
-}
-
 func containsStr(as []string, i string) bool {
 	for _, v := range as {
 		if v == i {
@@ -215,4 +201,33 @@ func containsStr(as []string, i string) bool {
 		}
 	}
 	return false
+}
+
+func removeSlice(s []int, e int) []int {
+	i := -1
+	for j, v := range s {
+		if v == e {
+			i = j
+		}
+	}
+	if i == -1 {
+		panic("item not in slice")
+	}
+	o := append(s[:i], s[i+1:]...)
+	return o
+}
+
+func mergeset(a, b []string) []string {
+	m := make(map[string]bool)
+	r := make([]string, 0)
+	for _, v := range a {
+		m[v] = true
+	}
+	for _, v := range b {
+		m[v] = true
+	}
+	for v, _ := range m {
+		r = append(r, v)
+	}
+	return r
 }

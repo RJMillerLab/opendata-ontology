@@ -60,8 +60,8 @@ func buildContext() (map[string][]float64, map[string]string, map[string][]strin
 			tagTables[tags[i]] = append(tagTables[tags[i]], tablename)
 		}
 	}
-	log.Printf("domainSems: %d domainTags: %d tableTags: %d tagDomains: %d tagTables: %d tagDomainSems: %d tagSems: %d", len(domainSems), len(domainTags), len(tableTags), len(tagDomains), len(tagTables), len(tagDomainSems), len(tagSems))
 	tagSems := getTagSems(tagDomains, domainSems)
+	log.Printf("domainSems: %d domainTags: %d tableTags: %d tagDomains: %d tagTables: %d tagDomainSems: %d tagSems: %d", len(domainSems), len(domainTags), len(tableTags), len(tagDomains), len(tagTables), len(tagDomainSems), len(tagSems))
 	return domainSems, domainTags, tableTags, tagDomains, tagTables, tagDomainSems, tagSems
 }
 
@@ -82,7 +82,6 @@ func readTablenames() []string {
 
 func (domain *domain) getSem() {
 	sem, err := ftConn.GetDomainEmbMeanNoFreq(domain.values)
-	log.Printf("sem: %v", sem)
 	if err != nil {
 		panic(err)
 	}

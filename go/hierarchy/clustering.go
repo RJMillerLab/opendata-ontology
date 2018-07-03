@@ -29,8 +29,8 @@ var (
 type pair struct {
 	cId1 int
 	cId2 int
-	c1   cluster
-	c2   cluster
+	//c1   cluster
+	//c2   cluster
 }
 
 type cluster struct {
@@ -38,6 +38,7 @@ type cluster struct {
 	sem        []float64
 	population [][]float64
 	id         int
+	parents    []int
 }
 
 type clustering struct {
@@ -60,15 +61,15 @@ func newCluster(tagname string, id int) cluster {
 		population: tagDomainSems[tagname],
 		sem:        tagSems[tagname],
 		id:         id,
+		parents:    make([]int, 0),
 	}
 }
 
 func newClustering() *clustering {
 	clusters := initializeClusters()
-	log.Printf("initiliazation: ")
 	cing := &clustering{
 		clusters:       clusters,
-		mergeQueue:     pqueue.NewTopKQueue(len(clusters)),
+		mergeQueue:     pqueue.NewTopKQueue(3 * len(clusters) * len(clusters)),
 		mergedClusters: make(map[int]bool),
 		singleClusters: make(map[int]bool),
 		threshold:      0.85,
@@ -84,7 +85,7 @@ func initializeClusters() []cluster {
 	for l, _ := range tagSems {
 		clusters = append(clusters, newCluster(l, len(clusters)))
 	}
-	log.Printf("len(clusters): %d", len(clusters))
+	//log.Printf("len(clusters): %d", len(clusters))
 	return clusters
 }
 
@@ -95,14 +96,22 @@ func (cing *clustering) initializeDistanceMatrix() {
 		cing.distances[i] = make([]float64, len(cing.clusters))
 	}
 	//mind := 2.0
+	max := -1.0
+	min := 1.0
 	for i := 0; i < len(cing.clusters); i++ {
-		cing.singleClusters[i] = true
+		//cing.singleClusters[i] = true
 		for j := i + 1; j < len(cing.clusters); j++ {
-			d := Cosine(cing.clusters[i].sem, cing.clusters[j].sem)
-			//p := pair{c1: i, c2: j}
-			p := pair{c1: cing.clusters[i], cId1: cing.clusters[i].id, c2: cing.clusters[j], cId2: cing.clusters[j].id}
+			d := cosine(cing.clusters[i].sem, cing.clusters[j].sem)
+			p := pair{cId1: cing.clusters[i].id, cId2: cing.clusters[j].id}
+			//p := pair{c1: cing.clusters[i], cId1: cing.clusters[i].id, c2: cing.clusters[j], cId2: cing.clusters[j].id}
 			if d > 0.0 {
-				cing.mergeQueue.Push(p, d)
+				if d > max {
+					max = d
+				}
+				if d < min {
+					min = d
+				}
+				cing.mergeQueue.Push(p, -1.0*d)
 			} else {
 				log.Printf("zero dist in merge")
 			}
@@ -110,17 +119,6 @@ func (cing *clustering) initializeDistanceMatrix() {
 			cing.distances[j][i] = d
 		}
 	}
-	//log.Printf("init cing.mergeQueue.Size(): %d", cing.mergeQueue.Size())
-}
-
-func (cing *clustering) MakeThresholdClustering() {
-	c, init := cing.findClustersToMergeThreshold()
-	for cond := init; cond; {
-		cing.addNewCluster(c)
-		c, cond = cing.findClustersToMergeThreshold()
-	}
-	log.Printf("done clustering.")
-	cing.printClustring()
 }
 
 func (cing *clustering) BuildClusters() {
@@ -130,12 +128,31 @@ func (cing *clustering) BuildClusters() {
 		cing.mergeClusters(p)
 		p, cond = cing.findClustersToMerge()
 	}
+	if len(cing.clusters) != 0 {
+		cing.root = cing.clusters[len(cing.clusters)-1]
+		log.Printf("root: %d", cing.root.id)
+	}
+
+	//log.Printf("done clustering.")
+	//cing.printClustring()
+}
+
+func (cing *clustering) MakeThresholdClustering() {
+	c, init := cing.findAndMergeClustersThreshold()
+	for cond := init; cond; {
+		cing.addNewCluster(c)
+		c, cond = cing.findAndMergeClustersThreshold()
+	}
+	if len(cing.clusters) != 0 {
+		cing.root = cing.clusters[len(cing.clusters)-1]
+		log.Printf("root: %d", cing.root.id)
+	}
 	log.Printf("done clustering.")
 	cing.printClustring()
 }
 
-func (cing *clustering) findClustersToMergeThreshold() (cluster, bool) {
-	mp, s := cing.mergeQueue.Pop()
+func (cing *clustering) findAndMergeClustersThreshold() (cluster, bool) {
+	mp, _ := cing.mergeQueue.Pop()
 	merge := cluster{}
 	found := false
 	for e := mp; !found && e != nil; e = mp {
@@ -143,12 +160,11 @@ func (cing *clustering) findClustersToMergeThreshold() (cluster, bool) {
 		if _, ok1 := cing.mergedClusters[p.cId1]; !ok1 {
 			if _, ok2 := cing.mergedClusters[p.cId2]; !ok2 {
 				found = true
-				log.Printf("found the seed: %d %d: %f", p.cId1, p.cId2, s)
 				merge = cing.buildClusterFromSeed(p)
 			}
 		}
 		if !found {
-			mp, s = cing.mergeQueue.Pop()
+			mp, _ = cing.mergeQueue.Pop()
 		}
 	}
 	if found == true {
@@ -159,82 +175,93 @@ func (cing *clustering) findClustersToMergeThreshold() (cluster, bool) {
 }
 
 func (cing *clustering) addNewCluster(nc cluster) {
-	//log.Printf("adding new cluster.")
 	for i, c := range cing.clusters {
+		if c.id == nc.id {
+			continue
+		}
 		if _, ok := cing.mergedClusters[i]; !ok {
-			d := Cosine(c.sem, nc.sem)
-			p := pair{cId1: cing.clusters[i].id, cId2: nc.id, c1: cing.clusters[i], c2: nc}
+			d := cosine(c.sem, nc.sem)
+			p := pair{cId1: c.id, cId2: nc.id}
 			if d > 0.0 {
-				cing.mergeQueue.Push(p, d)
+				cing.mergeQueue.Push(p, -1.0*d)
 			} else {
 				log.Printf("zero dist in merge")
 			}
 		}
 	}
 	cing.clusters = append(cing.clusters, nc)
-	//log.Printf("number of clusters now: %d", len(cing.clusters))
 }
 
 func (cing *clustering) buildClusterFromSeed(p pair) cluster {
-	delete(cing.singleClusters, p.cId1)
-	delete(cing.singleClusters, p.cId2)
 	cing.mergedClusters[p.cId1] = true
 	cing.mergedClusters[p.cId2] = true
+	p1 := cing.clusters[p.cId1]
+	p2 := cing.clusters[p.cId2]
 	seed := cluster{
-		tags:       append(p.c1.tags, p.c2.tags...),
-		population: append(p.c1.population, p.c2.population...),
-		sem:        mergeClusterSem(p.c1.sem, p.c2.sem),
+		tags:       append(p1.tags, p2.tags...),
+		population: append(p1.population, p2.population...),
+		sem:        mergeClusterSem(p1.sem, p2.sem),
 		id:         len(cing.clusters),
 	}
+	cing.clusters = append(cing.clusters, seed)
+	if _, ok := cing.hierarchy[seed.id]; !ok {
+		cing.hierarchy[seed.id] = make([]int, 0)
+	}
+	cing.hierarchy[seed.id] = append(cing.hierarchy[seed.id], p.cId1)
+	cing.hierarchy[seed.id] = append(cing.hierarchy[seed.id], p.cId2)
+	cing.clusters[p.cId1].parents = append(cing.clusters[p.cId1].parents, seed.id)
+	cing.clusters[p.cId2].parents = append(cing.clusters[p.cId2].parents, seed.id)
 	mcount := 2
-	if len(cing.singleClusters) == 0 {
-		//log.Println("len(cing.singleClusters)=0")
-		return seed
+	seedQueue := pqueue.NewTopKQueue(len(cing.clusters))
+	for ci, _ := range cing.clusters {
+		if cing.clusters[ci].id == seed.id {
+			continue
+		}
+		if _, ok := cing.mergedClusters[cing.clusters[ci].id]; ok {
+			continue
+		}
+		d := cosine(cing.clusters[ci].sem, seed.sem)
+		if d > 0.0 {
+			p := pair{cId1: cing.clusters[ci].id, cId2: seed.id}
+			seedQueue.Push(p, -1.0*d)
+		}
 	}
 	aboveThreshold := false
 	for !aboveThreshold {
-		seedQueue := pqueue.NewTopKQueue(len(cing.singleClusters))
-		for ci, _ := range cing.singleClusters {
-			d := Cosine(cing.clusters[ci].sem, seed.sem)
-			if d > 0.0 {
-				p := pair{c1: cing.clusters[ci], c2: seed, cId1: ci}
-				seedQueue.Push(p, d)
-			}
-		}
 		if seedQueue.Size() == 0 {
+			log.Printf("seedQueue.Size() == 0")
 			aboveThreshold = true
 			continue
 		}
 		p, _ := seedQueue.Pop()
 		mp := p.(pair)
-		//log.Printf("should i merge %d with score %f with the seed?", mp.cId1, s)
+		mp1 := cing.clusters[mp.cId1]
+		mp2 := cing.clusters[mp.cId2]
 		merge := cluster{
-			tags:       append(mp.c1.tags, mp.c2.tags...),
-			population: append(mp.c1.population, mp.c2.population...),
-			sem:        mergeClusterSem(mp.c1.sem, mp.c2.sem),
-			id:         len(cing.clusters),
+			tags:       append(mp1.tags, mp2.tags...),
+			population: append(mp1.population, mp2.population...),
+			sem:        mergeClusterSem(mp1.sem, mp2.sem),
+			id:         seed.id,
 		}
-		d := Cosine(merge.sem, seed.sem)
+		d := cosine(merge.sem, seed.sem)
 		if d < cing.threshold {
-			//log.Println("no")
 			aboveThreshold = true
 		} else {
+			cing.clusters[seed.id] = merge
 			mcount += 1
 			seed = merge
 			cing.mergedClusters[mp.cId1] = true
-			delete(cing.singleClusters, mp.cId1)
+			cing.hierarchy[seed.id] = append(cing.hierarchy[seed.id], mp.cId1)
+			cing.clusters[mp.cId1].parents = append(cing.clusters[mp.cId1].parents, seed.id)
 		}
 	}
-	log.Printf("merged %d clusters.", mcount)
 	return seed
 }
 
 func (cing *clustering) findClustersToMerge() (pair, bool) {
 	found := false
 	mp, _ := cing.mergeQueue.Pop()
-	//log.Printf("start mp: %v ms: %f", mp, ms)
 	for e := mp; !found && e != nil; e = mp {
-		//log.Printf("loop mp: %v ms: %f", mp, ms)
 		p := e.(pair)
 		if _, ok1 := cing.mergedClusters[p.cId1]; !ok1 {
 			if _, ok2 := cing.mergedClusters[p.cId2]; !ok2 {
@@ -244,10 +271,8 @@ func (cing *clustering) findClustersToMerge() (pair, bool) {
 		if !found {
 			mp, _ = cing.mergeQueue.Pop()
 		}
-		//log.Printf("found: %v", found)
 	}
 	if found == true {
-		//log.Printf("merging %d and %d with distance %f", mp.(pair).c1, mp.(pair).c2, ms)
 		return mp.(pair), true
 	} else {
 		return pair{cId1: -1, cId2: -1}, false
@@ -265,16 +290,13 @@ func (cing *clustering) mergeClusters(clusterPair pair) {
 		sem:        mergeClusterSem(c1.sem, c2.sem),
 		id:         len(cing.clusters),
 	}
-	if len(cing.clusters) == 0 {
-		cing.root = nc
-	}
 	for i, c := range cing.clusters {
 		if _, ok := cing.mergedClusters[i]; !ok {
-			d := Cosine(c.sem, nc.sem)
+			d := cosine(c.sem, nc.sem)
 			// the index of the new cluster will be the current size of the clusters
 			p := pair{cId1: i, cId2: len(cing.clusters)}
 			if d > 0.0 {
-				cing.mergeQueue.Push(p, d)
+				cing.mergeQueue.Push(p, -1.0*d)
 			} else {
 				log.Printf("zero dist in merge")
 			}
@@ -288,6 +310,8 @@ func (cing *clustering) mergeClusters(clusterPair pair) {
 	}
 	cing.hierarchy[nc.id] = append(cing.hierarchy[nc.id], cinx1)
 	cing.hierarchy[nc.id] = append(cing.hierarchy[nc.id], cinx2)
+	cing.clusters[cinx1].parents = append(cing.clusters[cinx1].parents, nc.id)
+	cing.clusters[cinx2].parents = append(cing.clusters[cinx2].parents, nc.id)
 }
 
 func (cing *clustering) mergeClustersOld(clusterPair pair) {
@@ -330,12 +354,12 @@ func (cing *clustering) mergeClustersOld(clusterPair pair) {
 	// compue the distance of the new cluster with all clusters
 	nrow := make([]float64, 0)
 	for i, c := range cing.clusters {
-		d := Cosine(c.sem, nc.sem)
+		d := cosine(c.sem, nc.sem)
 		nrow = append(nrow, d)
 		// the index of the new cluster will be the current size of the clusters
 		p := pair{cId1: i, cId2: len(cing.clusters)}
 		if d > 0.0 {
-			cing.mergeQueue.Push(p, d)
+			cing.mergeQueue.Push(p, -1.0*d)
 		} else {
 			log.Printf("zero dist in merge")
 		}
@@ -457,6 +481,6 @@ func (cing *clustering) printClustring() {
 		}
 	}
 	for s, ts := range cing.hierarchy {
-		fmt.Printf("%d -> (%v)", s, ts)
+		fmt.Printf("%d -> (%v)\n", s, ts)
 	}
 }
