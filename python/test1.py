@@ -28,8 +28,9 @@ gp = orgg.add_node_vecs(g, vecs)
 
 print("Computing reachability probs")
 tag_ranks = dict()
-for domain in domains[:5]:
+for domain in domains[:10]:
     tag_dist = orgg.get_tag_probs(gp, domain)
     tag_ranks[domain['tag']] = [i for i in range(len(tag_dist)) if tag_dist[i][0]==domain['tag']][0]
+print(tag_ranks)
 
 print("Done")
