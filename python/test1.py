@@ -1,20 +1,35 @@
 import org
 import org.load as orgl
 import org.cluster as orgc
+import org.graph as orgg
 import importlib
 
 def reload():
     importlib.reload(org)
     importlib.reload(orgl)
     importlib.reload(orgc)
+    importlib.reload(orgg)
 
-import numpy as np
-from sklearn.cluster import AgglomerativeClustering
 
 print("Loading domains")
 domains = list(orgl.add_ft_vectors(orgl.iter_domains()))
 
 print("Reduce tags")
 tags = orgl.reduce_tag_vectors(domains)
+
+print("Basic clustering")
+keys, vecs = orgc.mk_tag_table(tags)
+num_clusters = 10
+c = orgc.basic_clustering(vecs, num_clusters)
+
+print("Cluster to graph")
+g = orgg.cluster_to_graph(c, vecs, keys)
+gp = orgg.add_node_vecs(g, vecs)
+
+print("Computing reachability probs")
+tag_ranks = dict()
+for domain in domains[:5]:
+    tag_dist = orgg.get_tag_probs(gp, domain)
+    tag_ranks[domain['tag']] = [i for i in range(len(tag_dist)) if tag_dist[i][0]==domain['tag']][0]
 
 print("Done")

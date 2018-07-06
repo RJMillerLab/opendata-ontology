@@ -1,5 +1,4 @@
 from sklearn.cluster import AgglomerativeClustering
-import networkx as nx
 import numpy as np
 
 def mk_tag_table(tags):
@@ -9,5 +8,10 @@ def mk_tag_table(tags):
         X.append(tags[k]['v'])
     return keys, np.array(X)
 
+
+def basic_clustering(vecs, num_clusters):
+    cluster = AgglomerativeClustering(n_clusters=num_clusters,  affinity='cosine', linkage='average')
+    cluster.fit(vecs)
+    return cluster
 
 

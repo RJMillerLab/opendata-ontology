@@ -44,6 +44,7 @@ def add_ft_vectors(domains):
             if not (v is None): vecs.append(v)
         if len(vecs) > 0:
             dom['vecs'] = np.array(vecs)
+            dom['mean'] = np.mean(np.array(vecs), axis=0)
             yield dom
     db.close()
 
