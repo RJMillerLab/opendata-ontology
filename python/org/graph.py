@@ -4,6 +4,15 @@ from scipy import spatial
 import numpy as np
 import math
 
+def get_reachability_probs(gp, domains):
+    tag_ranks = dict()
+    tag_dists = dict()
+    for domain in domains:
+        tag_dist = get_tag_probs(gp, domain)
+        tag_dists[domain['name']] = tag_dist
+        tag_ranks[domain['tag']] = [i for i in range(len(tag_dist)) if tag_dist[i][0]==domain['tag']][0] + 1
+    return tag_dists, tag_ranks
+
 
 def cluster_to_graph(cluster, vecs, tags):
     n_leaves = len(vecs)
@@ -19,9 +28,12 @@ def add_node_vecs(g, vecs):
     leaves = get_leaves(g)
     for n in g.nodes:
         if n not in leaves:
-            g.node[n]['vec'] = np.mean(vecs[np.array(list(leaves.intersection(nx.descendants(g,n))))], axis=0)
+            node_vecs = vecs[np.array(list(leaves.intersection(nx.descendants(g,n))))]
+            g.node[n]['population'] = node_vecs
+            g.node[n]['rep'] = np.mean(node_vecs, axis=0)
         else:
-            g.node[n]['vec'] = vecs[n]
+            g.node[n]['rep'] = vecs[n]
+            g.node[n]['population'] = [vecs[n]]
     return g
 
 
@@ -40,7 +52,8 @@ def get_domain_edge_probs(g, domain):
     # computing sims
     for e in gd.edges:
         p, ch = e[0], e[1]
-        gd[p][ch]['trans_sim'] = get_transition_prob(gd.node[ch]['vec'], domain['mean'])
+        gd[p][ch]['trans_sim'] = get_transition_prob(gd.node[ch]['rep'], domain['mean'])
+        #gd[p][ch]['trans_sim'] = get_transition_prob_plus(domain['mean'], gd.node[ch]['population'])
     # computing softmax prob
     for e in gd.edges:
         p, ch = e[0], e[1]
@@ -73,6 +86,12 @@ def get_root(g):
 
 def get_transition_prob(vec1, vec2):
     return 1.0 - spatial.distance.cosine(vec1, vec2)
+
+def get_transition_prob_plus(vec1, vecs2):
+    s = 0.0
+    for vec2 in vecs2:
+        s += (1.0 - spatial.distance.cosine(vec1, vec2))
+    return s/float(len(vecs2))
 
 
 def get_siblings(g, n, p):
