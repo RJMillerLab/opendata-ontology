@@ -24,7 +24,7 @@ def iter_domains():
         for i in range(len(tags)):
             domain = [row[i] for row in rows]
             tag = tags[i]
-            yield dict(tag=tag, domain=domain, name=table)
+            yield dict(tag=tag, domain=domain, name=table+'_'+str(i))
 
 def lookup_ft_vector(cursor, word):
     cursor.execute("select vec from wv where word = ?", [word])

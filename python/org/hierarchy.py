@@ -10,16 +10,13 @@ def get_reachability_probs(gp, domains):
     tag_dists = dict()
     success_probs = dict()
     for domain in domains:
-        print(domain['name'])
         tags = get_tag_probs(gp, domain)
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
-        print(len(tag_dist))
         tag_dists[domain['name']] = tag_dist
         for i in range(len(tag_dist)):
             if tag_dist[i][0]==domain['tag']:
                 tag_ranks[domain['name']] = i + 1
                 success_probs[domain['name']] = tag_dist[i][1]
-                print(tag_dist[i][1])
     return tag_dists, tag_ranks, success_probs
 
 
@@ -70,7 +67,10 @@ def get_node_probs(g):
     top = list(nx.topological_sort(gd))
     for p in top:
         for ch in gd.successors(p):
-            gd.node[ch]['reach_prob'] += gd.node[p]['reach_prob']*gd[p][ch]['trans_sim']
+            gd.node[ch]['reach_prob'] += gd.node[p]['reach_prob']*gd[p][ch]['trans_prob']
+    for n in gd.nodes:
+        if gd.node[n]['reach_prob'] == 0.0:
+            print('0.0 0.0')
     return gd
 
 
@@ -95,4 +95,36 @@ def evaluate(g, domains):
     print('hierarchy success prob: %f' % (sum(list(success_probs.values()))/float(len(success_probs))))
     results = {'tag_dists': tag_dists, 'tag_ranks': tag_ranks, 'success_probs': success_probs, 'rank_error': error}
     return results
+
+
+# computes the local likelihood of a given domain and the hierarchy
+def local_log_likelihood(g, domain):
+    gp = get_domain_edge_probs(g, domain)
+    gpp = get_node_probs(gp)
+    likelihood = 0.0
+    for n in gpp.nodes:
+        likelihood += math.log(gpp.node[n]['reach_prob'])
+    return likelihood
+
+# computes the log likelihood of a hierarchy
+def log_likelihood(g, domains):
+    likelihood = 0.0
+    for domain in domains:
+        local_likelihood = local_log_likelihood(g, domain)
+        likelihood += local_likelihood
+    return likelihood
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -38,3 +38,13 @@ def get_tag_ranks_kmeans(tags, vecs, params, domains):
         results.append(rs)
     return results
 
+
+def evaluate_likelihood(tags, vecs, params, domains):
+    results = []
+    for ncs in params['n_branches']:
+        n_branches = ncs
+        gp = orgc.kmeans_clustering(tags, vecs, n_branches)
+        rs = orgh.log_likelihood(gp, domains)
+        results.append(rs)
+    return results
+
