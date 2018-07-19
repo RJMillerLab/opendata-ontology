@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import numpy as np
+import org.hierarchy as orgh
 
 REPO_PATH = '/home/kenpu/clones/tagcloud-nlp-generator/output'
 FT_SQLITE3_PATH = '/home/kenpu/clones/tagcloud-nlp-generator/ft.sqlite3'
@@ -63,3 +64,20 @@ def reduce_tag_vectors(domains):
         v['v'] = v['sum'] / v['n']
 
     return tags
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
