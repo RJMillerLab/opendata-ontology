@@ -3,6 +3,8 @@ from sklearn.cluster import KMeans
 import numpy as np
 import networkx as nx
 import random
+import org.hierarchy as orgh
+import operator
 
 
 def mk_tag_table(tags):
@@ -104,6 +106,69 @@ def twolevel_kmeans_clustering(tags, vecs, n_branching):
 
 
 
+def complete_kary_cluster(tags, vecs, n_cluster):
+    n_branching = int(len(tags)/n_cluster)
+    # lookup map of tag names and ids
+    tmap = dict()
+    for i in range(len(tags)):
+        tmap[tags[i]] = i
+    sims = dict()
+    tag_closeness = dict()
+    for i in range(len(tags)):
+        sims[tags[i]] = dict()
+        tag_closeness[tags[i]] = 0.0
+        for j in range(i+1,len(tags)):
+            s = orgh.get_transition_sim(vecs[i], vecs[j])
+            sims[tags[i]][tags[j]] = s
+            tag_closeness[tags[i]] += s
+    order = sorted(tag_closeness.items(), key=operator.itemgetter(1))
+    clustered = []
+    clusters = dict()
+    for o in order:
+        t = o[0]
+        if t in clustered:
+            continue
+        neighbors = sorted(sims[t].items(), key=operator.itemgetter(1), reverse=True)
+        clusters[t] = [t]
+        clustered.append(t)
+        for n in neighbors:
+            if n[0] not in clustered and len(clusters[t])<n_branching:
+                clusters[t].append(n[0])
+                clustered.append(n[0])
+    g = nx.DiGraph()
+    # root
+    rid = 0
+    g.add_node(rid)
+    g.node[rid]['population'] = vecs
+    g.node[rid]['rep'] = np.mean(vecs, axis=0)
+    g.node[rid]['tags'] = tags
+    cid = rid
+    for c in clusters.values():
+        if len(c) < n_branching:
+            print('too small')
+            continue
+        cid += 1
+        pop = []
+        ts = []
+        tid = cid
+        g.add_node(cid)
+        for t in c:
+            tid += 1
+            pop.append(vecs[tmap[t]])
+            ts.append(tags[tmap[t]])
+            g.add_node(tid)
+            g.node[tid]['population'] = [vecs[tmap[t]]]
+            g.node[tid]['rep'] = vecs[tmap[t]]
+            g.node[tid]['tag'] = t
+            g.add_edge(cid, tid)
+        g.node[cid]['population'] = pop
+        g.node[cid]['rep'] = np.mean(np.array(pop), axis=0)
+        g.node[cid]['tags'] = ts
+        g.add_edge(rid, cid)
+        cid = tid
+    print('nodes: %d edges: %d' % (len(g.nodes), len(g.edges)))
+    print('len(vecs: %d)' % len(vecs))
+    return g
 
 
 

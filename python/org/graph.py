@@ -41,6 +41,8 @@ def get_siblings(g, n, p):
 def level_up(g, nodes):
     ups = []
     for n in nodes:
+        if n not in g:
+            continue
         ps = g.predecessors(n)
         for s in ps:
             if s not in ups:
