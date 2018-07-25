@@ -7,6 +7,7 @@ from scipy import linalg
 
 
 def compute_reachability_probs(gp, domains):
+    print('compute_reachability_probs')
     tag_ranks = dict()
     tag_dists = dict()
     success_probs = dict()
@@ -73,22 +74,15 @@ def get_tag_probs(g, domain):
 
 def get_domain_edge_probs(g, domain):
     gd = g.copy()
-    # computing sims
-    for e in gd.edges:
-        p, ch = e[0], e[1]
-        gd[p][ch][domain['name']] = dict()
-        gd[p][ch][domain['name']]['trans_sim_domain'] = get_transition_sim(gd.node[ch]['rep'], domain['mean'])
-        #gd[p][ch]['trans_sim_domain'] = get_transition_sim_plus(gd.node[ch]['population'], domain['mean'])
-    # computing softmax prob
-    for e in gd.edges:
-        p, ch = e[0], e[1]
-        # softmax
-        #d = float(sum([math.exp(gd[p][s]['trans_sim_domain']) for s in gd.successors(p)]))
-        #gd[p][ch]['trans_prob_domain'] = math.exp(gd[p][ch]['trans_sim_domain'])/d
-        d = float(sum([gd[p][s][domain['name']]['trans_sim_domain'] for s in gd.successors(p)]))
-        gd[p][ch][domain['name']]['trans_prob_domain'] = gd[p][ch][domain['name']]['trans_sim_domain']/d
-        #print('trans_sim p: %d ch: %d  %f  %f' % (p, ch, gd[p][ch]['trans_sim_domain'], gd[p][ch]['trans_prob_domain']))
-    #print('------------------------')
+    leaves = orgg.get_leaves(gd)
+    for p in gd.nodes:
+        if p in leaves:
+            continue
+        ts, sis = get_trans_prob(gd, p, domain)
+        for ch, prob in ts.items():
+            gd[p][ch][domain['name']] = dict()
+            gd[p][ch][domain['name']]['trans_prob_domain'] = prob
+            gd[p][ch][domain['name']]['trans_sim_domain'] = sis[ch]
     return gd
 
 
@@ -108,11 +102,13 @@ def get_domain_node_probs(g, domain):
         #if p in leaves:
         #    print('leaf node %d: %f  tag: %s' % (p, gd.node[p]['reach_prob_domain'], gd.node[p]['tag']))
         for ch in list(gd.successors(p)):
-            gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*gd[p][ch][domain['name']]['trans_prob_domain']
+            #gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*gd[p][ch][domain['name']]['trans_prob_domain']
+            gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*                                       gd[p][ch][domain['name']]['trans_sim_domain']
             gd.node[ch][domain['name']]['reach_trans_domain'] += gd.node[p][domain['name']]['reach_trans_domain']*gd[p][ch][domain['name']]['trans_sim_domain']
             #print('p: %d ch: %d trans: %f prob: %f' % (p, ch, gd[p][ch]['trans_sim_domain'], gd.node[ch]['reach_prob_domain']))
             if gd.node[ch][domain['name']]['reach_prob_domain'] > 1.0:
                 print('>0.1')
+                gd.node[ch][domain['name']]['reach_prob_domain'] = 1.0
         #print('-------------------')
     return gd
 
@@ -129,20 +125,13 @@ def cosine(vec1, vec2):
     return c
 
 
-#def get_transition_prob_plus(vec1, mean, cov):
 def get_transition_sim_plus(vecs2, vec1):
-    #s = 0.0
-    #for vec2 in vecs2:
-    #    s += (1.0 - spatial.distance.cosine(vec1, vec2) + 1.0)/2.0
-    #return s/float(len(vecs2))
-
     m = 0.0
     for vec2 in vecs2:
         d = max(0.000001, cosine(vec1, vec2))
         if d > m:
             m = d
     return m
-    #return get_isa_sim(np.array(list(vec1)), mean, cov)
 
 
 def get_isa_sim(vec, mean, cov, det):
@@ -211,6 +200,36 @@ def log_likelihood(g, domains):
 
     return likelihood, h
 
+
+def get_trans_prob(g, p, domain):
+    d = 0.0
+    tps = dict()
+    sis = dict()
+    tsl = []
+    ts = dict()
+    sps = list(g.successors(p))
+    for s in sps:
+        m = get_transition_sim(g.node[s]['rep'], domain['mean'])
+        #m = get_transition_sim_plus(g.node[s]['population'], domain['mean'])
+        tsl.append(m)
+        ts[s] = m
+    if len(tsl) == 0 :
+        print('zero')
+    maxs = max(tsl)
+    mins = min(tsl)
+    for s in sps:
+        if mins == maxs:
+            #tps[s] = math.exp(ts[s]-maxs)
+            tps[s] = math.exp(ts[s])
+        else:
+            tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
+        sis[s] = ts[s]
+        d += tps[s]
+    for s in sps:
+        tps[s] = tps[s]/d
+    print(sis)
+    print(tps)
+    return tps, sis
 
 
 

@@ -20,6 +20,87 @@ def basic_clustering(vecs, n_clusters, linkage, affinity):
     cluster.fit(vecs)
     return cluster
 
+
+def equi_depth_partition(vecs, tags, n_cluster):
+    n_branching = int(len(tags)/n_cluster)
+    # lookup map of tag names and ids
+    tmap = dict()
+    for i in range(len(tags)):
+        tmap[tags[i]] = i
+    sims = dict()
+    tag_closeness = dict()
+    for i in range(len(tags)):
+        sims[tags[i]] = dict()
+        tag_closeness[tags[i]] = 0.0
+        #for j in range(i+1,len(tags)):
+        for j in range(len(tags)):
+            if j == i:
+                continue
+            if tags[j] not in sims:
+                sims[tags[j]] = dict()
+                tag_closeness[tags[j]] = 0.0
+            s = orgh.get_transition_sim(vecs[i], vecs[j])
+            sims[tags[i]][tags[j]] = s
+            #sims[tags[j]][tags[i]] = s
+            tag_closeness[tags[i]] += s
+            #tag_closeness[tags[j]] += s
+    order = sorted(tag_closeness.items(), key=operator.itemgetter(1))
+    clustered = []
+    clusters = dict()
+    for o in order:
+        t = o[0]
+        if t in clustered:
+            continue
+        neighbors = sorted(sims[t].items(), key=operator.itemgetter(1), reverse=True)
+        clusters[t] = [t]
+        clustered.append(t)
+        for n in neighbors:
+            if n[0] not in clustered and len(clusters[t])<n_branching:
+                clusters[t].append(n[0])
+                clustered.append(n[0])
+    return clusters
+
+
+def balanced_clustering(tags, vecs, n_branching):
+    g = nx.DiGraph()
+    cid = 0
+    g.add_node(cid)
+    g.node[cid]['population'] = vecs
+    g.node[cid]['rep'] = np.mean(vecs, axis=0)
+    g.node[cid]['tags'] = tags
+    tosplit = [cid]
+    cid += 1
+    for cluster in tosplit:
+        if len(g.node[cluster]['population']) > n_branching:
+            pop = g.node[cluster]['population']
+            ts = g.node[cluster]['tags']
+            clusters = equi_depth_partition(g.node[cluster]['population'], g.node[cluster]['tags'], n_branching)
+            children = get_sub_clusters(clusters, ts, pop)
+            for ch in list(children.values()):
+                g.add_node(cid)
+                g.node[cid]['population'] = ch['population']
+                g.node[cid]['rep'] = np.mean(np.array(ch['population']), axis=0)
+                g.node[cid]['tags'] = ch['tags']
+                g.add_edge(cluster, cid)
+                if len(ch['population']) == 1:
+                    g.node[cid]['tag'] = ch['tags'][0]
+                else:
+                    tosplit.append(cid)
+                cid += 1
+        else:
+            for i in range(len(g.node[cluster]['population'])):
+                vec = g.node[cluster]['population'][i]
+                g.add_node(cid)
+                g.node[cid]['population'] = [vec]
+                g.node[cid]['rep'] = vec
+                g.node[cid]['tag'] = g.node[cluster]['tags'][i]
+                g.add_edge(cluster, cid)
+                cid += 1
+    return g
+
+
+
+
 def kmeans_clustering(tags, vecs, n_branching):
     g = nx.DiGraph()
     cid = 0
@@ -34,7 +115,7 @@ def kmeans_clustering(tags, vecs, n_branching):
             pop = g.node[cluster]['population']
             ts = g.node[cluster]['tags']
             kmeans = KMeans(n_clusters=n_branching, random_state=random.randint(1,1000)).fit(pop)
-            children = get_sub_clusters(kmeans, ts, pop)
+            children = get_kmeans_sub_clusters(kmeans, ts, pop)
             for ch in list(children.values()):
                 g.add_node(cid)
                 g.node[cid]['population'] = ch['population']
@@ -62,7 +143,7 @@ def kmeans_clustering(tags, vecs, n_branching):
     return g
 
 
-def get_sub_clusters(kmeans, tags, vecs):
+def get_kmeans_sub_clusters(kmeans, tags, vecs):
     subs = dict()
     for i in range(len(kmeans.labels_)):
         c = kmeans.labels_[i]
@@ -70,6 +151,19 @@ def get_sub_clusters(kmeans, tags, vecs):
             subs[c] = {'population': [], 'tags': []}
         subs[c]['population'].append(vecs[i])
         subs[c]['tags'].append(tags[i])
+    return subs
+
+
+def get_sub_clusters(clusters, tags, vecs):
+    subs = dict()
+    j = 0
+    for s, ts in clusters.items():
+        subs[j] = {'population': [], 'tags': []}
+        for t in ts:
+            i = tags.index(t)
+            subs[j]['population'].append(vecs[i])
+            subs[j]['tags'].append(tags[i])
+        j += 1
     return subs
 
 
@@ -82,7 +176,7 @@ def twolevel_kmeans_clustering(tags, vecs, n_branching):
     g.node[rid]['rep'] = np.mean(vecs, axis=0)
     g.node[rid]['tags'] = tags
     kmeans = KMeans(n_clusters=n_branching, random_state=random.randint(1,1000)).fit(vecs)
-    children = get_sub_clusters(kmeans, tags, vecs)
+    children = get_kmeans_sub_clusters(kmeans, tags, vecs)
     cid = rid
     for ch in list(children.values()):
         cid += 1
@@ -145,7 +239,6 @@ def complete_kary_cluster(tags, vecs, n_cluster):
     cid = rid
     for c in clusters.values():
         if len(c) < n_branching:
-            print('too small')
             continue
         cid += 1
         pop = []
@@ -166,8 +259,6 @@ def complete_kary_cluster(tags, vecs, n_cluster):
         g.node[cid]['tags'] = ts
         g.add_edge(rid, cid)
         cid = tid
-    print('nodes: %d edges: %d' % (len(g.nodes), len(g.edges)))
-    print('len(vecs: %d)' % len(vecs))
     return g
 
 
