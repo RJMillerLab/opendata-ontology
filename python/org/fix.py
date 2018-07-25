@@ -195,17 +195,11 @@ def get_trans_prob(g, p, domain):
         tsl.append(sims[s][domain['name']])
         ts[s] = sims[s][domain['name']]
     maxs = max(tsl)
-    mins = min(tsl)
     for s in sps:
-        if mins == maxs:
-            #tps[s] = math.exp(ts[s]-maxs)
-            tps[s] = math.exp(ts[s])
-        else:
-            tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
+        tps[s] = math.exp(ts[s]-maxs)
         d += tps[s]
     for s in sps:
         tps[s] = tps[s]/d
-    print(tps)
     return tps
 
 

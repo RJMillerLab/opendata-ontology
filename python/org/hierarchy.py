@@ -216,19 +216,12 @@ def get_trans_prob(g, p, domain):
     if len(tsl) == 0 :
         print('zero')
     maxs = max(tsl)
-    mins = min(tsl)
     for s in sps:
-        if mins == maxs:
-            #tps[s] = math.exp(ts[s]-maxs)
-            tps[s] = math.exp(ts[s])
-        else:
-            tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
+        tps[s] = math.exp(ts[s]-maxs)
         sis[s] = ts[s]
         d += tps[s]
     for s in sps:
         tps[s] = tps[s]/d
-    print(sis)
-    print(tps)
     return tps, sis
 
 
