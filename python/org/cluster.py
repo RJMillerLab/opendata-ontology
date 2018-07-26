@@ -105,7 +105,7 @@ def kmeans_clustering(tags, vecs, n_branching):
     g = nx.DiGraph()
     cid = 0
     g.add_node(cid)
-    g.node[cid]['population'] = vecs
+    g.node[cid]['population'] = list(vecs)
     g.node[cid]['rep'] = np.mean(vecs, axis=0)
     g.node[cid]['tags'] = tags
     tosplit = [cid]

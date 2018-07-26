@@ -102,10 +102,9 @@ def get_domain_node_probs(g, domain):
         #if p in leaves:
         #    print('leaf node %d: %f  tag: %s' % (p, gd.node[p]['reach_prob_domain'], gd.node[p]['tag']))
         for ch in list(gd.successors(p)):
-            #gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*gd[p][ch][domain['name']]['trans_prob_domain']
-            gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*                                       gd[p][ch][domain['name']]['trans_sim_domain']
+            gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*                                       gd[p][ch][domain['name']]['trans_prob_domain']
             gd.node[ch][domain['name']]['reach_trans_domain'] += gd.node[p][domain['name']]['reach_trans_domain']*gd[p][ch][domain['name']]['trans_sim_domain']
-            #print('p: %d ch: %d trans: %f prob: %f' % (p, ch, gd[p][ch]['trans_sim_domain'], gd.node[ch]['reach_prob_domain']))
+            #print('p: %d ch: %d trans sim: %f trans prob: %f reach prob: %f' % (p, ch, gd[p][ch][domain['name']]['trans_sim_domain'], gd[p][ch][domain['name']]['trans_prob_domain'], gd.node[ch][domain['name']]['reach_prob_domain']))
             if gd.node[ch][domain['name']]['reach_prob_domain'] > 1.0:
                 print('>0.1')
                 gd.node[ch][domain['name']]['reach_prob_domain'] = 1.0
@@ -191,12 +190,15 @@ def log_likelihood(g, domains):
         gp, local_likelihood = local_log_likelihood(h, domain)
         likelihood += local_likelihood
         h = gp
+    ols = dict()
     for p in h.nodes:
         h.node[p]['reach_prob'] = 0.0
+        ols[p] = h.node[p]['reach_prob']
         for domain in domains:
             h.node[p]['reach_prob'] += h.node[p][domain['name']]['reach_prob_domain']
     for p in h.nodes:
         h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
+        print('[%d] old ll: %f  new ll: %f.' % (p, ols[p], h.node[p]['reach_prob']))
 
     return likelihood, h
 
@@ -213,11 +215,14 @@ def get_trans_prob(g, p, domain):
         #m = get_transition_sim_plus(g.node[s]['population'], domain['mean'])
         tsl.append(m)
         ts[s] = m
-    if len(tsl) == 0 :
-        print('zero')
     maxs = max(tsl)
+    mins = min(tsl)
     for s in sps:
-        tps[s] = math.exp(ts[s]-maxs)
+        if maxs == mins:
+            tps[s] = math.exp(ts[s]-maxs)
+        else:
+            tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
+        #tps[s] = (ts[s]-mins)/(maxs-mins)
         sis[s] = ts[s]
         d += tps[s]
     for s in sps:

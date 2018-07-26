@@ -14,8 +14,7 @@ def fix(g, domains):
     print('started fixing')
     init(g, domains)
     level_n = list(orgg.get_leaves(g))
-    h = g.copy()
-    hf = g.copy()
+    h, hf = g.copy(), g.copy()
     max_likelihood, gp = orgh.log_likelihood(h, domains)
     best = gp
     curr_ll = max_likelihood
@@ -39,26 +38,32 @@ def fix_level(g, level, domains, likelihood):
     fixes = what_to_fix(h, level)
     max_likelihood = likelihood
     best = g.copy()
-    for f in fixes[:min(5,len(fixes))]:
-        #f = fixes[0]
-        #print('fixing %d with %f' % (f[0], f[1]))
-        #h = fix_node(h, level, f[0], domains)
+    for f in fixes[:min(1,len(fixes))]:
         if f[0] not in h.nodes:
-            print('the node has already been merged.')
             continue
         if len(list(h.predecessors(f[0]))) == 0:
-            print('got to the root')
             continue
         if f[1] == 1.0:
-            print('too good to fix')
-        hp, likelihood = fix_node_agg(h, level, f[0], domains, likelihood)
+            continue
+        hp, likelihood = fix_node_kmeans(h, level, f[0], domains, likelihood)
         if likelihood > max_likelihood:
             max_likelihood = likelihood
             best = hp.copy()
         h = hp.copy()
-        #hp, likelihood = fix_node_balanced(h, level, f[0], domains, likelihood)
     return best, likelihood
 
+
+def change_parent(g, n, level):
+    parents = list(g.predecessors(n))
+    print('finding another parent for %d' % n)
+    newparent = find_another_parent(g, n, level)
+    print('newparent: %d' % newparent)
+    if newparent not in parents:
+        pfixes = what_to_fix(g, parents)
+        oldparent = pfixes[0][0]
+        h = update_graph_change_parent(g.copy(), oldparent, n, newparent)
+        return h
+    return g
 
 
 def add_width(g, level, n, domains, likelihood):
@@ -72,7 +77,7 @@ def add_width(g, level, n, domains, likelihood):
     choices = orgg.level_up(gp, level)
     bestparent = -1
     for p in choices:
-        if p in gp.predecessors(n):
+        if p in list(gp.predecessors(n)):
             continue
         h = gp.copy()
         h = update_graph(h, p, n)
@@ -220,7 +225,7 @@ def update_graph(g, p, c):
     h = g.copy()
     h.add_edge(p, c)
     leaves = orgg.get_leaves(h)
-    to_add = list((set(nx.descendants(h,c)).intersection(set(leaves))).            difference(set(nx.descendants(h,p)).intersection(set(leaves))))
+    to_add = list((set(nx.descendants(h,c)).intersection(set(leaves))).difference(set(nx.descendants(h,p)).intersection(set(leaves))))
     to_update = list(nx.ancestors(h,p))
     to_update.append(p)
     for n in to_update:
@@ -232,21 +237,58 @@ def update_graph(g, p, c):
     return h
 
 
-def fix_node_balanced(g, level, n, domains, likelihood):
+def update_graph_change_parent(g, p, c, np):
+    h = g.copy()
+    leaves = orgg.get_leaves(h)
+    # removing the old parent
+    h.remove_edge(p, c)
+    to_update = list(nx.ancestors(h,p))
+    to_update.append(p)
+    for n in to_update:
+        vs = list((set(nx.descendants(h,n)).intersection(set(leaves))))
+        for a in vs:
+            h.node[n]['population'].append(h.node[a]['rep'])
+        h.node[n]['rep'] = list(np.mean(np.array(h.node[n]['population']), axis=0))
+    # adding the new parent
+    h.add_edge(np, c)
+    to_add = list((set(nx.descendants(h,c)).intersection(set(leaves))).difference(set(nx.descendants(h,np)).intersection(set(leaves))))
+    to_update = list(nx.ancestors(h,np))
+    to_update.append(np)
+    for n in to_update:
+        for a in to_add:
+            h.node[n]['population'].append(h.node[a]['rep'])
+        h.node[n]['rep'] = list(np.mean(np.array(h.node[n]['population']), axis=0))
+    return h
+
+
+
+def fix_node_kmeans(g, level, n, domains, likelihood):
     max_likelihood = likelihood
     best = g.copy()
-    h, bestparent = add_width(g.copy(), level, n, domains, max_likelihood)
-    if bestparent == -1:
-        return best, max_likelihood
-    new, np = update_likelihood_width(h, bestparent, domains)
-    print('new score after the attempt to add width: %f' % new)
+    i = change_parent(g, n, level)
+    print('changed parent')
+    new, np = orgh.log_likelihood(i, domains)
+    print('new score after the attempt to changethe parent: %f' % new)
     if new > max_likelihood:
         print('improved by add width')
         max_likelihood = new
         best = np.copy()
     else:
         print('adding width did not help.')
-    print('done add_width: node %d edge %d' % (len(h.nodes), len(h.edges)))
+    print('done change_parent: node %d edge %d' % (len(i.nodes), len(i.edges)))
+    #h, bestparent = add_width(i.copy(), level, n, domains, max_likelihood)
+    #if bestparent == -1:
+    #    return best, max_likelihood
+    #new, np = orgh.log_likelihood(h, domains)
+    ##new, np = update_lkelihood_width(h, bestparent, domains)
+    #print('new score after the attempt to add width: %f' % new)
+    #if new > max_likelihood:
+    #    print('improved by add width')
+    #    max_likelihood = new
+    #    best = np.copy()
+    #else:
+    #    print('adding width did not help.')
+    #print('done add_width: node %d edge %d' % (len(h.nodes), len(h.edges)))
     return best, max_likelihood
 
 
@@ -382,18 +424,13 @@ def fix_node_agg_plus_plus(g, level, n, domains, likelihood):
     return best, max_likelihood
 
 
-def add_remove_edge(g, n):
-    find_another_parent(g, n)
-    #replace edges, update graph
-
-
-def find_another_parent(g, n):
+def find_another_parent(g, n, level):
     cands = dict()
-    for c in g.predecessors(n):
+    level_up = orgg.level_up(g, level)
+    for c in level_up:
         cands[c] = orgh.get_transition_sim(g.node[n]['rep'], g.node[c]['rep'])
-        for p in g.predecessors(c):
-            cands[p] = orgh.get_transition_sim(g.node[n]['rep'], g.node[p]['rep'])
-    return sorted(cands.items(), key=operator.itemgetter(1), reverse=True)[0][0]
+    scands = sorted(cands.items(), key=operator.itemgetter(1), reverse=True)
+    return scands[0][0]
 
 
 

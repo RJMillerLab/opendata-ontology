@@ -32,8 +32,8 @@ def get_root(g):
 
 def get_siblings(g, n, p):
     siblings = []
-    for p in g.predecessors(n):
-        for s in g.successors(p):
+    for p in list(g.predecessors(n)):
+        for s in list(g.successors(p)):
             siblings.append(s)
     return siblings
 
@@ -43,9 +43,9 @@ def level_up(g, nodes):
     for n in nodes:
         if n not in g:
             continue
-        ps = g.predecessors(n)
+        ps = list(g.predecessors(n))
         for s in ps:
-            if s not in ups:
+            if s not in ups and s not in nodes:
                 ups.append(s)
     return ups
 
