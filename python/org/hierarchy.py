@@ -7,13 +7,15 @@ from scipy import linalg
 
 
 def compute_reachability_probs(gp, domains):
-    print('compute_reachability_probs')
+    top = list(nx.topological_sort(gp))
+    changed = 0
     tag_ranks = dict()
     tag_dists = dict()
     success_probs = dict()
+    h = gp.copy()
     for domain in domains:
         #print('table: %s = %s' % (domain['name'], domain['tag']))
-        tags = compute_tag_probs(gp, domain)
+        g, tags = compute_tag_probs(h, domain, top)
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
         tag_dists[domain['tag']] = tag_dist
         for i in range(len(tag_dist)):
@@ -22,7 +24,32 @@ def compute_reachability_probs(gp, domains):
                 #print('%s rank: %d' % (domain['tag'], i+1))
                 success_probs[domain['name']] = tag_dist[i][1]
         #print('-----------------------------')
-    return tag_dists, tag_ranks, success_probs
+        h = g.copy()
+    ols = dict()
+    for p in h.nodes:
+        if 'reach_prob' not in h.node[p]:
+            ols[p] = 0.0
+        else:
+            ols[p] = h.node[p]['reach_prob']
+        h.node[p]['reach_prob'] = 0.0
+        for domain in domains:
+            h.node[p]['reach_prob'] += h.node[p][domain['name']]['reach_prob_domain']
+    ls = orgg.get_leaves(h)
+    for p in h.nodes:
+        h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
+        l = ""
+        if p in ls:
+            l = 'leaf'
+        if h.node[p]['reach_prob'] > ols[p]:
+            changed += 1
+            print('[%d] old p: %f  new p: %f.   UP - %s' % (p, ols[p], h.node[p]['reach_prob'], l))
+        elif h.node[p]['reach_prob'] < ols[p]:
+            changed += 1
+            print('[%d] old p: %f  new p: %f    DOWN - %s' % (p, ols[p], h.node[p]['reach_prob'], l))
+        else:
+            print('[%d] old p: %f  new p: %f - %s' % (p, ols[p], h.node[p]['reach_prob'], l))
+    print('prob changed for %d nodes.' % changed)
+    return h, tag_dists, tag_ranks, success_probs
 
 
 def get_reachability_probs(gp, domains):
@@ -56,13 +83,13 @@ def add_node_vecs(g, vecs):
     return g
 
 
-def compute_tag_probs(g, domain):
+def compute_tag_probs(g, domain, top):
     gp = get_domain_edge_probs(g, domain)
-    gpp = get_domain_node_probs(gp, domain)
+    gpp = get_domain_node_probs(gp, domain, top)
     tags = dict()
     for n in orgg.get_leaves(gpp):
         tags[gpp.node[n]['tag']] = gpp.node[n][domain['name']]['reach_prob_domain']
-    return tags
+    return gpp, tags
 
 
 def get_tag_probs(g, domain):
@@ -70,6 +97,22 @@ def get_tag_probs(g, domain):
     for n in orgg.get_leaves(g):
         tags[g.node[n]['tag']] = g.node[n][domain['name']]['reach_prob_domain']
     return tags
+
+
+def get_partial_domain_edge_probs(g, domain, nodes):
+    gd = g.copy()
+    leaves = orgg.get_leaves(gd)
+    for p in nodes:
+        if p in leaves:
+            continue
+        ts, sis = get_trans_prob(gd, p, domain)
+        for ch, prob in ts.items():
+            gd[p][ch][domain['name']] = dict()
+            gd[p][ch][domain['name']]['trans_prob_domain'] = prob
+            gd[p][ch][domain['name']]['trans_sim_domain'] = sis[ch]
+    return gd
+
+
 
 
 def get_domain_edge_probs(g, domain):
@@ -86,17 +129,41 @@ def get_domain_edge_probs(g, domain):
     return gd
 
 
-def get_domain_node_probs(g, domain):
+def get_partial_domain_node_probs(g, domain, top, nodes):
     gd = g.copy()
-    for n in gd.node:
+    root = orgg.get_root(gd)
+    for n in nodes:
         gd.node[n][domain['name']] = dict()
-        if n == orgg.get_root(gd):
+        if n == root:
             gd.node[n][domain['name']]['reach_prob_domain'] = 1.0
             gd.node[n][domain['name']]['reach_trans_domain'] = 1.0
         else:
             gd.node[n][domain['name']]['reach_prob_domain'] = 0.0
             gd.node[n][domain['name']]['reach_trans_domain'] = 0.0
-    top = list(nx.topological_sort(gd))
+    for p in top:
+        if p not in nodes:
+            continue
+        for ch in list(gd.successors(p)):
+            gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*                                       gd[p][ch][domain['name']]['trans_prob_domain']
+            gd.node[ch][domain['name']]['reach_trans_domain'] += gd.node[p][domain['name']]['reach_trans_domain']*gd[p][ch][domain['name']]['trans_sim_domain']
+            if gd.node[ch][domain['name']]['reach_prob_domain'] > 1.0:
+                print('>0.1')
+                gd.node[ch][domain['name']]['reach_prob_domain'] = 1.0
+    return gd
+
+
+def get_domain_node_probs(g, domain, top):
+    gd = g.copy()
+    root = orgg.get_root(gd)
+    for n in gd.node:
+        gd.node[n][domain['name']] = dict()
+        if n == root:
+            gd.node[n][domain['name']]['reach_prob_domain'] = 1.0
+            gd.node[n][domain['name']]['reach_trans_domain'] = 1.0
+        else:
+            gd.node[n][domain['name']]['reach_prob_domain'] = 0.0
+            gd.node[n][domain['name']]['reach_trans_domain'] = 0.0
+    #top = list(nx.topological_sort(gd))
     #leaves = orgg.get_leaves(gd)
     for p in top:
         #if p in leaves:
@@ -141,25 +208,95 @@ def get_isa_sim(vec, mean, cov, det):
     return f
 
 
+def recompute_success_prob_width(g, domains, nodes):
+    error = 0
+    changed = 0
+    top = list(nx.topological_sort(g))
+    print('Computing success probs')
+    tag_ranks = dict()
+    tag_dists = dict()
+    success_probs = dict()
+    h = g.copy()
+    for domain in domains:
+        gp = get_partial_domain_edge_probs(h, domain, nodes)
+        gpp = get_partial_domain_node_probs(gp, domain, top, nodes)
+        tags = dict()
+        for n in orgg.get_leaves(gpp):
+            tags[gpp.node[n]['tag']] = gpp.node[n][domain['name']]['reach_prob_domain']
+        ##
+        tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
+        tag_dists[domain['tag']] = tag_dist
+        for i in range(len(tag_dist)):
+            if tag_dist[i][0]==domain['tag']:
+                tag_ranks[domain['name']] = i + 1
+                success_probs[domain['name']] = tag_dist[i][1]
+        h = gpp.copy()
+    ols = dict()
+    for p in nodes:
+        if 'reach_prob' not in h.node[p]:
+            ols[p] = 0.0
+        else:
+            ols[p] = h.node[p]['reach_prob']
+        h.node[p]['reach_prob'] = 0.0
+        for domain in domains:
+            h.node[p]['reach_prob'] += h.node[p][domain['name']]['reach_prob_domain']
+    ls = orgg.get_leaves(h)
+    for p in nodes:
+        h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
+        l = ""
+        if p in ls:
+            l = 'leaf'
+        if h.node[p]['reach_prob'] > ols[p]:
+            changed += 1
+            #print('[%d] old p: %f  new p: %f.   UP - %s' % (p, ols[p], h.node[p]['reach_prob'], l))
+        elif h.node[p]['reach_prob'] < ols[p]:
+            changed += 1
+            #print('[%d] old p: %f  new p: %f    DOWN - %s' % (p, ols[p], h.node[p]['reach_prob'], l))
+        else:
+            print('[%d] old p: %f  new p: %f - %s' % (p, ols[p], h.node[p]['reach_prob'], l))
+    print('prob changed for %d nodes.' % changed)
+    ##
+    error = sum(tag_ranks.values()) - len(domains)
+    print('error: %d' % error)
+    expected_success = sum(list(success_probs.values()))/float(len(domains))
+    print('hierarchy success prob: %f' % (expected_success))
+    return expected_success, h
+
+
+
+
+def success_prob(g, domains):
+    error = 0
+    print('Computing success probs')
+    h, tag_dists, tag_ranks, success_probs = compute_reachability_probs(g, domains)
+    error = sum(tag_ranks.values()) - len(domains)
+    print('error: %d' % error)
+    expected_success = sum(list(success_probs.values()))/float(len(domains))
+    print('hierarchy success prob: %f' % (expected_success))
+    return expected_success, h
+
+
 def evaluate(g, domains):
     error = 0
-    tag_dists, tag_ranks, success_probs = compute_reachability_probs(g, domains)
+    h, tag_dists, tag_ranks, success_probs = compute_reachability_probs(g, domains)
     #print('tag ranks: {}'.format(tag_ranks))
     print('Computing reachability probs')
     error = sum(tag_ranks.values()) - len(domains)
     print('error: %d' % error)
     #print('domain search success probs: ')
     #print(success_probs)
-    print('hierarchy success prob: %f' % (sum(list(success_probs.values()))/float(len(domains))))
-    results = {'tag_dists': tag_dists, 'tag_ranks': tag_ranks, 'success_probs': success_probs, 'rank_error': error}
+    expected_success = sum(list(success_probs.values()))/float(len(domains))
+    print('hierarchy success prob: %f' % (expected_success))
+    results = {'tag_dists': tag_dists, 'tag_ranks': tag_ranks, 'success_probs': success_probs, 'rank_error': error, 'expected_success': expected_success}
     return results
 
 
 def get_state_probs(g, domains):
     h = g.copy()
+    top = list(nx.topological_sort(g))
     for domain in domains:
         gp = get_domain_edge_probs(h, domain)
-        gpp = get_domain_node_probs(gp, domain)
+        gpp = get_domain_node_probs(gp, domain, top)
         for n in gpp.nodes:
             if 'reach_prob' not in gpp.node[n]:
                 gpp.node[n]['reach_prob'] = gpp.node[n][domain['name']]['reach_prob_domain']
@@ -174,9 +311,9 @@ def get_state_probs(g, domains):
 
 
 # computes the local likelihood of a given domain and the hierarchy
-def local_log_likelihood(g, domain):
+def local_log_likelihood(g, domain, top):
     gp = get_domain_edge_probs(g, domain)
-    gpp = get_domain_node_probs(gp, domain)
+    gpp = get_domain_node_probs(gp, domain, top)
     likelihood = 0.0
     for n in gpp.nodes:
         likelihood += math.log(gpp.node[n][domain['name']]['reach_prob_domain'])
@@ -184,16 +321,20 @@ def local_log_likelihood(g, domain):
 
 # computes the log likelihood of a hierarchy
 def log_likelihood(g, domains):
+    top = list(nx.topological_sort(g))
     likelihood = 0.0
     h = g.copy()
     for domain in domains:
-        gp, local_likelihood = local_log_likelihood(h, domain)
+        gp, local_likelihood = local_log_likelihood(h, domain, top)
         likelihood += local_likelihood
         h = gp
     ols = dict()
     for p in h.nodes:
+        if 'reach_prob' not in h.node[p]:
+            ols[p] = 0.0
+        else:
+            ols[p] = h.node[p]['reach_prob']
         h.node[p]['reach_prob'] = 0.0
-        ols[p] = h.node[p]['reach_prob']
         for domain in domains:
             h.node[p]['reach_prob'] += h.node[p][domain['name']]['reach_prob_domain']
     for p in h.nodes:
