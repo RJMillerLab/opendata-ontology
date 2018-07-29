@@ -64,20 +64,22 @@ def change_parent(g, n, level, domains):
     pfixes = what_to_fix(g, parents)
     oldparent = pfixes[0][0]
     # nodes to be updated
-    ans1 = set(nx.ancestors(g, oldparent))
-    ans2 = set(nx.ancestors(g, newparent))
-    ans = list(ans1.union(ans2).difference(ans1.intersection(ans2)))
-    ans.append(newparent)
-    ans.append(oldparent)
-    ans.append(n)
+    ans1 = list(nx.ancestors(g, oldparent))
+    ans1.append(oldparent)
+    ans2 = list(nx.ancestors(g, newparent))
+    ans2.append(newparent)
+    ans1 = set(ans1)
+    ans2 = set(ans2)
+    ans = ans1.union(ans2).difference(ans1.intersection(ans2))
+    ans = list(ans.union({n}))
     potentials = ans
     for a in ans:
         for d in list(g.predecessors(a)):
             potentials = list(set(potentials+list(nx.descendants(g, d))))
     h = update_graph_change_parent(g.copy(), oldparent, n, newparent)
-    #new, np = orgh.recompute_success_prob(i, domains, potentials)
+    new, np = orgh.recompute_success_prob(h, domains, potentials)
     #new, np = orgh.log_likelihood(i, domains)
-    new, np = orgh.success_prob(h, domains)
+    #new, np = orgh.success_prob(h, domains)
     print('potentials: %d' % len(potentials))
     return np, new
 
@@ -274,21 +276,12 @@ def update_graph_change_parent(g, p, c, newp):
     to_remove.append(p)
     to_add = list(nx.ancestors(h,newp))
     to_add.append(newp)
-    to_remove = list(set(to_remove).difference(set(to_add)))
+    to_update = list((set(to_remove).union(set(to_add))).difference(set(to_remove).intersection(set(to_add))))
     h.remove_edge(p, c)
-    #print('oldparent: %d' % p)
-    #print('to remove: {}'.format(to_remove))
-    for n in to_remove:
+    h.add_edge(newp, c)
+    for n in to_update:
         vs = list((set(nx.descendants(h,n)).intersection(set(leaves))))
         for a in vs:
-            h.node[n]['population'].append(h.node[a]['rep'])
-        h.node[n]['rep'] = list(np.mean(np.array(h.node[n]['population']), axis=0))
-    # adding the new parent
-    h.add_edge(newp, c)
-    to_add_vecs = list((set(nx.descendants(h,c)).intersection(set(leaves))).difference(set(nx.descendants(h,newp)).intersection(set(leaves))))
-    #print('to update: {}'.format(to_add))
-    for n in to_add:
-        for a in to_add_vecs:
             h.node[n]['population'].append(h.node[a]['rep'])
         h.node[n]['rep'] = list(np.mean(np.array(h.node[n]['population']), axis=0))
     return h

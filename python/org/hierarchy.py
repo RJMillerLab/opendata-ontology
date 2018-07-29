@@ -208,7 +208,7 @@ def get_isa_sim(vec, mean, cov, det):
     return f
 
 
-def recompute_success_prob_width(g, domains, nodes):
+def recompute_success_prob(g, domains, nodes):
     error = 0
     changed = 0
     top = list(nx.topological_sort(g))
