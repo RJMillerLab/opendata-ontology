@@ -101,15 +101,22 @@ def get_tag_probs(g, domain):
 
 def get_partial_domain_edge_probs(g, domain, nodes):
     gd = g.copy()
-    leaves = orgg.get_leaves(gd)
+    #leaves = orgg.get_leaves(gd)
     for p in nodes:
-        if p in leaves:
-            continue
-        ts, sis = get_trans_prob(gd, p, domain)
-        for ch, prob in ts.items():
-            gd[p][ch][domain['name']] = dict()
-            gd[p][ch][domain['name']]['trans_prob_domain'] = prob
-            gd[p][ch][domain['name']]['trans_sim_domain'] = sis[ch]
+        #if p in leaves:
+        #    continue
+        #ts, sis = get_trans_prob(gd, p, domain)
+        #for ch, prob in ts.items():
+        #    gd[p][ch][domain['name']] = dict()
+        #    gd[p][ch][domain['name']]['trans_prob_domain'] = prob
+        #    gd[p][ch][domain['name']]['trans_sim_domain'] = sis[ch]
+        for m in gd.predecessors(p):
+            ts, sis = get_trans_prob(gd, m, domain)
+            # or just update the trans prob of p
+            for ch, prob in ts.items():
+                gd[m][ch][domain['name']] = dict()
+                gd[m][ch][domain['name']]['trans_prob_domain'] = prob
+                gd[m][ch][domain['name']]['trans_sim_domain'] = sis[ch]
     return gd
 
 
@@ -132,6 +139,9 @@ def get_domain_edge_probs(g, domain):
 def get_partial_domain_node_probs(g, domain, top, nodes):
     gd = g.copy()
     root = orgg.get_root(gd)
+    to_use = list(nodes)
+    for n in nodes:
+        to_use.extend(list(g.predecessors(n)))
     for n in nodes:
         gd.node[n][domain['name']] = dict()
         if n == root:
@@ -141,9 +151,11 @@ def get_partial_domain_node_probs(g, domain, top, nodes):
             gd.node[n][domain['name']]['reach_prob_domain'] = 0.0
             gd.node[n][domain['name']]['reach_trans_domain'] = 0.0
     for p in top:
-        if p not in nodes:
+        if p not in to_use:#nodes:
             continue
         for ch in list(gd.successors(p)):
+            if domain['name'] not in gd[p][ch]:
+                print('domain not in edge of %d to %d.' % (p, ch))
             gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*                                       gd[p][ch][domain['name']]['trans_prob_domain']
             gd.node[ch][domain['name']]['reach_trans_domain'] += gd.node[p][domain['name']]['reach_trans_domain']*gd[p][ch][domain['name']]['trans_sim_domain']
             if gd.node[ch][domain['name']]['reach_prob_domain'] > 1.0:
@@ -258,6 +270,9 @@ def recompute_success_prob(g, domains, nodes):
     ##
     error = sum(tag_ranks.values()) - len(domains)
     print('error: %d' % error)
+    print('len(nodes): %d' % len(nodes))
+    print('len(top): %d' % len(top))
+    print('len(success_probs): %d' % len(success_probs))
     expected_success = sum(list(success_probs.values()))/float(len(domains))
     if expected_success == 0:
         print('zero expected_success.')

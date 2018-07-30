@@ -17,7 +17,7 @@ def fix(g, domains):
     max_likelihood, gp = orgh.success_prob(h, domains)
     initial_score = max_likelihood
     best = gp
-    for fix_round in range(1,2):
+    for fix_round in range(1,3):
         level_n = list(orgg.get_leaves(gp))
         curr_ll = max_likelihood
         while len(level_n) > 1:
