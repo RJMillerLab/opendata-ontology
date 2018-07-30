@@ -259,6 +259,8 @@ def recompute_success_prob(g, domains, nodes):
     error = sum(tag_ranks.values()) - len(domains)
     print('error: %d' % error)
     expected_success = sum(list(success_probs.values()))/float(len(domains))
+    if expected_success == 0:
+        print('zero expected_success.')
     print('hierarchy success prob: %f' % (expected_success))
     return expected_success, h
 
@@ -272,6 +274,8 @@ def success_prob(g, domains):
     error = sum(tag_ranks.values()) - len(domains)
     print('error: %d' % error)
     expected_success = sum(list(success_probs.values()))/float(len(domains))
+    if expected_success == 0:
+        print('zero expected_success.')
     print('hierarchy success prob: %f' % (expected_success))
     return expected_success, h
 
@@ -286,6 +290,8 @@ def evaluate(g, domains):
     #print('domain search success probs: ')
     #print(success_probs)
     expected_success = sum(list(success_probs.values()))/float(len(domains))
+    if expected_success == 0:
+        print('zero expected_success.')
     print('hierarchy success prob: %f' % (expected_success))
     results = {'tag_dists': tag_dists, 'tag_ranks': tag_ranks, 'success_probs': success_probs, 'rank_error': error, 'expected_success': expected_success}
     return results
