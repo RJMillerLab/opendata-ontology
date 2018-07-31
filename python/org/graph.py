@@ -50,4 +50,14 @@ def level_up(g, nodes):
     return ups
 
 
+def height(g):
+    ds = []
+    r = get_root(g)
+    for l in get_leaves(g):
+        ds.append(nx.shortest_path_length(g,source=r,target=l))
+    print('depths: {}'.format(ds))
+    print('min depth: %d  max depth: %d' % (min(ds), max(ds)))
+
+
+
 
