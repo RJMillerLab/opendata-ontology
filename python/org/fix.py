@@ -17,6 +17,7 @@ def fix_plus(g, domains, tagdomains):
     h, hf = g.copy(), g.copy()
     max_likelihood, gp, max_success_probs = orgh.get_success_prob(h, domains, tagdomains)
     initial_sp = max_likelihood
+    initial_success_probs = copy.deepcopy(max_success_probs)
     best = gp.copy()
     level_n = list(orgg.get_leaves(gp))
     while len(level_n) > 1:
@@ -34,7 +35,7 @@ def fix_plus(g, domains, tagdomains):
             max_success_probs = copy.deepcopy(sps)
         level_n = orgg.level_up(gp, level_n)
     print('initial success prob: %f  and best success prob: %f' % (initial_sp, max_likelihood))
-    print('improvement in success probs: %f' % orgh.get_improvement(initial_sp, max_success_probs))
+    print('improvement in success probs: %f' % orgh.get_improvement(initial_success_probs, max_success_probs))
     print('after fix_level: node %d edge %d' % (len(best.nodes), len(best.edges)))
     orgg.height(best)
     #ml, np, sps = orgh.get_success_prob(best, domains, tagdomains)
@@ -57,30 +58,31 @@ def fix_level_plus(g, level, domains, likelihood, success_probs, tagdomains):
         if f[1] == 1.0:
             continue
         for ffunc in fixfunctions:
-            hp, newlikelihood, newsps = ffunc(best.copy(), level, f[0], domains, likelihood, max_success_probs, tagdomains)
+            hp, newlikelihood, newsps, its = ffunc(best.copy(), level, f[0], domains, likelihood, max_success_probs, tagdomains)
             if newlikelihood < 0.0:
                 continue
-            acceptance_ratio = min(1.0, newlikelihood/max_likelihood)
-            u = np.random.uniform(0.0, 1.0)
-            if u <= acceptance_ratio:
-                if acceptance_ratio < 1.0:
-                    print('acceptance_ratio<1.0')
-                print('accepted the operator with ratio %f. Old ll: %f New ll: %f' % (acceptance_ratio, likelihood, newlikelihood))
-                best = hp.copy()
-                max_likelihood = newlikelihood
-                max_success_probs = copy.deepcopy(newsps)
-                likelihood = newlikelihood
-            else:
-                print('did not accept the operator: %f' % acceptance_ratio)
-        iteration_success_probs.append(max_likelihood)
+            #acceptance_ratio = min(1.0, newlikelihood/max_likelihood)
+            #u = np.random.uniform(0.0, 1.0)
+            #if u <= acceptance_ratio:
+            #    if acceptance_ratio < 1.0:
+            #        print('acceptance_ratio<1.0')
+            #    print('accepted the operator with ratio %f. Old ll: %f New ll: %f' % (acceptance_ratio, likelihood, newlikelihood))
+            #    best = hp.copy()
+            #    max_likelihood = newlikelihood
+            #    max_success_probs = copy.deepcopy(newsps)
+            #    likelihood = newlikelihood
+            #else:
+            #    print('did not accept the operator: %f' % acceptance_ratio)
+            iteration_success_probs.extend(list(its))
     return best, max_likelihood, max_success_probs, iteration_success_probs
 
 
 def change_parent(g, level, n, domains, likelihood, success_probs, tagdomains):
+    iteration_success_probs = []
     parents = list(g.predecessors(n))
     newparent = find_another_parent(g, n, level)
     if newparent == -1:
-        return g, -1.0, []
+        return g, -1.0, [], []
     pfixes = what_to_fix(g, parents)
     oldparent = pfixes[0][0]
     # nodes to be updated
@@ -100,12 +102,14 @@ def change_parent(g, level, n, domains, likelihood, success_probs, tagdomains):
             potentials = list(set(potentials+list(nx.descendants(g, d))))
 
     new, np, sps = orgh.recompute_success_prob(h.copy(), domains, potentials, updates, tagdomains)
-    return np, new, sps
+    iteration_success_probs.append(new)
+    return np, new, sps, iteration_success_probs
 
 
 def add_parent(g, level, n, domains, likelihood, success_probs, tagdomains):
     if n not in g.nodes:
-        return g, -1.0, []
+        return g, -1.0, [], []
+    iteration_success_probs = []
     gp = g.copy()
     max_likelihood = likelihood
     max_success_probs = copy.deepcopy(success_probs)
@@ -140,14 +144,27 @@ def add_parent(g, level, n, domains, likelihood, success_probs, tagdomains):
         new, gl, sps = orgh.recompute_success_prob(hap.copy(), domains, potentials, updates, tagdomains)
         imp = orgh.get_improvement(max_success_probs, sps)
         print('imp: %f' % imp)
-        if imp > 0:
-        #if new > max_likelihood:
-            print('connecting to %d improved' % p)
+        acceptance_ratio = min(1.0, new/max_likelihood)
+        u = np.random.uniform(0.0, 1.0)
+        if u <= acceptance_ratio:
+            if acceptance_ratio < 1.0:
+                print('acceptance_ratio<1.0')
+            print('accepted the operator with ratio %f. Old ll: %f New ll: %f' % (acceptance_ratio, likelihood, new))
+            best = gl.copy()
             max_likelihood = new
             max_success_probs = copy.deepcopy(sps)
-            best = gl.copy()
-            return best, max_likelihood, max_success_probs
-    return best, max_likelihood, max_success_probs
+            likelihood = new
+        else:
+            print('did not accept the operator: %f' % acceptance_ratio)
+        iteration_success_probs.append(max_likelihood)
+        #if imp > 0:
+        #if new > max_likelihood:
+        #    print('connecting to %d improved' % p)
+        #    max_likelihood = new
+        #    max_success_probs = copy.deepcopy(sps)
+        #    best = gl.copy()
+        #    return best, max_likelihood, max_success_probs
+    return best, max_likelihood, max_success_probs, iteration_success_probs
 
 
 # incrementally updating log likelihood when adding an edge from p to c.
