@@ -1,9 +1,9 @@
 import os
 import sqlite3
 import numpy as np
-import org.hierarchy as orgh
 
-REPO_PATH = '/home/kenpu/clones/tagcloud-nlp-generator/output'
+#REPO_PATH = '/home/kenpu/clones/tagcloud-nlp-generator/output'
+REPO_PATH = '/home/fnargesian/go/src/github.com/RJMillerLab/tagcloud-nlp-generator/zoutput'
 FT_SQLITE3_PATH = '/home/kenpu/clones/tagcloud-nlp-generator/ft.sqlite3'
 
 def list_table_names():
@@ -21,14 +21,13 @@ def iter_domains():
         with open(tagf, 'r') as f:
             lines = list(f)
             tags = [x.split(" ")[0] for x in lines]
-
         for i in range(len(tags)):
             domain = [row[i] for row in rows]
             tag = tags[i]
             yield dict(tag=tag, domain=domain, name=table+'_'+str(i))
 
 def lookup_ft_vector(cursor, word):
-    cursor.execute("select vec from wv where word = ?", [word])
+    cursor.execute("select vec from wv where word = ?", [word.strip()])
     result = cursor.fetchone()
     if result:
         return np.frombuffer(result[0], dtype='float32')
@@ -50,20 +49,22 @@ def add_ft_vectors(domains):
     db.close()
 
 def reduce_tag_vectors(domains):
-    tags = dict()
+    tags, tagdoms = dict(), dict()
     for dom in domains:
         tag = dom['tag']
         sum_v = np.sum(dom['vecs'], axis=0)
         n = len(dom['vecs'])
         if not tag in tags:
             tags[tag] = dict(sum=sum_v, n=n)
+            tagdoms[tag] = [dom]
         else:
             tags[tag]['sum'] += sum_v
             tags[tag]['n'] += n
+            tagdoms[tag].append(dom)
     for t, v in tags.items():
         v['v'] = v['sum'] / v['n']
 
-    return tags
+    return tags, tagdoms
 
 
 
