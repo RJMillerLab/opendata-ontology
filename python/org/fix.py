@@ -8,46 +8,63 @@ import copy
 
 
 sims = dict()
+tagdomains = dict()
+domains = []
 
-def fix_plus(g, domains, tagdomains):
-    orgg.height(g)
+def init(g, doms, tdoms):
+    global sims, domains, tagdomains
+    domains = doms
+    tagdomains = tdoms
+    sims = get_trans_matrix(g, domains)
+
+
+def fix_plus(g, doms, tdoms):
+    init(g, doms, tdoms)
+    #orgg.height(g)
     print('started fixing with %d domains.' % len(domains))
     iteration_success_probs = []
-    init(g, domains)
-    h, hf = g.copy(), g.copy()
-    max_likelihood, gp, max_success_probs = orgh.get_success_prob(h, domains, tagdomains)
-    initial_sp = max_likelihood
+    iteration_likelihoods = []
+    #h = g.copy()
+    h = g
+    max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood(h, domains, tagdomains)
     initial_success_probs = copy.deepcopy(max_success_probs)
     best = gp.copy()
-    level_n = list(orgg.get_leaves(gp))
-    while len(level_n) > 1:
-        print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
-        hf, ll, sps, its = fix_level_plus(best.copy(), level_n, domains, max_likelihood, max_success_probs, tagdomains)
-        iteration_success_probs.extend(list(its))
-        print('after fix_level: node %d edge %d likelihood %f' % (len(hf.nodes), len(hf.edges), ll))
-        imp = orgh.get_improvement(max_success_probs, sps)
-        print('imp: %f' % imp)
-        if imp > 0:
-        #if ll > max_likelihood:
-            print('improving after fixing level')
-            max_likelihood = ll
-            best = hf.copy()
-            max_success_probs = copy.deepcopy(sps)
-        level_n = orgg.level_up(gp, level_n)
-    print('initial success prob: %f  and best success prob: %f' % (initial_sp, max_likelihood))
-    print('improvement in success probs: %f' % orgh.get_improvement(initial_success_probs, max_success_probs))
-    print('after fix_level: node %d edge %d' % (len(best.nodes), len(best.edges)))
-    orgg.height(best)
-    #ml, np, sps = orgh.get_success_prob(best, domains, tagdomains)
-    #print('final success prob: %f' % ml)
-    return best, iteration_success_probs
+
+    for i in range(1):
+        print('iteration %d' % i)
+        #s = datetime.datetime.now()
+        initial_sp = max_success
+        level_n = list(orgg.get_leaves(gp))
+        while len(level_n) > 1:
+            print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
+            hf, ll, sps, its, ls = fix_level_plus(best.copy(), level_n, max_success, max_success_probs)
+            iteration_success_probs.extend(list(its))
+            iteration_likelihoods.extend(list(ls))
+            print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
+            if ll > max_success:
+                print('improving after fixing level')
+                max_success = ll
+                best = hf.copy()
+                max_success_probs = copy.deepcopy(sps)
+            level_n = orgg.level_up(gp, level_n)
+        print('initial success prob: %f  and best success prob: %f' % (initial_sp, max_success))
+        print('improvement in success probs: %f' % orgh.get_improvement(initial_success_probs, max_success_probs))
+        print('after fix_level: node %d edge %d' % (len(best.nodes), len(best.edges)))
+        #orgg.height(best)
+
+        gp = best.copy()
+        #e = datetime.datetime.now()
+        #elapsed = e - s
+        #print('elapsed time: %d' % int(elapsed.total_seconds() * 1000))
+    return best, iteration_success_probs, iteration_likelihoods
 
 
-def fix_level_plus(g, level, domains, likelihood, success_probs, tagdomains):
-    fixfunctions = [add_parent, change_parent]
+def fix_level_plus(g, level, success, success_probs):
+    fixfunctions = [change_parent, add_parent]
     iteration_success_probs = []
-    fixes = what_to_fix(g.copy(), level)
-    max_likelihood = likelihood
+    iteration_likelihoods = []
+    fixes = what_to_fix(g, level)
+    max_success = success
     max_success_probs = copy.deepcopy(success_probs)
     best = g.copy()
     for f in fixes:
@@ -58,31 +75,39 @@ def fix_level_plus(g, level, domains, likelihood, success_probs, tagdomains):
         if f[1] == 1.0:
             continue
         for ffunc in fixfunctions:
-            hp, newlikelihood, newsps, its = ffunc(best.copy(), level, f[0], domains, likelihood, max_success_probs, tagdomains)
-            if newlikelihood < 0.0:
+            hp, newsuccess, newsps, its, ls = ffunc(best.copy(), level, f[0], success, max_success_probs)
+            if newsuccess < 0.0:
                 continue
-            #acceptance_ratio = min(1.0, newlikelihood/max_likelihood)
+            #acceptance_ratio = min(1.0, newsuccess/max_success)
             #u = np.random.uniform(0.0, 1.0)
             #if u <= acceptance_ratio:
             #    if acceptance_ratio < 1.0:
             #        print('acceptance_ratio<1.0')
-            #    print('accepted the operator with ratio %f. Old ll: %f New ll: %f' % (acceptance_ratio, likelihood, newlikelihood))
-            #    best = hp.copy()
-            #    max_likelihood = newlikelihood
-            #    max_success_probs = copy.deepcopy(newsps)
-            #    likelihood = newlikelihood
-            #else:
-            #    print('did not accept the operator: %f' % acceptance_ratio)
+            #    print('accepted the operator with ratio %f. Old ll: %f New ll: %f' % (acceptance_ratio, success, newsuccess))
+            if newsuccess > max_success:
+                best = hp.copy()
+                max_success = newsuccess
+                max_success_probs = copy.deepcopy(newsps)
+                success = newsuccess
+            else:
+                print('opeartor did not help.')
+                #print('did not accept the operator: %f' % acceptance_ratio)
             iteration_success_probs.extend(list(its))
-    return best, max_likelihood, max_success_probs, iteration_success_probs
+            iteration_likelihoods.extend(list(ls))
+    return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods
 
 
-def change_parent(g, level, n, domains, likelihood, success_probs, tagdomains):
+def change_parent(g, level, n, success, success_probs):
+    max_success = success
+    max_success_probs = copy.deepcopy(success_probs)
+    best = g.copy()
+
     iteration_success_probs = []
+    iteration_likelihoods = []
     parents = list(g.predecessors(n))
     newparent = find_another_parent(g, n, level)
     if newparent == -1:
-        return g, -1.0, [], []
+        return g, -1.0, [], [], []
     pfixes = what_to_fix(g, parents)
     oldparent = pfixes[0][0]
     # nodes to be updated
@@ -96,29 +121,55 @@ def change_parent(g, level, n, domains, likelihood, success_probs, tagdomains):
     ans = list(ans.union({n}))
     updates = list(ans)
     potentials = list(ans)
-    h = update_graph_change_parent(g.copy(), oldparent, n, newparent)
+    h = update_graph_change_parent(g, oldparent, n, newparent)
     for a in ans:
         for d in list(g.predecessors(a)):
             potentials = list(set(potentials+list(nx.descendants(g, d))))
 
-    new, np, sps = orgh.recompute_success_prob(h.copy(), domains, potentials, updates, tagdomains)
+    new, np, sps, likelihood = orgh.recompute_success_prob_likelihood(h, domains, potentials, updates, tagdomains)
+
+    #acceptance_ratio = min(1.0, new/success)
+    #u = np.random.uniform(0.0, 1.0)
+    #if u <= acceptance_ratio:
+    #    if acceptance_ratio < 1.0:
+    #        print('acceptance_ratio<1.0')
+    #    print('accepted the operator with ratio %f. Old ll: %f New ll: %f' % (acceptance_ratio, success, new))
+    #    iteration_success_probs.append(new)
+    #    return np, new, sps, iteration_success_probs
+    #else:
+    #    iteration_success_probs.append(success)
+    #    print('did not accept the operator: %f' % acceptance_ratio)
+
+    if new > success:
+        print('changing the parent to %d improved' % newparent)
+        max_success = new
+        max_success_probs = copy.deepcopy(sps)
+        best = np.copy()
+    else:
+        print('changing parent did not help')
     iteration_success_probs.append(new)
-    return np, new, sps, iteration_success_probs
+    iteration_likelihoods.append(likelihood)
+
+    return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods
 
 
-def add_parent(g, level, n, domains, likelihood, success_probs, tagdomains):
+def add_parent(g, level, n, success, success_probs):
     if n not in g.nodes:
-        return g, -1.0, [], []
+        return g, -1.0, [], [], []
     iteration_success_probs = []
-    gp = g.copy()
-    max_likelihood = likelihood
+    iteration_likelihoods = []
+    #gp = g.copy()
+    gp = g
+    max_success = success
     max_success_probs = copy.deepcopy(success_probs)
-    best = gp.copy()
+    #best = gp.copy()
+    best = g.copy()
     choices = list((set(orgg.level_up(gp, level)).difference(set(nx.descendants(gp, n)))).difference(gp.predecessors(n)))
     schoices = sort_nodes_sim(g, n, choices)
     for sp in schoices:
         p = sp[0]
-        h = gp.copy()
+        #h = gp.copy()
+        h = gp
         ans1 = list(nx.ancestors(h, p))
         ans1.append(p)
         ans2 = list(nx.ancestors(h, n))
@@ -135,40 +186,43 @@ def add_parent(g, level, n, domains, likelihood, success_probs, tagdomains):
             ans = list(ans.union({n, p}))
             updates = list(ans)
         potentials = list(ans)
-        hap = update_graph_add_parent(h, p, n, tagdomains)
+        hap = update_graph_add_parent(h, p, n)
         for a in ans:
             for d in list(hap.predecessors(a)):
                 t = set(potentials+list(nx.descendants(hap, d)))
                 potentials = list(t)
 
-        new, gl, sps = orgh.recompute_success_prob(hap.copy(), domains, potentials, updates, tagdomains)
-        imp = orgh.get_improvement(max_success_probs, sps)
-        print('imp: %f' % imp)
-        acceptance_ratio = min(1.0, new/max_likelihood)
-        u = np.random.uniform(0.0, 1.0)
-        if u <= acceptance_ratio:
-            if acceptance_ratio < 1.0:
-                print('acceptance_ratio<1.0')
-            print('accepted the operator with ratio %f. Old ll: %f New ll: %f' % (acceptance_ratio, likelihood, new))
-            best = gl.copy()
-            max_likelihood = new
-            max_success_probs = copy.deepcopy(sps)
-            likelihood = new
-        else:
-            print('did not accept the operator: %f' % acceptance_ratio)
-        iteration_success_probs.append(max_likelihood)
-        #if imp > 0:
-        #if new > max_likelihood:
-        #    print('connecting to %d improved' % p)
-        #    max_likelihood = new
-        #    max_success_probs = copy.deepcopy(sps)
+        new, gl, sps, likelihood = orgh.recompute_success_prob_likelihood(hap, domains, potentials, updates, tagdomains)
+        #imp = orgh.get_improvement(max_success_probs, sps)
+        #print('imp: %f' % imp)
+        #acceptance_ratio = min(1.0, new/max_success)
+        #u = np.random.uniform(0.0, 1.0)
+        #if u <= acceptance_ratio:
+        #    if acceptance_ratio < 1.0:
+        #        print('acceptance_ratio<1.0')
+        #    print('accepted the operator with ratio %f. Old ll: %f New ll: %f' % (acceptance_ratio, success, new))
         #    best = gl.copy()
-        #    return best, max_likelihood, max_success_probs
-    return best, max_likelihood, max_success_probs, iteration_success_probs
+        #    max_success = new
+        #    max_success_probs = copy.deepcopy(sps)
+        #    success = new
+        #else:
+        #    print('did not accept the operator: %f' % acceptance_ratio)
+        iteration_success_probs.append(new)
+        iteration_likelihoods.append(likelihood)
+        #if imp > 0:
+        if new > max_success:
+            print('connecting to %d improved' % p)
+            max_success = new
+            max_success_probs = copy.deepcopy(sps)
+            best = gl.copy()
+            return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods
+
+        #iteration_success_probs.append(max_success)
+    return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods
 
 
-# incrementally updating log likelihood when adding an edge from p to c.
-def update_likelihood_height(g, p, topo_order, domains):
+# incrementally updating log success when adding an edge from p to c.
+def update_success_height(g, p, topo_order):
     for domain in domains:
         tps = get_trans_prob(g, p, domain)
         for s in list(g.successors(p)):
@@ -192,19 +246,19 @@ def update_likelihood_height(g, p, topo_order, domains):
                     print('%s > 1.0' % domain['name'])
 
     for p in to_update:
-        g.node[p]['state_loglikelihood'] = 0.0
+        g.node[p]['state_logsuccess'] = 0.0
         g.node[p]['reach_prob'] = 0.0
         for domain in domains:
             g.node[p]['reach_prob'] += g.node[p][domain['name']]['reach_prob_domain']
-            g.node[p]['state_loglikelihood'] += math.log(g.node[p][domain['name']]['reach_prob_domain'], 10)
+            g.node[p]['state_logsuccess'] += math.log(g.node[p][domain['name']]['reach_prob_domain'], 10)
     for p in to_update:
         g.node[p]['reach_prob'] = g.node[p]['reach_prob']/float(len(domains))
-    log_likelihood = 0.0
+    log_success = 0.0
 
     for n in g.nodes:
-        log_likelihood += g.node[p]['state_loglikelihood']
+        log_success += g.node[p]['state_logsuccess']
 
-    return log_likelihood, g
+    return log_success, g
 
 
 def what_to_fix(g, nodes):
@@ -214,29 +268,23 @@ def what_to_fix(g, nodes):
     return sorted(m.items(), key=operator.itemgetter(1))
 
 
-def init(g, domains):
-    global sims
-    #h = calculate_states(g, domains)
-    sims = get_trans_matrix(g, domains)
-    #return h
-
-
-# calculate local log likelihood of the state and reachability probability given a domain
-def calculate_states(g, domains):
-    h = g.copy()
+# calculate local log success of the state and reachability probability given a domain
+def calculate_states(g):
+    #h = g.copy()
+    h = g
     for domain in domains:
         gp = orgh.get_domain_edge_probs(h, domain)
         gpp = orgh.get_domain_node_probs(gp, domain)
         for n in gpp.nodes:
             if domain['name'] not in gpp.node[n]:
                 gpp.node[n][domain['name']] = dict()
-            if 'state_loglikelihood' not in gpp.node[n]:
+            if 'state_logsuccess' not in gpp.node[n]:
                 gpp.node[n][domain['name']]['reach_prob_domain'] = gpp.node[n][domain['name']]['reach_prob_domain']
-                gpp.node[n]['state_loglikelihood'] = math.log(gpp.node[n][domain['name']]['reach_prob_domain'], 10)
+                gpp.node[n]['state_logsuccess'] = math.log(gpp.node[n][domain['name']]['reach_prob_domain'], 10)
                 gpp.node[n]['reach_prob'] = gpp.node[n][domain['name']]['reach_prob_domain']
             else:
                 gpp.node[n][domain['name']]['reach_prob_domain'] = gpp.node[n][domain['name']]['reach_prob_domain']
-                gpp.node[n][domain['name']]['state_loglikelihood'] += math.log(gpp.node[n][domain['name']]['reach_prob_domain'], 10)
+                gpp.node[n][domain['name']]['state_logsuccess'] += math.log(gpp.node[n][domain['name']]['reach_prob_domain'], 10)
                 gpp.node[n][domain['name']]['reach_prob'] += gpp.node[n][domain['name']]['reach_prob_domain']
         for e in gpp.edges:
             p, ch = e[0], e[1]
@@ -252,7 +300,7 @@ def calculate_states(g, domains):
     return h
 
 
-def get_trans_matrix(g, domains):
+def get_trans_matrix(g):
     sims = dict()
     for n in g.nodes:
         sims[n] = dict()
@@ -279,8 +327,9 @@ def get_trans_prob(g, p, domain):
     return tps
 
 
-def update_graph_add_parent(g, p, c, tagdomains):
-    h = g.copy()
+def update_graph_add_parent(g, p, c):
+    #h = g.copy()
+    h = g
     leaves = orgg.get_leaves(h)
     to_update = []
     if p in list(nx.ancestors(g, c)):
@@ -296,11 +345,13 @@ def update_graph_add_parent(g, p, c, tagdomains):
             h.node[n]['population'].append(h.node[a]['rep'])
         # update rep vector
         h.node[n]['rep'] = list(np.mean(np.array(h.node[n]['population']), axis=0))
+    orgh.update_node_dom_sims(h, domains, to_update)
     return h
 
 
 def update_graph_change_parent(g, p, c, newp):
-    h = g.copy()
+    #h = g.copy()
+    h = g
     leaves = orgg.get_leaves(h)
     # removing the old parent
     to_remove = list(nx.ancestors(h,p))
@@ -315,13 +366,15 @@ def update_graph_change_parent(g, p, c, newp):
         for a in vs:
             h.node[n]['population'].append(h.node[a]['rep'])
         h.node[n]['rep'] = list(np.mean(np.array(h.node[n]['population']), axis=0))
+    orgh.update_node_dom_sims(h, domains, to_update)
     return h
 
 
 def reduce_height(h, n):
     if n not in h.nodes:
         return h, -1
-    g = h.copy()
+    #g = h.copy()
+    g = h
     parents = list(g.predecessors(n))
     # choose the least reachable parent
     pfixes = what_to_fix(g, parents)
@@ -353,16 +406,16 @@ def merge_siblings_and_replace_parent(h, p):
     return h
 
 
-def update_likelihood_width(g, c, domains):
-    likelihood = 0.0
+def update_success_width(g, c):
+    success = 0.0
     leaves = orgg.get_leaves(g)
     to_update = list(set(nx.descendants(g,c)).intersection(set(leaves)))
     for domain in domains:
         if domain in to_update:
-            likelihood += orgh.local_log_likelihood(g, domain)
+            success += orgh.local_log_success(g, domain)
         else:
             for n in g.nodes:
-                likelihood += math.log(g.node[n][domain['name']]['reach_prob_domain'])
+                success += math.log(g.node[n][domain['name']]['reach_prob_domain'])
 
     for p in g.nodes:
         g.node[p]['reach_prob'] = 0.0
@@ -371,7 +424,7 @@ def update_likelihood_width(g, c, domains):
     for p in to_update:
         g.node[p]['reach_prob'] = g.node[p]['reach_prob']/float(len(domains))
 
-    return likelihood, g
+    return success, g
 
 
 def find_another_parent(g, n, level):
