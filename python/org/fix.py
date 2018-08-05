@@ -5,17 +5,16 @@ import operator
 import math
 import numpy as np
 import copy
+import datetime
 
 
-sims = dict()
 tagdomains = dict()
 domains = []
 
 def init(g, doms, tdoms):
-    global sims, domains, tagdomains
+    global domains, tagdomains
     domains = doms
     tagdomains = tdoms
-    sims = get_trans_matrix(g, domains)
 
 
 def fix_plus(g, doms, tdoms):
@@ -26,18 +25,25 @@ def fix_plus(g, doms, tdoms):
     iteration_likelihoods = []
     #h = g.copy()
     h = g
+    s1 = datetime.datetime.now()
     max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood(h, domains, tagdomains)
+    e1 = datetime.datetime.now()
+    l1 = e1 - s1
+    print('elapsed time of get_success_prob_likelihood: %d' % int(l1.total_seconds() * 1000))
     initial_success_probs = copy.deepcopy(max_success_probs)
     best = gp.copy()
 
     for i in range(1):
         print('iteration %d' % i)
-        #s = datetime.datetime.now()
         initial_sp = max_success
         level_n = list(orgg.get_leaves(gp))
         while len(level_n) > 1:
+            s1 = datetime.datetime.now()
             print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
             hf, ll, sps, its, ls = fix_level_plus(best.copy(), level_n, max_success, max_success_probs)
+            e1 = datetime.datetime.now()
+            l1 = e1 - s1
+            print('elapsed time of fix_level_plus: %d' % int(l1.total_seconds() * 1000))
             iteration_success_probs.extend(list(its))
             iteration_likelihoods.extend(list(ls))
             print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
@@ -53,9 +59,6 @@ def fix_plus(g, doms, tdoms):
         #orgg.height(best)
 
         gp = best.copy()
-        #e = datetime.datetime.now()
-        #elapsed = e - s
-        #print('elapsed time: %d' % int(elapsed.total_seconds() * 1000))
     return best, iteration_success_probs, iteration_likelihoods
 
 
@@ -75,7 +78,11 @@ def fix_level_plus(g, level, success, success_probs):
         if f[1] == 1.0:
             continue
         for ffunc in fixfunctions:
+            s1 = datetime.datetime.now()
             hp, newsuccess, newsps, its, ls = ffunc(best.copy(), level, f[0], success, max_success_probs)
+            e1 = datetime.datetime.now()
+            l1 = e1 - s1
+            print('elapsed time of ffunc: %d' % int(l1.total_seconds() * 1000))
             if newsuccess < 0.0:
                 continue
             #acceptance_ratio = min(1.0, newsuccess/max_success)
@@ -128,18 +135,6 @@ def change_parent(g, level, n, success, success_probs):
 
     new, np, sps, likelihood = orgh.recompute_success_prob_likelihood(h, domains, potentials, updates, tagdomains)
 
-    #acceptance_ratio = min(1.0, new/success)
-    #u = np.random.uniform(0.0, 1.0)
-    #if u <= acceptance_ratio:
-    #    if acceptance_ratio < 1.0:
-    #        print('acceptance_ratio<1.0')
-    #    print('accepted the operator with ratio %f. Old ll: %f New ll: %f' % (acceptance_ratio, success, new))
-    #    iteration_success_probs.append(new)
-    #    return np, new, sps, iteration_success_probs
-    #else:
-    #    iteration_success_probs.append(success)
-    #    print('did not accept the operator: %f' % acceptance_ratio)
-
     if new > success:
         print('changing the parent to %d improved' % newparent)
         max_success = new
@@ -191,8 +186,11 @@ def add_parent(g, level, n, success, success_probs):
             for d in list(hap.predecessors(a)):
                 t = set(potentials+list(nx.descendants(hap, d)))
                 potentials = list(t)
-
+        s1 = datetime.datetime.now()
         new, gl, sps, likelihood = orgh.recompute_success_prob_likelihood(hap, domains, potentials, updates, tagdomains)
+        e1 = datetime.datetime.now()
+        l1 = e1 - s1
+        print('elapsed time of recompute_success_prob_likelihood in add_parent: %d' % int(l1.total_seconds() * 1000))
         #imp = orgh.get_improvement(max_success_probs, sps)
         #print('imp: %f' % imp)
         #acceptance_ratio = min(1.0, new/max_success)
@@ -219,46 +217,6 @@ def add_parent(g, level, n, success, success_probs):
 
         #iteration_success_probs.append(max_success)
     return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods
-
-
-# incrementally updating log success when adding an edge from p to c.
-def update_success_height(g, p, topo_order):
-    for domain in domains:
-        tps = get_trans_prob(g, p, domain)
-        for s in list(g.successors(p)):
-            if domain['name'] not in g[p][s]:
-                g[p][s][domain['name']] = dict()
-            g[p][s][domain['name']]['trans_prob_domain'] = tps[s]
-
-    to_update = list(nx.descendants(g, p))
-
-    for domain in domains:
-        for s in list(g.successors(p)):
-            g.node[s][domain['name']]['reach_prob_domain'] = g.node[p][domain['name']]['reach_prob_domain'] * g[p][s][domain['name']]['trans_prob_domain']
-        for s in to_update:
-            g.node[s][domain['name']]['reach_prob_domain'] = 0.0
-        for u in topo_order:
-            for ch in list(g.successors(u)):
-                if ch not in to_update:
-                    continue
-                g.node[ch][domain['name']]['reach_prob_domain'] += g.node[u][domain['name']]['reach_prob_domain']*g[u][ch][domain['name']]['trans_prob_domain']
-                if g.node[ch][domain['name']]['reach_prob_domain']>1.0:
-                    print('%s > 1.0' % domain['name'])
-
-    for p in to_update:
-        g.node[p]['state_logsuccess'] = 0.0
-        g.node[p]['reach_prob'] = 0.0
-        for domain in domains:
-            g.node[p]['reach_prob'] += g.node[p][domain['name']]['reach_prob_domain']
-            g.node[p]['state_logsuccess'] += math.log(g.node[p][domain['name']]['reach_prob_domain'], 10)
-    for p in to_update:
-        g.node[p]['reach_prob'] = g.node[p]['reach_prob']/float(len(domains))
-    log_success = 0.0
-
-    for n in g.nodes:
-        log_success += g.node[p]['state_logsuccess']
-
-    return log_success, g
 
 
 def what_to_fix(g, nodes):
@@ -298,33 +256,6 @@ def calculate_states(g):
         h.node[n]['reach_prob'] = h.node[n]['reach_prob']/float(len(domains))
 
     return h
-
-
-def get_trans_matrix(g):
-    sims = dict()
-    for n in g.nodes:
-        sims[n] = dict()
-        for domain in domains:
-            sims[n][domain['name']] = orgh.get_transition_sim(g.node[n]['rep'], domain['mean'])
-    return sims
-
-
-def get_trans_prob(g, p, domain):
-    d = 0.0
-    tps = dict()
-    tsl = []
-    ts = dict()
-    sps = list(g.successors(p))
-    for s in sps:
-        tsl.append(sims[s][domain['name']])
-        ts[s] = sims[s][domain['name']]
-    maxs = max(tsl)
-    for s in sps:
-        tps[s] = math.exp(ts[s]-maxs)
-        d += tps[s]
-    for s in sps:
-        tps[s] = tps[s]/d
-    return tps
 
 
 def update_graph_add_parent(g, p, c):
