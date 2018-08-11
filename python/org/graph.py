@@ -50,6 +50,18 @@ def level_up(g, nodes):
     return ups
 
 
+def level_down(g, nodes):
+    downs = []
+    for n in nodes:
+        if n not in g:
+            continue
+        ps = list(g.successors(n))
+        for s in ps:
+            if s not in downs and s not in nodes:
+                downs.append(s)
+    return downs
+
+
 def height(g):
     ds = []
     r = get_root(g)
@@ -57,6 +69,24 @@ def height(g):
         ds.append(nx.shortest_path_length(g,source=r,target=l))
     print('heights: {}'.format(ds))
     print('min height: %d  max height: %d' % (min(ds), max(ds)))
+
+
+def branching_factor(g):
+    bs = []
+    leaves = get_leaves(g)
+    for n in g.nodes():
+        if n not in leaves:
+            bs.append(g.out_degree(n))
+    print('branching factors: {}'.format(bs))
+
+
+def gprint(g):
+    print('root: %d' % get_root(g))
+    for n in g.nodes:
+        for p in g.predecessors(n):
+            print('%d (%f) -> %d (%f)' % (n, g.node[n]['reach_prob'], p, g.node[p]['reach_prob']))
+
+
 
 
 

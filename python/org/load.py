@@ -3,7 +3,7 @@ import sqlite3
 import numpy as np
 
 #REPO_PATH = '/home/kenpu/clones/tagcloud-nlp-generator/output'
-REPO_PATH = '/home/fnargesian/go/src/github.com/RJMillerLab/tagcloud-nlp-generator/zoutput'
+REPO_PATH = '/home/fnargesian/go/src/github.com/RJMillerLab/tagcloud-nlp-generator/toutput'
 FT_SQLITE3_PATH = '/home/kenpu/clones/tagcloud-nlp-generator/ft.sqlite3'
 
 def list_table_names():

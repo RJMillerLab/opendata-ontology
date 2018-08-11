@@ -4,9 +4,9 @@ import operator
 import numpy as np
 import math
 from scipy import linalg
-import datetime
+#import datetime
 import multiprocessing
-from itertools import repeat
+#from itertools import repeat
 
 
 node_dom_sims = dict()
@@ -37,19 +37,27 @@ def compute_reachability_probs(gp, domains, tagdomains):
     tag_ranks = dict()
     tag_dists = dict()
     success_probs = dict()
-    #h = gp.copy()
     h = gp
     leaves = orgg.get_leaves(h)
+    dsps = dict()
     for domain in domains:
+        table = domain['name'][:domain['name'].rfind('_')]
+
         g, tags = compute_tag_probs(h, domain, top, leaves)
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
         tag_dists[domain['tag']] = tag_dist
         for i in range(len(tag_dist)):
             if tag_dist[i][0]==domain['tag']:
                 tag_ranks[domain['name']] = i + 1
-                success_probs[domain['name']] = dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1]
+                sp = dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1]
+                if table not in success_probs:
+                    success_probs[table] = sp
+                else:
+                    success_probs[table] += sp
+                dsps[domain['name']] = sp
         h = g.copy()
-        #h = g
+    print('dsp: %d  %f' % (len(dsps), sum(list(dsps.values()))/float(len(dsps))))
+    print('success_prob: %d  %f' % (len(success_probs), sum(list(success_probs.values()))/float(len(success_probs))))
     return h, tag_dists, tag_ranks, success_probs
 
 
@@ -100,8 +108,7 @@ def get_tag_probs(g, domain):
     return tags
 
 
-def get_partial_domain_edge_probs(g, domain, nodes, updates):
-    #gd = g.copy()
+def get_partial_domain_edge_probs(g, domain, nodes):
     gd = g
     seen = []
     for p in nodes:
@@ -143,7 +150,6 @@ def get_domain_edge_probs(g, domain, leaves):
 
 
 def get_partial_domain_node_probs(g, domain, top, nodes):
-    #gd = g.copy()
     gd = g
     root = orgg.get_root(gd)
     to_use = list(nodes)
@@ -222,119 +228,97 @@ def get_isa_sim(vec, mean, cov, det):
     return f
 
 
-def recompute_success_prob_likelihood(g, domains, nodes, updates, tagdomains):
-    error = 0
+def recompute_local_success_prob(domain):
+
+    global top, h, leaves, nodes, updates
+
+    g = h.copy()
+
+    reach_probs = dict()
+    success_prob = 0.0
+
+    gp = get_partial_domain_edge_probs(g, domain, nodes)
+    gpp = get_partial_domain_node_probs(gp, domain, top, nodes)
+
+    for n in leaves:
+        if gpp.node[n]['tag'] == domain['tag']:
+            success_prob = dom_selection_probs[domain['tag']][domain['name']] * gpp.node[n][domain['name']]['reach_prob_domain']
+
+    for p in h.nodes:
+        reach_probs[p] = h.node[p][domain['name']]['reach_prob_domain']
+
+    return success_prob, reach_probs
+
+def recompute_success_prob_likelihood(g, adomains, nodes, tagdomains, do, all_success_probs):
+    domains = []
+    if do:
+        domains = get_domains_to_update(g, adomains, nodes, tagdomains)
+        print('considering %d doms instead of %d.' % (len(domains), len(adomains)))
+    else:
+        domains = adomains
+
     top = list(nx.topological_sort(g))
-    tag_ranks = dict()
-    tag_dists = dict()
+    leaves = orgg.get_leaves(g)
     success_probs = dict()
-    #h = g.copy()
+    likelihood = 0.0
     h = g
+
+    for p in nodes:
+        h.node[p]['reach_prob'] = 0.0
+
     for domain in domains:
-        s1 = datetime.datetime.now()
-        gp = get_partial_domain_edge_probs(h, domain, nodes, updates)
-        e1 = datetime.datetime.now()
-        l1 = e1 - s1
-        print('elapsed time of get_partial_domain_edge_probs: %d' % int(l1.total_seconds() * 1000))
-        s1 = datetime.datetime.now()
+        table = domain['name'][:domain['name'].rfind('_')]
+
+        gp = get_partial_domain_edge_probs(g, domain, nodes)
         gpp = get_partial_domain_node_probs(gp, domain, top, nodes)
-        e1 = datetime.datetime.now()
-        l1 = e1 - s1
-        print('elapsed time of get_partial_domain_node_probs: %d' % int(l1.total_seconds() * 1000))
-        tags = dict()
-        for n in orgg.get_leaves(gpp):
-            tags[gpp.node[n]['tag']] = gpp.node[n][domain['name']]['reach_prob_domain']
-        ##
-        tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
-        tag_dists[domain['tag']] = tag_dist
-        for i in range(len(tag_dist)):
-            if tag_dist[i][0]==domain['tag']:
-                tag_ranks[domain['name']] = i + 1
-                success_probs[domain['name']] = dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1]
-        #h = gpp.copy()
-        h = gpp
-    for p in nodes:
-        h.node[p]['reach_prob'] = 0.0
-        for domain in domains:
-            h.node[p]['reach_prob'] += h.node[p][domain['name']]['reach_prob_domain']
-    for p in nodes:
-        h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
 
-    error = sum(tag_ranks.values()) - len(domains)
-    expected_success = sum(list(success_probs.values()))/float(len(domains))
-    if expected_success == 0:
-        print('zero expected_success.')
-    print('hierarchy success prob: %f error: %d' % (expected_success, error))
-
-    # computing likelihood
-    likelihood = get_log_likelihood(h, domains)
-
-    return expected_success, h, success_probs, likelihood
-
-
-def get_success_prob_likelihood_plus(g, domains, tagdomains):
-    #s = datetime.datetime.now()
-    error = 0
-    top = list(nx.topological_sort(g))
-    tag_ranks = dict()
-    tag_dists = dict()
-    success_probs = dict()
-    #h = g.copy()
-    h = g
-    leaves = orgg.get_leaves(g)
-    for domain in domains:
-        gp = get_domain_edge_probs(h, domain, leaves)
-        gpp = get_domain_node_probs(gp, domain, top)
-        tags = dict()
         for n in leaves:
-            tags[gpp.node[n]['tag']] = gpp.node[n][domain['name']]['reach_prob_domain']
+            if gpp.node[n]['tag'] == domain['tag']:
+                sp = dom_selection_probs[domain['tag']][domain['name']] * gpp.node[n][domain['name']]['reach_prob_domain']
+                if table not in success_probs:
+                    success_probs[table] = sp
+                else:
+                    success_probs[table] += sp
 
-        tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
-        tag_dists[domain['tag']] = tag_dist
-        for i in range(len(tag_dist)):
-            if tag_dist[i][0]==domain['tag']:
-                tag_ranks[domain['name']] = i + 1
-                success_probs[domain['name']] = dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1]
-        #h = gpp.copy()
+        for p in gpp.nodes:
+            gpp.node[p]['reach_prob'] += gpp.node[p][domain['name']]['reach_prob_domain']
+            likelihood += math.log(gpp.node[n][domain['name']]['reach_prob_domain'])
+
         h = gpp
-    # computing reach probs and log likelihood
-    for p in h.nodes:
-        h.node[p]['reach_prob'] = 0.0
-        for domain in domains:
-            h.node[p]['reach_prob'] += h.node[p][domain['name']]['reach_prob_domain']
 
-    for p in h.nodes:
+    for p in nodes:
         h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
 
-    error = sum(tag_ranks.values()) - len(domains)
-    expected_success = sum(list(success_probs.values()))/float(len(domains))
-    if expected_success == 0:
-        print('zero expected_success.')
-    print('hierarchy success prob: %f error: %d' % (expected_success, error))
-
-    # computing log likelihood
-    likelihood = get_log_likelihood(h, domains)
-    #e = datetime.datetime.now()
-    #elapsed = e - s
-    #print('elapsed time of get_success_prob_likelihood: %d' % int(elapsed.total_seconds() * 1000))
-    return expected_success, h, success_probs, likelihood
+    # complete success_probs
+    for d, p in all_success_probs.items():
+        if d not in success_probs:
+            success_probs[d] = p
 
 
-def get_success_prob_likelihood(g, domains):
+    expected_success = sum(list(success_probs.values()))/float(len(success_probs))
 
-    global top, h, leaves
+    return expected_success, h.copy(), success_probs,  likelihood
+
+
+def recompute_success_prob_likelihood_plus(g, domains, ns, ups):
+
+    global top, h, leaves, nodes, updates
     top = list(nx.topological_sort(g))
     h = g
     leaves = orgg.get_leaves(g)
+    nodes = ns
+    updates = ups
 
     success_probs = []
     local_likelihoods = [0.0 for d in domains]
+    pool = multiprocessing.Pool(5)
 
-    pool = multiprocessing.Pool(25)
-    #results = pool.starmap(get_local_success_prob, zip(domains, repeat(g), repeat(leaves), repeat(top)))
-    results = pool.map(get_local_success_prob, domains)
+    results = pool.map(recompute_local_success_prob, domains)
 
-    for p in h.nodes:
+    pool.close()
+    pool.join()
+
+    for p in nodes:
         h.node[p]['reach_prob'] = 0.0
 
     for r in results:
@@ -346,14 +330,92 @@ def get_success_prob_likelihood(g, domains):
         local_likelihoods.append(ll)
 
     # computing reach probs
-    for p in h.nodes:
+    for p in nodes:
         h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
 
     expected_success = sum(success_probs)/float(len(domains))
     likelihood = sum(local_likelihoods)
     print('hierarchy success prob: %f and likelihood: %f' % (expected_success, likelihood))
 
-    return expected_success, likelihood
+    return expected_success, h.copy(), success_probs,  likelihood
+
+
+def get_success_prob_likelihood(g, domains):
+
+    top = list(nx.topological_sort(g))
+    success_probs = dict()
+    h = g
+    leaves = orgg.get_leaves(g)
+    likelihood = 0.0
+
+    for p in h.nodes:
+        h.node[p]['reach_prob'] = 0.0
+
+    for domain in domains:
+        table = domain['name'][:domain['name'].rfind('_')]
+        gp = get_domain_edge_probs(h, domain, leaves)
+        gpp = get_domain_node_probs(gp, domain, top)
+
+        for n in leaves:
+            if gpp.node[n]['tag'] == domain['tag']:
+                sp = dom_selection_probs[domain['tag']][domain['name']] * gpp.node[n][domain['name']]['reach_prob_domain']
+                if table not in success_probs:
+                    success_probs[table] = sp
+                else:
+                    success_probs[table] += sp
+
+        for p in gpp.nodes:
+            gpp.node[p]['reach_prob'] += gpp.node[p][domain['name']]['reach_prob_domain']
+            likelihood += math.log(gpp.node[n][domain['name']]['reach_prob_domain'])
+
+        h = gpp
+
+    for p in h.nodes:
+        h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
+
+    expected_success = sum(list(success_probs.values()))/float(len(success_probs))
+    if expected_success == 0:
+        print('zero expected_success.')
+
+    return expected_success, h, success_probs, likelihood
+
+
+def get_success_prob_likelihood_plus(g, domains):
+
+    global top, h, leaves
+    top = list(nx.topological_sort(g))
+    leaves = orgg.get_leaves(g)
+    h = g
+
+    success_probs = dict()
+    local_likelihoods = [0.0 for d in domains]
+
+    pool = multiprocessing.Pool(5)
+    results = pool.map(get_local_success_prob, domains)
+    pool.close()
+    pool.join()
+
+    for p in h.nodes:
+        h.node[p]['reach_prob'] = 0.0
+
+    for i in range(len(results)):
+        r = results[i]
+        success_probs[domains[i]['name']] = r[0]
+        ll = 0.0
+        for n, p in r[1].items():
+            h.node[n]['reach_prob'] += p
+            ll += math.log(p)
+        local_likelihoods.append(ll)
+
+    # computing reach probs
+    for p in h.nodes:
+        h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
+
+    expected_success = sum(list(success_probs.values()))/float(len(domains))
+    likelihood = sum(local_likelihoods)
+    print('hierarchy success prob: %f and likelihood: %f' % (expected_success, likelihood))
+
+    return expected_success, h.copy(), success_probs, likelihood
 
 
 def get_local_success_prob(domain):
@@ -368,37 +430,18 @@ def get_local_success_prob(domain):
     for n in leaves:
         if gpp.node[n]['tag'] == domain['tag']:
             success_prob = dom_selection_probs[domain['tag']][domain['name']] * gpp.node[n][domain['name']]['reach_prob_domain']
-        h = gpp
 
-    for p in h.nodes:
-        reach_probs[p] = h.node[p][domain['name']]['reach_prob_domain']
+    for p in gpp.nodes:
+        reach_probs[p] = gpp.node[p][domain['name']]['reach_prob_domain']
 
     return success_prob, reach_probs
-
-
-def get_local_log_likelihood(g, domain):
-    likelihood = 0.0
-    for n in g.nodes:
-        likelihood += math.log(g.node[n][domain['name']]['reach_prob_domain'])
-    return likelihood
-
-
-# computes the log likelihood of a hierarchy
-def get_log_likelihood(g, domains):
-    likelihood = 0.0
-    #h = g.copy()
-    for domain in domains:
-        local_likelihood = get_local_log_likelihood(g, domain)
-        likelihood += local_likelihood
-    return likelihood
-
 
 
 def evaluate(g, domains, tagdomains):
     error = 0
     h, tag_dists, tag_ranks, success_probs = compute_reachability_probs(g, domains, tagdomains)
     error = sum(tag_ranks.values()) - len(domains)
-    expected_success = sum(list(success_probs.values()))/float(len(domains))
+    expected_success = sum(list(success_probs.values()))/float(len(success_probs))
     print('hierarchy success prob: %f error: %d' % (expected_success, error))
     results = {'tag_dists': tag_dists, 'tag_ranks': tag_ranks, 'success_probs': success_probs, 'rank_error': error, 'expected_success': expected_success}
     return results
@@ -559,6 +602,22 @@ def get_improvement(init, final):
     return imp
 
 
+def get_domains_to_update(g, domains, nodes, tagdomains):
+    updomains = []
+    dnames = []
+    leaves = orgg.get_leaves(g)
+    leaf_nodes = set()
+    for n in nodes:
+        ds = set(nx.descendants(g, n)).intersection(set(leaves))
+        if n in leaves:
+            ds = ds.union({n})
+        leaf_nodes = leaf_nodes.union(ds)
+    for s in leaf_nodes:
+        for d in tagdomains[g.node[s]['tag']]:
+            if d['name'] not in dnames:
+                updomains.append(d)
+                dnames.append(d['name'])
+    return updomains
 
 
 
