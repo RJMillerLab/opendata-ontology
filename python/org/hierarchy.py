@@ -6,6 +6,8 @@ import math
 from scipy import linalg
 #import datetime
 import multiprocessing
+import random
+from sklearn.cluster import KMeans
 #from itertools import repeat
 
 
@@ -620,6 +622,15 @@ def get_domains_to_update(g, domains, nodes, tagdomains):
     return updomains
 
 
+def get_dimensions(tags, vecs, n_dims):
+    kmeans = KMeans(n_clusters=n_dims, random_state=random.randint(1,1000)).fit(vecs)
+    dims = dict()
+    for i in range(len(kmeans.labels_)):
+        c = kmeans.labels_[i]
+        if c not in dims:
+            dims[c] = []
+            dims[c].append(tags[i])
+    return dims
 
 
 

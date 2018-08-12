@@ -74,8 +74,11 @@ def height(g):
 def branching_factor(g):
     bs = []
     leaves = get_leaves(g)
+    root = get_root(g)
     for n in g.nodes():
         if n not in leaves:
+            if n == root:
+                print('root br: %d' % g.out_degree(n))
             bs.append(g.out_degree(n))
     print('branching factors: {}'.format(bs))
 
