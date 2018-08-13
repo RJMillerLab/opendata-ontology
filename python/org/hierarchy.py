@@ -529,7 +529,7 @@ def get_trans_prob(g, p, domain):
             tps[s] = math.exp(ts[s]-maxs)
         else:
             tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
-        tps2[s] = math.exp((10.0/branching_factor)*ts[s]) # 5*
+        tps2[s] = math.exp((10.0/branching_factor)*ts[s]) # 5.0*
         sis[s] = ts[s]
         d += tps[s]
         d2 += tps2[s]
@@ -561,7 +561,7 @@ def get_selection_probs(choices, domain):
             tps[s['name']] = math.exp(ts[s['name']]-maxs)
         else:
             tps[s['name']] = math.exp((ts[s['name']]-mins)/(maxs-mins))
-        tps2[s['name']] = math.exp((10.0/branching_factor)*ts[s['name']]) # 5*
+        tps2[s['name']] = math.exp(10.0/branching_factor*ts[s['name']]) # 5.0*
         sis[s['name']] = ts[s['name']]
         d += tps[s['name']]
         d2 += tps2[s['name']]
