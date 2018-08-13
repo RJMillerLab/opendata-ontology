@@ -40,14 +40,14 @@ def fix_plus(g, doms, tdoms):
     initial_success_probs = copy.deepcopy(max_success_probs)
     best = gp.copy()
 
-    fixfunctions = [change_parent, reduce_height, add_parent, change_parent]
+    fixfunctions = [reduce_height, add_parent, change_parent]
 
     for i in range(1):
         print(datetime.datetime.now())
         print('iteration %d' % i)
         initial_sp = max_success
-        #level_n = list(orgg.get_leaves(gp))
-        level_n = orgg.level_down(gp, orgg.level_down(gp, [orgg.get_root(gp)]))
+        level_n = list(orgg.get_leaves(gp))
+        #level_n = orgg.level_down(gp, orgg.level_down(gp, [orgg.get_root(gp)]))
         #level_n = set(set(gp.nodes).difference({orgg.get_root(gp)})).difference(set(orgg.level_down(gp, [orgg.get_root(gp)])))
         while len(level_n) > 1:
             s1 = datetime.datetime.now()
@@ -64,8 +64,8 @@ def fix_plus(g, doms, tdoms):
                 max_success = ll
                 best = hf.copy()
                 max_success_probs = copy.deepcopy(sps)
-            #level_n = orgg.level_up(hf, level_n)
-            level_n = orgg.level_down(hf, level_n)
+            level_n = orgg.level_up(hf, level_n)
+            #level_n = orgg.level_down(hf, level_n)
             #level_n = []
         print('initial success prob: %f  and best success prob: %f' % (initial_sp, max_success))
         print('improvement in success probs: %f' % orgh.get_improvement(initial_success_probs, max_success_probs))
@@ -113,6 +113,7 @@ def fix_level_plus(g, level, success, success_probs, fixfunctions):
 
 
 def change_parent(g, level, n, success, success_probs):
+    print('change_parent')
     max_success = success
     max_success_probs = copy.deepcopy(success_probs)
     best = g.copy()
@@ -294,6 +295,7 @@ def update_graph_change_parent(g, p, c, newp):
 
 
 def reduce_height(h, level, n, success, success_probs):
+    print('reduce_height')
     if n not in h.nodes:
         return h, -1.0, [], [], []
     g = h
@@ -321,12 +323,7 @@ def reduce_height(h, level, n, success, success_probs):
     gpf = gpfixes[0]
     hp = merge_siblings_and_replace_parent(h, gpf[0])
 
-    #s1 = datetime.datetime.now()
-    #new, gl, sps, likelihood = orgh.recompute_success_prob_likelihood(hp.copy(), domains,  potentials, updates)
     new, gl, sps, likelihood = orgh.get_success_prob_likelihood(hp.copy(), domains)
-    #e1 = datetime.datetime.now()
-    #l1 = e1 - s1
-    #print('elapsed time of recompute_success_prob_likelihood in add_parent: %d' %    int(l1.total_seconds() * 1000))
 
     #print('after update')
     #orgg.gprint(gl)

@@ -517,6 +517,7 @@ def get_trans_prob(g, p, domain):
     tsl = []
     ts = dict()
     sps = list(g.successors(p))
+    branching_factor = len(sps)
     for s in sps:
         m = node_dom_sims[s][domain['name']]
         tsl.append(m)
@@ -528,7 +529,7 @@ def get_trans_prob(g, p, domain):
             tps[s] = math.exp(ts[s]-maxs)
         else:
             tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
-        tps2[s] = math.exp(5*ts[s])
+        tps2[s] = math.exp((10.0/branching_factor)*ts[s]) # 5*
         sis[s] = ts[s]
         d += tps[s]
         d2 += tps2[s]
@@ -554,47 +555,17 @@ def get_selection_probs(choices, domain):
         tsl.append(m)
         ts[s['name']] = m
     maxs, mins = max(tsl), min(tsl)
+    branching_factor = len(choices)
     for s in choices:
         if maxs == mins:
             tps[s['name']] = math.exp(ts[s['name']]-maxs)
         else:
             tps[s['name']] = math.exp((ts[s['name']]-mins)/(maxs-mins))
-        tps2[s['name']] = math.exp(5*ts[s['name']])
+        tps2[s['name']] = math.exp((10.0/branching_factor)*ts[s['name']]) # 5*
         sis[s['name']] = ts[s['name']]
         d += tps[s['name']]
         d2 += tps2[s['name']]
     return tps2[domain['name']]/d2
-
-
-
-
-def get_trans_prob_plus(g, p, domain, sims):
-    d = 0.0
-    tps = dict()
-    sis = dict()
-    tsl = []
-    ts = dict()
-    sps = list(g.successors(p))
-    for s in sps:
-        if s in sims:
-            m = sims[s]
-        else:
-            m = g[p][s][domain['name']]['trans_sim_domain']
-        tsl.append(m)
-        ts[s] = m
-    #maxs = max(tsl)
-    #mins = min(tsl)
-    for s in sps:
-        #if maxs == mins:
-        #    tps[s] = math.exp(ts[s]-maxs)
-        #else:
-        #    tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
-        tps[s] = math.exp(5*ts[s])
-        sis[s] = ts[s]
-        d += tps[s]
-    for s in sps:
-        tps[s] = tps[s]/d
-    return tps, sis
 
 
 def get_improvement(init, final):
@@ -629,7 +600,7 @@ def get_dimensions(tags, vecs, n_dims):
         c = kmeans.labels_[i]
         if c not in dims:
             dims[c] = []
-            dims[c].append(tags[i])
+        dims[c].append(tags[i])
     return dims
 
 
