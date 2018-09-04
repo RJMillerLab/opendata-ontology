@@ -32,11 +32,7 @@ def fix_plus(g, doms, tdoms):
     iteration_success_probs = []
     iteration_likelihoods = []
     h = g
-    s1 = datetime.datetime.now()
     max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood(h, domains)
-    e1 = datetime.datetime.now()
-    l1 = e1 - s1
-    print('elapsed time of get_success_prob_likelihood: %d' % int(l1.total_seconds() * 1000))
     initial_success_probs = copy.deepcopy(max_success_probs)
     best = gp.copy()
 
@@ -46,16 +42,14 @@ def fix_plus(g, doms, tdoms):
         print(datetime.datetime.now())
         print('iteration %d' % i)
         initial_sp = max_success
-        level_n = list(orgg.get_leaves(gp))
-        #level_n = orgg.level_down(gp, orgg.level_down(gp, [orgg.get_root(gp)]))
+        #level_n = list(orgg.get_leaves(gp))
+        #print('bottom up')
+        level_n = orgg.level_down(gp, orgg.level_down(gp, [orgg.get_root(gp)]))
+        print('top down')
         #level_n = set(set(gp.nodes).difference({orgg.get_root(gp)})).difference(set(orgg.level_down(gp, [orgg.get_root(gp)])))
         while len(level_n) > 1:
-            s1 = datetime.datetime.now()
             print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
             hf, ll, sps, its, ls = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, [fixfunctions[i]])
-            e1 = datetime.datetime.now()
-            l1 = e1 - s1
-            print('elapsed time of fix_level_plus: %d' % int(l1.total_seconds() * 1000))
             iteration_success_probs.extend(list(its))
             iteration_likelihoods.extend(list(ls))
             print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
@@ -64,8 +58,8 @@ def fix_plus(g, doms, tdoms):
                 max_success = ll
                 best = hf.copy()
                 max_success_probs = copy.deepcopy(sps)
-            level_n = orgg.level_up(hf, level_n)
-            #level_n = orgg.level_down(hf, level_n)
+            #level_n = orgg.level_up(hf, level_n)
+            level_n = orgg.level_down(hf, level_n)
             #level_n = []
         print('initial success prob: %f  and best success prob: %f' % (initial_sp, max_success))
         print('improvement in success probs: %f' % orgh.get_improvement(initial_success_probs, max_success_probs))
@@ -93,11 +87,7 @@ def fix_level_plus(g, level, success, success_probs, fixfunctions):
         if f[1] == 1.0:
             continue
         for ffunc in fixfunctions:
-            s1 = datetime.datetime.now()
             hp, newsuccess, newsps, its, ls = ffunc(best.copy(), level, f[0], success, max_success_probs)
-            e1 = datetime.datetime.now()
-            l1 = e1 - s1
-            print('elapsed time of ffunc: %d' % int(l1.total_seconds() * 1000))
             if newsuccess < 0.0:
                 continue
             if newsuccess > max_success:
@@ -335,7 +325,7 @@ def reduce_height(h, level, n, success, success_probs):
         max_success = new
         max_success_probs = copy.deepcopy(sps)
         best = gl.copy()
-    print('after reduction: node %d edge %d' % (len(hp.nodes), len(hp.edges)))
+    print('after reduction: prev %f new %f' % (max_success, new))
     return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods
 
 
@@ -353,7 +343,7 @@ def merge_siblings_and_replace_parent(h, p):
     return h
 
 
-def update_success_width(g, c):
+def update_width(g, c):
     success = 0.0
     leaves = orgg.get_leaves(g)
     to_update = list(set(nx.descendants(g,c)).intersection(set(leaves)))

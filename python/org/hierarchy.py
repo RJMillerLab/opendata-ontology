@@ -34,6 +34,50 @@ def update_node_dom_sims(g, domains, ns):
             node_dom_sims[n][dom['name']] = get_transition_sim(g.node[n]['rep'], dom['mean'])
 
 
+def compute_reachability_probs_plus(gp, domains, tagdomains):
+    top = list(nx.topological_sort(gp))
+    tag_dists = dict()
+    h = gp
+    leaves = orgg.get_leaves(h)
+    dom_target_sims = []
+    reachable_dom_probs = []
+    find_target_probs = []
+    results = dict()
+    # building a domain index on domain names
+    domain_index = dict()
+    for i in range(len(domains)):
+        domain_index[domains[i]['name']] = i
+    # evaluation
+    for domain in domains:
+        g, tags = compute_tag_probs(h, domain, top, leaves)
+        tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
+        tag_dists[domain['tag']] = tag_dist
+        # finding the most reachable domain
+        max_reached_dom_prob = 0.0
+        max_reached_dom_sim = 0.0
+        most_reachable_dom = ''
+        for i in range(len(tag_dist)):
+            if tag_dist[i][0] == domain['tag']:
+                find_target_probs.append(dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1])
+            selps, sims = get_dom_trans_prob(tagdomains[tag_dist[i][0]], domain)
+            for d in tagdomains[tag_dist[i][0]]:
+                sp = selps[d['name']] * tag_dist[i][1]
+                if sp > max_reached_dom_prob:
+                    max_reached_dom_prob = sp
+                    max_reached_dom_sim = sims[d['name']]
+                    most_reachable_dom = d['name']
+        dom_target_sims.append(max_reached_dom_sim)
+        reachable_dom_probs.append(max_reached_dom_prob)
+
+        results[domain['name']] = {'most_reachable_dom': most_reachable_dom, 'dom_target_sim': max_reached_dom_sim, 'reachable_dom_prob': max_reached_dom_prob, 'find_taget_prob': dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1]}
+
+        h = g.copy()
+
+    for d, rs in results.items():
+        print('taget name: %s  reach prob: %f  most reachable dom: %s  reach prob: %s  sim to target: %f' % (d, rs['find_taget_prob'], rs['most_reachable_dom'], rs['reachable_dom_prob'], rs['dom_target_sim']))
+    return dom_target_sims, reachable_dom_probs, find_target_probs
+
+
 def compute_reachability_probs(gp, domains, tagdomains):
     top = list(nx.topological_sort(gp))
     tag_ranks = dict()
@@ -42,12 +86,21 @@ def compute_reachability_probs(gp, domains, tagdomains):
     h = gp
     leaves = orgg.get_leaves(h)
     dsps = dict()
+    top_sims = []
+    # building a domain index on domain names
+    domain_index = dict()
+    for i in range(len(domains)):
+        domain_index[domains[i]['name']] = i
+    # evaluation
     for domain in domains:
         table = domain['name'][:domain['name'].rfind('_')]
 
         g, tags = compute_tag_probs(h, domain, top, leaves)
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
         tag_dists[domain['tag']] = tag_dist
+        # finding the most reachable domain
+        tag_dom_reach = sorted(dom_selection_probs[tag_dist[0][0]].items(), key=operator.itemgetter(1), reverse=True)
+        top_sims.append(get_transition_sim(domains[domain_index[tag_dom_reach[0][0]]]['mean'], domain['mean']))
         for i in range(len(tag_dist)):
             if tag_dist[i][0]==domain['tag']:
                 tag_ranks[domain['name']] = i + 1
@@ -56,6 +109,10 @@ def compute_reachability_probs(gp, domains, tagdomains):
                     success_probs[table] = sp
                 else:
                     success_probs[table] += sp
+                if success_probs[table] > 1.0:
+                    print('table %s has sp > 1.0.' % table)
+                    success_probs[table] = 1.0
+
                 dsps[domain['name']] = sp
         h = g.copy()
     print('dsp: %d  %f' % (len(dsps), sum(list(dsps.values()))/float(len(dsps))))
@@ -281,6 +338,9 @@ def recompute_success_prob_likelihood(g, adomains, nodes, tagdomains, do, all_su
                     success_probs[table] = sp
                 else:
                     success_probs[table] += sp
+                if success_probs[table] > 1.0:
+                    print('table %s has sp > 1.0.' % table)
+                    success_probs[table] = 1.0
 
         for p in gpp.nodes:
             gpp.node[p]['reach_prob'] += gpp.node[p][domain['name']]['reach_prob_domain']
@@ -365,6 +425,9 @@ def get_success_prob_likelihood(g, domains):
                     success_probs[table] = sp
                 else:
                     success_probs[table] += sp
+                if success_probs[table] > 1.0:
+                    print('table %s has sp > 1.0.' % table)
+                    success_probs[table] = 1.0
 
         for p in gpp.nodes:
             gpp.node[p]['reach_prob'] += gpp.node[p][domain['name']]['reach_prob_domain']
@@ -438,6 +501,12 @@ def get_local_success_prob(domain):
 
     return success_prob, reach_probs
 
+def fuzzy_evaluate(g, domains, tagdomains):
+    dom_reach_sims, dom_reach_probs, dom_find_probs = compute_reachability_probs_plus(g, domains, tagdomains)
+    results = {'dom_reach_sims': dom_reach_sims, 'dom_reach_probs': dom_reach_probs, 'dom_find_probs': dom_find_probs}
+    return results
+
+
 
 def evaluate(g, domains, tagdomains):
     error = 0
@@ -508,6 +577,27 @@ def log_likelihood(g, domains):
     return likelihood, h
 
 
+def get_dom_trans_prob(choices, domain):
+    d2 = 0.0
+    tps2 = dict()
+    sis = dict()
+    tsl = []
+    ts = dict()
+    for s in choices:
+        m = get_transition_sim(s['mean'], domain['mean'])
+        tsl.append(m)
+        ts[s['name']] = m
+    for s in choices:
+        tps2[s['name']] = math.exp(5.0*ts[s['name']])
+        sis[s['name']] = ts[s['name']]
+        d2 += tps2[s['name']]
+    for s in choices:
+        tps2[s['name']] = tps2[s['name']]/d2
+    return tps2, sis
+
+
+
+
 def get_trans_prob(g, p, domain):
     d = 0.0
     d2 = 0.0
@@ -522,20 +612,24 @@ def get_trans_prob(g, p, domain):
         m = node_dom_sims[s][domain['name']]
         tsl.append(m)
         ts[s] = m
-    maxs = max(tsl)
-    mins = min(tsl)
+    #maxs = max(tsl)
+    #mins = min(tsl)
     for s in sps:
-        if maxs == mins:
-            tps[s] = math.exp(ts[s]-maxs)
-        else:
-            tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
-        tps2[s] = math.exp((10.0/branching_factor)*ts[s]) # 5.0*
+        #if maxs == mins:
+        #    tps[s] = math.exp(ts[s]-maxs)
+        #else:
+        #    tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
+        tps2[s] = math.exp(5.0*ts[s])#(10.0/branching_factor)*ts[s])
+        tps[s]  = math.exp((10.0/branching_factor)*ts[s])
         sis[s] = ts[s]
         d += tps[s]
         d2 += tps2[s]
     for s in sps:
         tps[s] = tps[s]/d
         tps2[s] = tps2[s]/d2
+        #print('trans prob - br: %d no-decay: %f  decay: %f' % (branching_factor, tps2[s], tps[s]))
+    #print('--------')
+
     return tps2, sis
 
 def get_domains_selection_probs(tagdomains):
@@ -546,6 +640,7 @@ def get_domains_selection_probs(tagdomains):
             probs[tag][target['name']] = get_selection_probs(doms, target)
     return probs
 
+
 def get_selection_probs(choices, domain):
     d, d2 = 0.0, 0.0
     tps, tps2, sis, ts = dict(), dict(), dict(), dict()
@@ -554,17 +649,19 @@ def get_selection_probs(choices, domain):
         m = get_transition_sim(s['mean'], domain['mean'])
         tsl.append(m)
         ts[s['name']] = m
-    maxs, mins = max(tsl), min(tsl)
+    #maxs, mins = max(tsl), min(tsl)
     branching_factor = len(choices)
     for s in choices:
-        if maxs == mins:
-            tps[s['name']] = math.exp(ts[s['name']]-maxs)
-        else:
-            tps[s['name']] = math.exp((ts[s['name']]-mins)/(maxs-mins))
-        tps2[s['name']] = math.exp(10.0/branching_factor*ts[s['name']]) # 5.0*
+        #if maxs == mins:
+        #    tps[s['name']] = math.exp(ts[s['name']]-maxs)
+        #else:
+        #    tps[s['name']] = math.exp((ts[s['name']]-mins)/(maxs-mins))
+        tps2[s['name']] = math.exp(5.0*ts[s['name']])
+        tps[s['name']] = math.exp((10.0/branching_factor)*ts[s['name']])
         sis[s['name']] = ts[s['name']]
         d += tps[s['name']]
         d2 += tps2[s['name']]
+    #print('dom sel - br: %d no-decay: %f  decay: %f' % (branching_factor, tps2[domain['name']]/d2, tps[domain['name']]/d))
     return tps2[domain['name']]/d2
 
 
@@ -602,6 +699,33 @@ def get_dimensions(tags, vecs, n_dims):
             dims[c] = []
         dims[c].append(tags[i])
     return dims
+
+
+def get_dimension_selection_prob(rs, domain):
+    d = 0.0
+    d2 = 0.0
+    tps = dict()
+    tps2 = dict()
+    sis = dict()
+    tsl = []
+    ts = dict()
+    sps = rs
+    branching_factor = len(sps)
+    for s in sps:
+        m = get_transition_sim(s['rep'], domain['mean'])
+        tsl.append(m)
+        ts[s] = m
+    for s in sps:
+        tps2[s] = math.exp(5.0*ts[s])#(10.0/branching_factor)*ts[s])
+        tps[s]  = math.exp((10.0/branching_factor)*ts[s])
+        sis[s] = ts[s]
+        d += tps[s]
+        d2 += tps2[s]
+    for s in sps:
+        tps[s] = tps[s]/d
+        tps2[s] = tps2[s]/d2
+
+    return tps2, sis
 
 
 
