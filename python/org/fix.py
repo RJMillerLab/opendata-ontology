@@ -11,12 +11,14 @@ import datetime
 tagdomains = dict()
 domains = []
 populations = dict()
+domainclouds = dict()
 
 
-def init(g, doms, tdoms):
-    global domains, tagdomains, populations
+def init(g, doms, tdoms, dclouds):
+    global domains, tagdomains, domainclouds, populations
     domains = doms
     tagdomains = tdoms
+    domainclouds = dclouds
     h = g.copy()
     for n in h.nodes:
         populations[n] = copy.deepcopy(h.node[n]['population'])
@@ -24,15 +26,16 @@ def init(g, doms, tdoms):
     return h
 
 
-def fix_plus(g, doms, tdoms):
-    init(g, doms, tdoms)
+def fix_plus(g, doms, tdoms, dclouds):
+    init(g, doms, tdoms, dclouds)
     orgg.height(g)
     orgg.branching_factor(g)
     print('started fixing with %d domains.' % len(domains))
     iteration_success_probs = []
     iteration_likelihoods = []
     h = g
-    max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood(h, domains)
+    #max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood(h, domains)
+    max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood_fuzzy(h, domains, tagdomains, domainclouds)
     initial_success_probs = copy.deepcopy(max_success_probs)
     best = gp.copy()
 
@@ -52,7 +55,7 @@ def fix_plus(g, doms, tdoms):
             hf, ll, sps, its, ls = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, [fixfunctions[i]])
             iteration_success_probs.extend(list(its))
             iteration_likelihoods.extend(list(ls))
-            print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
+            #print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
             if ll > max_success:
                 print('improving after fixing level from %f to %f.' % (max_success, ll))
                 max_success = ll
@@ -63,7 +66,7 @@ def fix_plus(g, doms, tdoms):
             #level_n = []
         print('initial success prob: %f  and best success prob: %f' % (initial_sp, max_success))
         print('improvement in success probs: %f' % orgh.get_improvement(initial_success_probs, max_success_probs))
-        print('after fix_level: node %d edge %d' % (len(best.nodes), len(best.edges)))
+        #print('after fix_level: node %d edge %d' % (len(best.nodes), len(best.edges)))
         orgg.height(best)
         orgg.branching_factor(best)
 
@@ -95,8 +98,8 @@ def fix_level_plus(g, level, success, success_probs, fixfunctions):
                 max_success = newsuccess
                 max_success_probs = copy.deepcopy(newsps)
                 success = newsuccess
-            else:
-                print('opeartor did not help.')
+            #else:
+            #    print('opeartor did not help.')
             iteration_success_probs.extend(list(its))
             iteration_likelihoods.extend(list(ls))
     return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods
@@ -139,7 +142,9 @@ def change_parent(g, level, n, success, success_probs):
             continue
         for d in list(g.predecessors(a)):
             potentials = list(set(potentials+list(nx.descendants(g, d))))
-    new, np, sps, likelihood = orgh.recompute_success_prob_likelihood(h.copy(), domains, potentials, tagdomains, True, success_probs)
+    #new, np, sps, likelihood = orgh.recompute_success_prob_likelihood(h.copy(), domains, potentials, tagdomains, True, success_probs)
+    new, np, sps, likelihood = orgh.recompute_success_prob_likelihood_fuzzy(h.copy(), domains, potentials, tagdomains, True, success_probs, domainclouds)
+
     #print('some dom: %f' % new)
     #new, np, sps, likelihood = orgh.recompute_success_prob_likelihood(h.copy(),  domains, potentials, tagdomains, False)
     #print('all dom: %f' % new)
@@ -202,8 +207,11 @@ def add_parent(g, level, n, success, success_probs):
             for d in list(hap.predecessors(a)):
                 t = set(potentials+list(nx.descendants(hap, d)))
                 potentials = list(t)
-        new, gl, sps, likelihood  = orgh.recompute_success_prob_likelihood(hap.copy(),          domains, potentials, tagdomains, True, success_probs)
-        new, gl, sps, likelihood = orgh.get_success_prob_likelihood(hap.copy(), domains)
+        #new, gl, sps, likelihood  = orgh.recompute_success_prob_likelihood(hap.copy(), domains, potentials, tagdomains, True, success_probs)
+        new, gl, sps, likelihood  = orgh.recompute_success_prob_likelihood_fuzzy(hap.copy(), domains, potentials, tagdomains, True, success_probs, domainclouds)
+
+        #new, gl, sps, likelihood = orgh.get_success_prob_likelihood(hap.copy(), domains)
+        new, gl, sps, likelihood = orgh.get_success_prob_likelihood_fuzzy(hap.copy(), domains, tagdomains, domainclouds)
 
         iteration_success_probs.append(new)
         iteration_likelihoods.append(likelihood)
@@ -303,17 +311,18 @@ def reduce_height(h, level, n, success, success_probs):
     # choose the least reachable parent
     pfixes = what_to_fix(g, parents)
     pf = pfixes[0]
-    print('fixing parent %d with %f' % (pf[0], pf[1]))
+    #print('fixing parent %d with %f' % (pf[0], pf[1]))
     grandparents = list(g.predecessors(pf[0]))
     if len(grandparents) == 0:
-        print('got to the root')
+        #print('got to the root')
         return g, -1.0, [], [], []
     # mix the siblings from the least reachable grand parent
     gpfixes = what_to_fix(g, grandparents)
     gpf = gpfixes[0]
     hp = merge_siblings_and_replace_parent(h, gpf[0])
 
-    new, gl, sps, likelihood = orgh.get_success_prob_likelihood(hp.copy(), domains)
+    #new, gl, sps, likelihood = orgh.get_success_prob_likelihood(hp.copy(), domains)
+    new, gl, sps, likelihood = orgh.get_success_prob_likelihood_fuzzy(hp.copy(), domains, tagdomains, domainclouds)
 
     #print('after update')
     #orgg.gprint(gl)
@@ -330,7 +339,7 @@ def reduce_height(h, level, n, success, success_probs):
 
 
 def merge_siblings_and_replace_parent(h, p):
-    print('merging the children of %d' % p)
+    #print('merging the children of %d' % p)
     sibs = list(h.successors(p))
     for s in sibs:
         if h.out_degree(s)==0:

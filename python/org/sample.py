@@ -21,8 +21,6 @@ def stratified_sample(tagdomains, sample_perc):
         tag_sample_inx = int(len(doms)*sample_perc)+1
         sdoms.extend(tagdomains[t][:tag_sample_inx])
         stagdoms[t] = list(tagdomains[t][:tag_sample_inx])
-    print('sdoms: %d' % len(sdoms))
-    print('stagdoms: %d' % sum([len(doms) for t, doms in stagdoms.items()]))
     return stagdoms, sdoms
 
 
