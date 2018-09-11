@@ -64,11 +64,36 @@ def flat(suffix):
     print('flat')
     g = orgh.add_node_vecs(orgg.get_flat_cluster_graph(keys), vecs)
     orgh.init(g, domains, tagdomains)
-    results = orgh.evaluate(g, domains, tagdomains)
+    #results = orgh.evaluate(g, domains, tagdomains)
+    results = orgh.fuzzy_evaluate(g.copy(), domains, tagdomains, domainclouds)
     tag_dists = results['success_probs']
-    json.dump(tag_dists, open('synthetic_output/flat_dists_' + str(len(domains)) + suffix + '.json', 'w'))
+    success_probs = dict()
+    for t, p in tag_dists.items():
+        #success_probs[t] = p * (1.0/len(tag_dists))
+        success_probs[t] = p
+    json.dump(success_probs, open('synthetic_output/flat_dists_' + str(len(domains)) + suffix + '.json', 'w'))
     print('printed to %s' % ('flat_dists_' +  str(len(domains)) + suffix + '.pdf'))
 
+
+def singledimensional_hierarchy():
+    print('singledimensional_hierarchy')
+    global keys, vecs, domains, tagdomains
+    print('single dim hierarchy')
+    gp, results = agg_fuzzy('fuzzy', 'strict')
+    print('done agg clustering and evaluating')
+    init_success_probs = results['success_probs']
+    before_sp = sum(list(init_success_probs.values()))/float(len(init_success_probs))
+    print('before_sp: %f' % before_sp)
+
+    print('fixing')
+    sps = fix(gp, 'agg_singledim')
+    after_sp = sum(list(sps.values()))/float(len(sps))
+    print('success prob before fix %f after fix %f.' % (before_sp, after_sp))
+
+    single_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists_' + str(len(domains)) + '_single.json'
+    json.dump(results['success_probs'], open(single_json, 'w'))
+    single_pdf = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + '_single.pdf'
+    orgp.plot(single_json, single_pdf, 'single-dimensional Hierarchy - ' + str(before_sp) + '->' + str(after_sp))
 
 
 
@@ -159,26 +184,6 @@ def dimensional_hierarchy(dim_num):
     multidimensional_hierarchy(dim_num)
 
 
-def singledimensional_hierarchy():
-    print('singledimensional_hierarchy')
-    global keys, vecs, domains, tagdomains
-    print('single dim hierarchy')
-    gp, results = agg_fuzzy('fuzzy', 'strict')
-    print('done agg clustering and evaluating')
-    init_success_probs = results['success_probs']
-    before_sp = sum(list(init_success_probs.values()))/float(len(init_success_probs))
-
-    print('fixing')
-    sps = fix(gp, 'agg_singledim')
-    after_sp = sum(list(sps.values()))/float(len(sps))
-    print('success prob before fix %f after fix %f.' % (before_sp, after_sp))
-
-    single_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists_' + str(len(domains)) + '_single.json'
-    json.dump(results['success_probs'], open(single_json, 'w'))
-    single_pdf = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + '_single.pdf'
-    orgp.plot(single_json, single_pdf, 'single-dimensional Hierarchy - ' + str(before_sp) + '->' + str(after_sp))
-
-
 def multidimensional_hierarchy(dim_num):
     print('multidimensional_hierarchy')
     global keys, vecs, domains, tagdomains, domainclouds
@@ -218,10 +223,10 @@ def multidimensional_hierarchy(dim_num):
         for t, p in sps.items():
             if t not in success_probs_before:
                 success_probs_before[t] = 0.0
-            success_probs_before[t] += (p*(1.0/dim_num))
-            #success_probs_before[t] += p
             if success_probs_before[t] > 1.0:
                 success_probs_before[t] = 1.0
+            success_probs_before[t] += (p*(1.0/dim_num))
+            #success_probs_before[t] += p
 
 
         de = datetime.datetime.now()
@@ -235,10 +240,10 @@ def multidimensional_hierarchy(dim_num):
         for t, p in sps.items():
             if t not in success_probs_after:
                 success_probs_after[t] = 0.0
-            #success_probs_after[t] += (p*(1.0/dim_num))
-            success_probs_after[t] += p
             if success_probs_after[t] > 1.0:
                 success_probs_after[t] = 1.0
+            success_probs_after[t] += (p*(1.0/dim_num))
+            #success_probs_after[t] += p
         print('---------------')
     before_sp = sum(list(success_probs_before.values()))/float(len(success_probs_before))
     print('success prob of multidimensions before fix: %f' % before_sp)
@@ -264,13 +269,13 @@ init(500)
 
 init_plus()
 
-#flat('flat')
+#flat('flat_br')
 
-#singledimensional_hierarchy()
+singledimensional_hierarchy()
 
 #agg_fuzzy('fuzzy', 'strict')
 
-multidimensional_hierarchy(3)
+#multidimensional_hierarchy(2)
 
 
 
