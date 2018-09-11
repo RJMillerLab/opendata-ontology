@@ -55,7 +55,7 @@ def init(tag_num):
 def init_plus():
     global domainclouds
     # finding the cloud
-    simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/2allpair_sims.json'
+    simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/allpair_sims.json'
     domainclouds = orgk.make_cloud(simfile, 0.75)
     orgk.plot(domainclouds)
 
@@ -131,7 +131,8 @@ def agg_fuzzy(suffix1, suffix2):
     return gp, results['success_probs']
 
     print("evaluating")
-    results = orgh.evaluate(gp, domains, tagdomains)
+    #results = orgh.evaluate(gp, domains, tagdomains)
+    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds)
     success_probs = results['success_probs']
     avg_success_prob = sum(list(success_probs.values()))/float(len(success_probs))
     print("ploting")
@@ -204,10 +205,8 @@ def multidimensional_hierarchy(dim_num):
                 if td['name'] not in domain_names:
                     domains.append(td)
                     domain_names[td['name']] = True
-            #domains.extend(alltagdomains[t])
             tagdomains[t] = list(alltagdomains[t])
         vecs = np.array(vecs)
-        #domain_names = {d['name']:True for d in domains}
         for d1 in domain_names:
             domainclouds[d1] = dict()
             for d2, s in alldomainclouds[d1].items():
@@ -219,8 +218,8 @@ def multidimensional_hierarchy(dim_num):
         for t, p in sps.items():
             if t not in success_probs_before:
                 success_probs_before[t] = 0.0
-            #success_probs_before[t] += (p*(1.0/dim_num))
-            success_probs_before[t] += p
+            success_probs_before[t] += (p*(1.0/dim_num))
+            #success_probs_before[t] += p
             if success_probs_before[t] > 1.0:
                 success_probs_before[t] = 1.0
 
@@ -263,15 +262,15 @@ init(500)
 #simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/allpair_sims.json'
 #orgk.all_pair_sim(domains, simfile)
 
-#init_plus()
+init_plus()
 
-flat('flat')
+#flat('flat')
 
 #singledimensional_hierarchy()
 
 #agg_fuzzy('fuzzy', 'strict')
 
-#multidimensional_hierarchy(5)
+multidimensional_hierarchy(3)
 
 
 
