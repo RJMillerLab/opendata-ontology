@@ -153,7 +153,7 @@ def agg_fuzzy(suffix1, suffix2):
     orgp.plot('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists' + str(len(domains)) + suffix1 + '.json', '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix1 + '.pdf', 'simbased eval - single dimension - ' + str(avg_success_prob))
     print('printed the fuzzy eval of agg hierarchy to %s.' % ('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix1 + '.pdf'))
 
-    return gp, results['success_probs']
+    return gp, results
 
     print("evaluating")
     #results = orgh.evaluate(gp, domains, tagdomains)
@@ -220,12 +220,13 @@ def multidimensional_hierarchy(dim_num):
         print('tags: %d vecs: %d domains: %d  tagdomains: %d  domainclouds: %d' % (len(keys), len(vecs), len(domains), len(tagdomains), len(domainclouds)))
 
         gp, sps = agg_fuzzy('agg'+str(i), '')
+        sps = sps['success_probs']
         for t, p in sps.items():
             if t not in success_probs_before:
                 success_probs_before[t] = 0.0
+            success_probs_before[t] += (p*(1.0/dim_num))
             if success_probs_before[t] > 1.0:
                 success_probs_before[t] = 1.0
-            success_probs_before[t] += (p*(1.0/dim_num))
             #success_probs_before[t] += p
 
 
@@ -240,9 +241,9 @@ def multidimensional_hierarchy(dim_num):
         for t, p in sps.items():
             if t not in success_probs_after:
                 success_probs_after[t] = 0.0
+            success_probs_after[t] += (p*(1.0/dim_num))
             if success_probs_after[t] > 1.0:
                 success_probs_after[t] = 1.0
-            success_probs_after[t] += (p*(1.0/dim_num))
             #success_probs_after[t] += p
         print('---------------')
     before_sp = sum(list(success_probs_before.values()))/float(len(success_probs_before))
@@ -271,11 +272,11 @@ init_plus()
 
 #flat('flat_br')
 
-singledimensional_hierarchy()
+#singledimensional_hierarchy()
 
 #agg_fuzzy('fuzzy', 'strict')
 
-#multidimensional_hierarchy(2)
+multidimensional_hierarchy(2)
 
 
 
