@@ -11,8 +11,6 @@ def test(tagdomains):
 
 
 def stratified_sample(tagdomains, sample_perc):
-    if int(sample_perc*len(tagdomains)) < len(tagdomains):
-        print('invalid sample num < num of tags')
     stagdoms = dict()
     sdoms = []
 

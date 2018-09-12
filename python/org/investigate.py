@@ -10,20 +10,29 @@ def plot():
     before = []
     after = []
     flat = []
+    multidim = []
     for t, p in tableprobs_before.items():
         before.append(p)
         after.append(tableprobs_after[t])
         flat.append(tableprobs_flat[t])
-    inx = np.argsort(np.array(before))
+        multidim.append(tableprobs_multidim[t])
+    inx = np.argsort(np.array(flat))
     after = list(np.array(after)[inx])
     before = list(np.array(before)[inx])
     flat = list(np.array(flat)[inx])
+    multidim = list(np.array(multidim)[inx])
 
     print('%f -> %f -> %f' % (sum(flat)/len(flat), sum(before)/len(before), sum(after)/len(after)))
     xs = [i for i in range(len(before))]
-    plt.plot(xs, before, color='r')
-    plt.plot(xs, after, color='b')
-    plt.plot(xs, flat, color='g')
+    plt.plot(xs, before, color='r', label='clustering')
+    plt.plot(xs, after, color='b', label='fixed')
+    plt.plot(xs, flat, color='g', label='baseline')
+    #plt.plot(xs, multidim, color='black')
+    plt.legend(loc='best', fancybox=True)
+    plt.grid(linestyle='dotted')
+    plt.xlabel('Tables')
+    plt.ylabel('Discovery Probability')
+    plt.title('Table Discovery in Benchmark')
     plt.savefig('flat_agg_fix.pdf')
 
 
@@ -74,9 +83,12 @@ def test():
     print('bigs: %d' % count)
 
 
-tableprobs_flat = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/flat_dists_2651flat.json', 'r'))
-tableprobs_before = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists2651fuzzy.json', 'r'))
-tableprobs_after = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/fixed_singledim_dists_2651.json', 'r'))
+
+tableprobs_flat = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/flat_dists_2651flat_br.json', 'r'))
+tableprobs_before = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/agg_dists2651fuzzy.json', 'r'))
+tableprobs_after = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/fix_agg_singledim_2651_tag_dists.json', 'r'))
+#tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_2651_3.json', 'r'))
+tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_2651_2.json', 'r'))
 
 plot()
 

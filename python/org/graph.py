@@ -1,4 +1,6 @@
 import networkx as nx
+import copy
+
 
 def cluster_to_graph(cluster, vecs, tags):
     n_leaves = len(vecs)
@@ -90,7 +92,38 @@ def gprint(g):
             print('%d (%f) -> %d (%f)' % (n, g.node[n]['reach_prob'], p, g.node[p]['reach_prob']))
 
 
+def merge_graphs(gs):
+    hs = []
+    root = -1
+    s, maxid = get_nodeid_bounds(gs[0])
+    hs.append(gs[0])
+    a = nx.DiGraph()
+    a.add_nodes_from(gs[0].nodes)
+    a.add_edges_from(gs[0].edges)
+    a.add_edge(root, get_root(gs[0]))
+    for n in gs[0].nodes:
+        for k, v in gs[0].nodes[n].items():
+            a.node[n][k] = copy.deepcopy(gs[0].node[n][k])
+
+    for i in range(1,len(gs)):
+        g = gs[i]
+        # changing the node ids and edges
+        mapping = dict()
+        for n in g.nodes:
+            mapping[n] = maxid+1
+            maxid += 1
+        h=nx.relabel_nodes(g,mapping)
+        a.add_nodes_from(h.nodes())
+        a.add_edges_from(h.edges())
+        a.add_edge(root, get_root(h))
+        for s, t in mapping.items():
+            for k, v in g.node[s].items():
+                a.node[t][k] = copy.deepcopy(g.node[s][k])
+        s,b = get_nodeid_bounds(a)
+    print('number of nodes in merged graph: %d' % len(a.nodes))
+    return a
 
 
-
+def get_nodeid_bounds(g):
+    return min(list(g.nodes())), max(list(g.nodes()))
 

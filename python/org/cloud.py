@@ -12,6 +12,8 @@ def all_pair_sim(domains, simsfile):
     sims = dict()
     for i in range(len(domains)):
         d1 = domains[i]
+        if ((i+1)%100) == 0:
+            print('processed pairs for %d domains.' % i)
         for j in range(i, len(domains)):
             d2 = domains[j]
             sim = 1.0
@@ -19,15 +21,16 @@ def all_pair_sim(domains, simsfile):
                 sim = get_sim(d1['mean'], d2['mean'])
             if sim < 0.5:
                 continue
-            if str(d1['name']) not in sims:
-                sims[str(d1['name'])] = dict()
-            sims[str(d1['name'])][str(d2['name'])] = sim
-            if str(d2['name']) not in sims:
-                sims[str(d2['name'])] = dict()
-            sims[str(d2['name'])][str(d1['name'])] = sim
+            if d1['name'] not in sims:
+                sims[d1['name']] = dict()
+            sims[d1['name']][d2['name']] = sim
+            if d2['name'] not in sims:
+                sims[d2['name']] = dict()
+            sims[d2['name']][d1['name']] = sim
     e = datetime.datetime.now()
     elapsed = e - s
     print('elapsed time of all pair sim calc %d' % int(elapsed.total_seconds() * 1000))
+    print('all_sim: %d domains: %d' % (len(sims), len(domains)))
     json.dump(sims, open(simsfile, 'w'))
     print('done all_pair_sim')
 
@@ -48,7 +51,7 @@ def make_cloud(simfile, threshold):
                 pts += 1
                 cloud[d1][d2] = s
 
-    print("%d out of %d pairs passed the threshold." % (aps, pts))
+    print("%d out of %d pairs passed the threshold." % (pts, aps))
     return cloud
 
 

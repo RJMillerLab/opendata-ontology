@@ -43,19 +43,28 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds):
     leaves = orgg.get_leaves(h)
     dom_target_sims = []
     reachable_dom_probs = []
-    find_target_probs = []
+    #find_target_probs = []
     results = dict()
     # building a domain index on domain names
     domain_index = dict()
     for i in range(len(domains)):
-        domain_index[domains[i]['name']] = i
+        if domains[i]['name'] not in domain_index:
+            domain_index[domains[i]['name']] = []
+        domain_index[domains[i]['name']].append(i)
     # evaluation
     samedom = 0
     for domain in domains:
         # finding the tags of accepted domains
         accepted_tags = []
+        if domain['name'] not in list(domainclouds[domain['name']].keys()):
+            print('no')
         for c in list(domainclouds[domain['name']].keys()):
-            accepted_tags.append(domains[domain_index[c]]['tag'])
+            if c not in domain_index:
+                continue
+            for di in domain_index[c]:
+                accepted_tags.append(domains[di]['tag'])
+        if domain['tag'] not in accepted_tags:
+            print('shout')
         g, tags = compute_tag_probs(h, domain, top, leaves)
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
         tag_dists[domain['tag']] = tag_dist
@@ -66,8 +75,8 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds):
         for i in range(len(tag_dist)):
             if tag_dist[i][0] not in accepted_tags:
                 continue
-            if tag_dist[i][0] == domain['tag']:
-                find_target_probs.append(dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1])
+            #if tag_dist[i][0] == domain['tag']:
+                #find_target_probs.append(dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1])
             selps, sims = get_dom_trans_prob(tagdomains[tag_dist[i][0]], domain)
             for d in tagdomains[tag_dist[i][0]]:
                 sp = selps[d['name']] * tag_dist[i][1]
@@ -89,22 +98,19 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds):
         if domain['name'] == most_reachable_dom:
             samedom += 1
 
-        results[domain['name']] = {'most_reachable_dom': most_reachable_dom, 'dom_target_sim': max_reached_dom_sim, 'reachable_dom_prob': max_reached_dom_prob, 'find_target_prob': dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1]}
+        results[domain['name']] = {'most_reachable_dom': most_reachable_dom, 'dom_target_sim': max_reached_dom_sim, 'reachable_dom_prob': max_reached_dom_prob}
 
         h = g.copy()
 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
-        success_probs[t] -= success_probs_intersect[t]
+        #if success_probs[t] != success_probs_intersect[t]:
+        #    success_probs[t] -= success_probs_intersect[t]
         if success_probs[t] > 1.0:
              print('table %s has sp > 1.0.' % t)
              success_probs[t] = 1.0
 
-
-    print('the target itself is the most reachable dom: %d out of %d' % (samedom, len(domains)))
-    #for d, rs in results.items():
-    #    print('target name: %s  reach prob: %f  most reachable dom: %s  reach prob: %s  sim to target: %f' % (d, rs['find_target_prob'], rs['most_reachable_dom'], rs['reachable_dom_prob'], rs['dom_target_sim']))
-    return dom_target_sims, reachable_dom_probs, find_target_probs, success_probs
+    return dom_target_sims, reachable_dom_probs, success_probs
 
 
 def compute_reachability_probs(gp, domains, tagdomains):
@@ -115,11 +121,6 @@ def compute_reachability_probs(gp, domains, tagdomains):
     h = gp
     leaves = orgg.get_leaves(h)
     dsps = dict()
-    top_sims = []
-    # building a domain index on domain names
-    domain_index = dict()
-    for i in range(len(domains)):
-        domain_index[domains[i]['name']] = i
     # evaluation
     for domain in domains:
         table = domain['name'][:domain['name'].rfind('_')]
@@ -127,9 +128,6 @@ def compute_reachability_probs(gp, domains, tagdomains):
         g, tags = compute_tag_probs(h, domain, top, leaves)
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
         tag_dists[domain['tag']] = tag_dist
-        # finding the most reachable domain
-        tag_dom_reach = sorted(dom_selection_probs[tag_dist[0][0]].items(), key=operator.itemgetter(1), reverse=True)
-        top_sims.append(get_transition_sim(domains[domain_index[tag_dom_reach[0][0]]]['mean'], domain['mean']))
         for i in range(len(tag_dist)):
             if tag_dist[i][0]==domain['tag']:
                 tag_ranks[domain['name']] = i + 1
@@ -353,12 +351,14 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
     likelihood = 0.0
     dom_target_sims = []
     reachable_dom_probs = []
-    find_target_probs = []
+    #find_target_probs = []
     samedom = 0
     # building a domain index on domain names
     domain_index = dict()
     for i in range(len(domains)):
-        domain_index[domains[i]['name']] = i
+        if domains[i]['name'] not in domain_index:
+            domain_index[domains[i]['name']] = []
+        domain_index[domains[i]['name']].append(i)
 
     h = g
 
@@ -369,7 +369,8 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
         # finding the tags of accepted domains
         accepted_tags = []
         for c in list(domainclouds[domain['name']].keys()):
-            accepted_tags.append(domains[domain_index[c]]['tag'])
+            for di in domain_index[c]:
+                accepted_tags.append(domains[di]['tag'])
 
         table = domain['name'][:domain['name'].rfind('_')]
 
@@ -384,8 +385,8 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
         for n in leaves:
             if gpp.node[n]['tag'] not in accepted_tags:
                 continue
-            if gpp.node[n]['tag'] == domain['tag']:
-                find_target_probs.append(dom_selection_probs[domain['tag']][domain['name']] * gpp.node[n][domain['name']]['reach_prob_domain'])
+            #if gpp.node[n]['tag'] == domain['tag']:
+                #find_target_probs.append(dom_selection_probs[domain['tag']][domain['name']] * gpp.node[n][domain['name']]['reach_prob_domain'])
             selps, sims = get_dom_trans_prob(tagdomains[gpp.node[n]['tag']], domain)
             for d in tagdomains[gpp.node[n]['tag']]:
                 sp = selps[d['name']] * gpp.node[n][domain['name']]['reach_prob_domain']
@@ -393,20 +394,20 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
                     max_reached_dom_prob = sp
                     max_reached_dom_sim = sims[d['name']]
                     most_reachable_dom = d['name']
-            dom_target_sims.append(max_reached_dom_sim)
-            reachable_dom_probs.append(max_reached_dom_prob)
-            table = domain['name'][:domain['name'].rfind('_')]
-            sp = max_reached_dom_prob
+        dom_target_sims.append(max_reached_dom_sim)
+        reachable_dom_probs.append(max_reached_dom_prob)
+        table = domain['name'][:domain['name'].rfind('_')]
+        sp = max_reached_dom_prob
 
-            if table not in success_probs:
-                success_probs_intersect[table] = sp
-                success_probs[table] = sp
-            else:
-                success_probs_intersect[table] *= sp
-                success_probs[table] += sp
+        if table not in success_probs:
+            success_probs_intersect[table] = sp
+            success_probs[table] = sp
+        else:
+            success_probs_intersect[table] *= sp
+            success_probs[table] += sp
 
-            if domain['name'] == most_reachable_dom:
-                samedom += 1
+        if domain['name'] == most_reachable_dom:
+            samedom += 1
 
 
         for p in gpp.nodes:
@@ -420,16 +421,18 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
-        success_probs[t] -= success_probs_intersect[t]
-    if success_probs[t] > 1.0:
-        print('table %s has sp > 1.0.' % t)
-        success_probs[t] = 1.0
+        #if success_probs[t] != success_probs_intersect[t]:
+            #success_probs[t] -= success_probs_intersect[t]
+        if success_probs[t] > 1.0:
+            print('table %s has sp > 1.0.' % t)
+            success_probs[t] = 1.0
 
     # complete success_probs
     for d, p in all_success_probs.items():
         if d not in success_probs:
             success_probs[d] = p
-
+        if p != success_probs[d]:
+            print('inconsistency in success probs old %f new %f' % (p, success_probs[d]))
 
     expected_success = sum(list(success_probs.values()))/float(len(success_probs))
 
@@ -589,11 +592,13 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds):
     samedom = 0
     dom_target_sims = []
     reachable_dom_probs = []
-    find_target_probs = []
+    #find_target_probs = []
     # building a domain index on domain names
     domain_index = dict()
     for i in range(len(domains)):
-        domain_index[domains[i]['name']] = i
+        if domains[i]['name'] not in domain_index:
+            domain_index[domains[i]['name']] = []
+        domain_index[domains[i]['name']].append(i)
     #
     for p in h.nodes:
         h.node[p]['reach_prob'] = 0.0
@@ -602,7 +607,8 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds):
         # finding the tags of accepted domains
         accepted_tags = []
         for c in list(domainclouds[domain['name']].keys()):
-            accepted_tags.append(domains[domain_index[c]]['tag'])
+            for di in domain_index[c]:
+                accepted_tags.append(domains[di]['tag'])
         #
         table = domain['name'][:domain['name'].rfind('_')]
         gp = get_domain_edge_probs(h, domain, leaves)
@@ -615,8 +621,10 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds):
         for n in leaves:
             if gpp.node[n]['tag'] not in accepted_tags:
                 continue
-            if gpp.node[n]['tag'] == domain['tag']:
-                find_target_probs.append(dom_selection_probs[domain['tag']][domain['name']] * gpp.node[n][domain['name']]['reach_prob_domain'])
+            if domain['name'] not in list(domainclouds[domain['name']].keys()):
+                print('no %d' % len(list(domainclouds[domain['name']].keys())))
+            #if gpp.node[n]['tag'] == domain['tag']:
+            #    find_target_probs.append(dom_selection_probs[domain['tag']][domain['name']] * gpp.node[n][domain['name']]['reach_prob_domain'])
             selps, sims = get_dom_trans_prob(tagdomains[gpp.node[n]['tag']], domain)
             for d in tagdomains[gpp.node[n]['tag']]:
                 sp = selps[d['name']] * gpp.node[n][domain['name']]['reach_prob_domain']
@@ -624,20 +632,22 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds):
                     max_reached_dom_prob = sp
                     max_reached_dom_sim = sims[d['name']]
                     most_reachable_dom = d['name']
-            dom_target_sims.append(max_reached_dom_sim)
-            reachable_dom_probs.append(max_reached_dom_prob)
-            table = domain['name'][:domain['name'].rfind('_')]
-            sp = max_reached_dom_prob
+        dom_target_sims.append(max_reached_dom_sim)
+        reachable_dom_probs.append(max_reached_dom_prob)
+        #if max_reached_dom_prob < find_target_probs[-1]:
+        #    print('weird %f < %f' % (max_reached_dom_prob, find_target_probs[-1]))
+        table = domain['name'][:domain['name'].rfind('_')]
+        sp = max_reached_dom_prob
 
-            if table not in success_probs:
-                success_probs_intersect[table] = sp
-                success_probs[table] = sp
-            else:
-                success_probs_intersect[table] *= sp
-                success_probs[table] += sp
+        if table not in success_probs:
+            success_probs_intersect[table] = sp
+            success_probs[table] = sp
+        else:
+            success_probs_intersect[table] *= sp
+            success_probs[table] += sp
 
-            if domain['name'] == most_reachable_dom:
-                samedom += 1
+        if domain['name'] == most_reachable_dom:
+            samedom += 1
 
         for p in gpp.nodes:
             gpp.node[p]['reach_prob'] += gpp.node[p][domain['name']]['reach_prob_domain']
@@ -647,7 +657,8 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds):
 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
-        success_probs[t] -= success_probs_intersect[t]
+        #if success_probs[t] != success_probs_intersect[t]:
+        #    success_probs[t] -= success_probs_intersect[t]
         if success_probs[t] > 1.0:
             print('table %s has sp > 1.0.' % t)
             success_probs[t] = 1.0
@@ -722,8 +733,10 @@ def get_local_success_prob(domain):
 
 
 def fuzzy_evaluate(g, domains, tagdomains, domainclouds):
-    dom_reach_sims, dom_reach_probs, dom_find_probs, success_probs = compute_reachability_probs_plus(g, domains, tagdomains, domainclouds)
-    results = {'success_probs': success_probs, 'dom_reach_sims': dom_reach_sims, 'dom_reach_probs': dom_reach_probs, 'dom_find_probs': dom_find_probs}
+    dom_reach_sims, dom_reach_probs, success_probs = compute_reachability_probs_plus(g, domains, tagdomains, domainclouds)
+    expected_success = sum(list(success_probs.values()))/float(len(success_probs))
+    print('hierarchy success prob fuzzy: %f' % expected_success)
+    results = {'success_probs': success_probs, 'dom_reach_sims': dom_reach_sims, 'dom_reach_probs': dom_reach_probs}
     return results
 
 
@@ -803,12 +816,14 @@ def get_dom_trans_prob(choices, domain):
     sis = dict()
     tsl = []
     ts = dict()
+    branching_factor = len(choices)
     for s in choices:
         m = get_transition_sim(s['mean'], domain['mean'])
         tsl.append(m)
         ts[s['name']] = m
     for s in choices:
-        tps2[s['name']] = math.exp(5.0*ts[s['name']])
+        #tps2[s['name']] = math.exp(5.0*ts[s['name']])
+        tps2[s['name']]  = math.exp((10.0/branching_factor)*ts[s['name']])
         sis[s['name']] = ts[s['name']]
         d2 += tps2[s['name']]
     for s in choices:
@@ -850,7 +865,8 @@ def get_trans_prob(g, p, domain):
         #print('trans prob - br: %d no-decay: %f  decay: %f' % (branching_factor, tps2[s], tps[s]))
     #print('--------')
 
-    return tps2, sis
+    return tps, sis
+    #return tps2, sis
 
 def get_domains_selection_probs(tagdomains):
     probs = dict()
@@ -882,7 +898,7 @@ def get_selection_probs(choices, domain):
         d += tps[s['name']]
         d2 += tps2[s['name']]
     #print('dom sel - br: %d no-decay: %f  decay: %f' % (branching_factor, tps2[domain['name']]/d2, tps[domain['name']]/d))
-    return tps2[domain['name']]/d2
+    return tps[domain['name']]/d2
 
 
 def get_improvement(init, final):
@@ -930,6 +946,7 @@ def get_dimensions(tags, vecs, n_dims):
     ocs = list(dims.keys())
     for c in ocs:
         ts = dims[c]
+        print(len(ts))
         if len(ts) > 1:
             continue
         # find the cluster to merge with
@@ -959,21 +976,24 @@ def get_dimension_selection_prob(rs, domain):
     ts = dict()
     sps = rs
     branching_factor = len(sps)
-    for s in sps:
+    for i in range(len(sps)):
+        s = sps[i]
         m = get_transition_sim(s['rep'], domain['mean'])
         tsl.append(m)
-        ts[s] = m
-    for s in sps:
+        ts[i] = m
+    for s in range(len(sps)):
         tps2[s] = math.exp(5.0*ts[s])#(10.0/branching_factor)*ts[s])
         tps[s]  = math.exp((10.0/branching_factor)*ts[s])
         sis[s] = ts[s]
         d += tps[s]
         d2 += tps2[s]
-    for s in sps:
+    for s in range(len(sps)):
         tps[s] = tps[s]/d
         tps2[s] = tps2[s]/d2
-
-    return tps2, sis
+    ps = [0.0 for i in rs]
+    for k, v in tps.items():
+        ps[k] = v
+    return ps
 
 
 
