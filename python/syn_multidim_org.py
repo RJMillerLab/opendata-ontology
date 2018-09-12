@@ -91,7 +91,7 @@ def singledimensional_hierarchy():
     print('success prob before fix %f after fix %f.' % (before_sp, after_sp))
 
     single_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists_' + str(len(domains)) + '_single.json'
-    json.dump(results['success_probs'], open(single_json, 'w'))
+    json.dump(sps, open(single_json, 'w'))
     single_pdf = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + '_single.pdf'
     orgp.plot(single_json, single_pdf, 'single-dimensional Hierarchy - ' + str(before_sp) + '->' + str(after_sp))
 
@@ -116,25 +116,25 @@ def fix(g, hierarchy_name):
     print('improvement after fixing: %f' % orgh.get_improvement(init_success_probs, success_probs))
 
     tag_dists = results['success_probs']
-    json.dump(tag_dists, open('output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json', 'w'))
-    json.dump(iteration_sps, open('output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.json', 'w'))
-    json.dump(iteration_ls, open('output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_ls.json', 'w'))
+    json.dump(tag_dists, open('synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json', 'w'))
+    json.dump(iteration_sps, open('synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.json', 'w'))
+    json.dump(iteration_ls, open('synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_ls.json', 'w'))
 
-    fix_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json'
+    fix_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json'
     fix_pdf = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/fix_' + hierarchy_name + '_prob_' + str(len(domains)) + '.pdf'
     orgp.plot(fix_json, fix_pdf, 'Fixed Organization')
 
-    sps_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.json'
+    sps_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.json'
     sps_pdf = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.pdf'
     orgp.plot_fix(sps_json, sps_pdf, 'Average Success Prob', hierarchy_name)
 
-    ls_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_ls.json'
+    ls_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_ls.json'
     ls_pdf = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_ls.pdf'
     orgp.plot_fix(ls_json, ls_pdf, 'Log Likelihood', hierarchy_name)
 
     print('printed to %s' % ('fix_' + hierarchy_name + '_prob_' + str(len(domains)) + '.pdf'))
-    print('printed iteration success plot to %s' % ('output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.pdf'))
-    print('printed iteration likelihood plot to %s' % ('output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_ls.pdf'))
+    print('printed iteration success plot to %s' % ('synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.pdf'))
+    print('printed iteration likelihood plot to %s' % ('synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_ls.pdf'))
 
     return success_probs
 
@@ -177,6 +177,60 @@ def agg(suffix):
     json.dump(results['tag_ranks'], open('synthetic_output/agg_ranks' + str(len(domains)) + suffix + '.json', 'w'))
     orgp.plot('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists' + str(len(domains)) + suffix + '.json', '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix + '.pdf', 'Agglomerative Clustering')
     print('printed the initial hierarchy to %s.' % ('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix + '.pdf'))
+
+
+def boosted_hierarchy():
+    print('boosted_hierarchy')
+    global keys, vecs, domains, tagdomains, domainclouds
+    alldomains = copy.deepcopy(domains)
+    # build the first hierarchy
+    gp, sps = agg_fuzzy('before_boost', '')
+    success_probs_b0 = sps['success_probs']
+    badtables = [t for t, p in success_probs_b0.items() if p < 0.01]
+    baddomains = []
+    domain_names = dict()
+    for domain in domains:
+        table = domain['name'][:domain['name'].rfind('_')]
+        if table in badtables:
+            baddomains.append(domain)
+            domain_names[domain['name']] = True
+    tags, tagdomains = orgl.reduce_tag_vectors(baddomains)
+    print('#bad domains: %d tags: %d  tagdomains: %d  keys: %d  vecs: %d' % (len(baddomains), len(tags), len(tagdomains), len(keys), len(vecs)))
+    keys, vecs = orgc.mk_tag_table(tags)
+
+    alldomains = copy.deepcopy(domains)
+    domains = baddomains
+    success_probs_b1 = dict()
+
+    gb, sps = agg_fuzzy('agg_afterboost', '')
+    success_probs_b1 = sps['success_probs']
+    print('success_probs_b1')
+    print(success_probs_b1)
+    #ga = merge_graphs([gp, gb])
+    #results = orgh.fuzzy_evaluate(ga.copy(), domains, tagdomains, domainclouds)
+    success_probs_boost = dict()
+    roots = [gp.node[orgg.get_root(gp)], gb.node[orgg.get_root(gb)]]
+    for domain in alldomains:
+        ps = orgh.get_dimension_selection_prob(roots, domain)
+        table = domain['name'][:domain['name'].rfind('_')]
+        success_probs_boost[table] = ps[0]*success_probs_b0[table]
+        if table in success_probs_b1:
+            success_probs_boost[table] += ps[1]*success_probs_b1[table]
+
+        if success_probs_boost[table] > 1.0:
+            success_probs_boost[table] = 1.0
+
+    b0_sp = sum(list(success_probs_b0.values()))/float(len(success_probs_b0))
+    b1_sp = sum(list(success_probs_b1.values()))/float(len(success_probs_b1))
+    print('boost0: %f  boost1: %f' % (b0_sp, b1_sp))
+    boost_sp = sum(list(success_probs_boost.values()))/float(len(success_probs_boost))
+    print('after boost: %f' % boost_sp)
+
+    unboost_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/unboosted_dists_' + str(len(alldomains)) + '.json'
+    json.dump(success_probs_b0, open(unboost_json, 'w'))
+    boost_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/boosted_dists_' + str(len(alldomains)) + '.json'
+    json.dump(success_probs_boost, open(boost_json, 'w'))
+
 
 
 def dimensional_hierarchy(dim_num):
@@ -263,7 +317,7 @@ def multidimensional_hierarchy(dim_num):
     return success_probs_before
 
 
-init(500)
+init(50)
 
 #simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/allpair_sims.json'
 #orgk.all_pair_sim(domains, simfile)
@@ -276,7 +330,7 @@ init_plus()
 
 #agg_fuzzy('fuzzy', 'strict')
 
-multidimensional_hierarchy(2)
+#multidimensional_hierarchy(2)
 
-
+boosted_hierarchy()
 
