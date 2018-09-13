@@ -5,6 +5,7 @@ import networkx as nx
 import random
 import org.hierarchy as orgh
 import operator
+import skfuzzy as fuzz
 
 
 def mk_tag_table(tags):
@@ -261,8 +262,21 @@ def complete_kary_cluster(tags, vecs, n_cluster):
         cid = tid
     return g
 
-
-
+def cmeans_clustering(tags, vecs):
+    tags = np.array(tags)
+    vecs = np.array(vecs)
+    ncenters = 2
+    cntr, u, u0, d, jm, p, fpc = fuzz.cluster.cmeans(vecs.T, ncenters, 2, error=0.005, maxiter=1000, init=None)
+    dim_membership = np.argmax(u, axis=0)
+    dims = dict()
+    for i in range(ncenters):
+        inx = dim_membership == i
+        c = i
+        if c not in dims:
+            dims[c] = {'population': [], 'tags': []}
+            dims[c]['population'] = list(vecs[inx])
+            dims[c]['tags'] = list(tags[inx])
+    return dims
 
 
 
