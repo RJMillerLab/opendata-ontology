@@ -59,21 +59,6 @@ def init_plus():
     orgk.plot(domainclouds)
 
 
-def flat(suffix):
-    print('flat')
-    g = orgh.add_node_vecs(orgg.get_flat_cluster_graph(keys), vecs)
-    orgh.init(g, domains, tagdomains)
-    #results = orgh.evaluate(g, domains, tagdomains)
-    results = orgh.fuzzy_evaluate(g.copy(), domains, tagdomains, domainclouds)
-    tag_dists = results['success_probs']
-    success_probs = dict()
-    for t, p in tag_dists.items():
-        #success_probs[t] = p * (1.0/len(tag_dists))
-        success_probs[t] = p
-    json.dump(success_probs, open('synthetic_output/flat_dists_' + str(len(domains)) + suffix + '.json', 'w'))
-    print('printed to %s' % ('flat_dists_' +  str(len(domains)) + suffix + '.pdf'))
-
-
 def singledimensional_hierarchy():
     print('singledimensional_hierarchy')
     global keys, vecs, domains, tagdomains
@@ -151,19 +136,6 @@ def agg_fuzzy(suffix1, suffix2):
     return gp, results
 
 
-def agg(suffix):
-    print('agg')
-    gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs)
-    orgh.init(gp, domains, tagdomains)
-    results = orgh.evaluate(gp, domains, tagdomains)
-
-    json.dump(results['success_probs'], open('synthetic_output/agg_dists' + str(len(domains)) + suffix + '.json', 'w'))
-    json.dump(results['tag_ranks'], open('synthetic_output/agg_ranks' + str(len(domains)) + suffix + '.json', 'w'))
-    orgp.plot('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists' + str(len(domains)) + suffix + '.json', '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix + '.pdf', 'Agglomerative Clustering')
-    print('printed the initial hierarchy to %s.' % ('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix + '.pdf'))
-
-
-
 
 init(500)
 
@@ -171,8 +143,6 @@ init(500)
 #orgk.all_pair_sim(domains, simfile)
 
 init_plus()
-
-#flat('flat_br')
 
 singledimensional_hierarchy()
 
