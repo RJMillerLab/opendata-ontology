@@ -265,8 +265,10 @@ def complete_kary_cluster(tags, vecs, n_cluster):
 def cmeans_clustering(tags, vecs):
     tags = np.array(tags)
     vecs = np.array(vecs)
-    ncenters = 2
+    ncenters = 5
     cntr, u, u0, d, jm, p, fpc = fuzz.cluster.cmeans(vecs.T, ncenters, 2, error=0.005, maxiter=1000, init=None)
+    print('fpc: %f' % fpc)
+    print(u)
     dim_membership = np.argmax(u, axis=0)
     dims = dict()
     for i in range(ncenters):
@@ -277,28 +279,4 @@ def cmeans_clustering(tags, vecs):
             dims[c]['population'] = list(vecs[inx])
             dims[c]['tags'] = list(tags[inx])
     return dims
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
