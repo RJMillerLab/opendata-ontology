@@ -16,9 +16,11 @@ dom_selection_probs = dict()
 h = nx.DiGraph()
 leaves = []
 top = []
+gamma = 10.0
 
-def init(g, domains, tagdomains):
-    global node_dom_sims, dom_selection_probs
+def init(g, domains, tagdomains, tgparam=10.0):
+    global node_dom_sims, dom_selection_probs, gamma
+    gamma = tgparam
 
     dom_selection_probs = get_domains_selection_probs(tagdomains)
 
@@ -63,8 +65,6 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds):
                 continue
             for di in domain_index[c]:
                 accepted_tags.append(domains[di]['tag'])
-        if domain['tag'] not in accepted_tags:
-            print('shout')
         g, tags = compute_tag_probs(h, domain, top, leaves)
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
         tag_dists[domain['tag']] = tag_dist
@@ -80,6 +80,10 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds):
             selps, sims = get_dom_trans_prob(tagdomains[tag_dist[i][0]], domain)
             for d in tagdomains[tag_dist[i][0]]:
                 sp = selps[d['name']] * tag_dist[i][1]
+                if d['name'] == domain['name']:
+                    a1 = dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1]
+                    if a1 != sp:
+                        print('diff prob eww %f %f' % (dom_selection_probs[domain['tag']][domain['name']], selps[d['name']]))
                 if sp > max_reached_dom_prob:
                     max_reached_dom_prob = sp
                     max_reached_dom_sim = sims[d['name']]
@@ -137,7 +141,6 @@ def compute_reachability_probs(gp, domains, tagdomains):
                 else:
                     success_probs[table] += sp
                 if success_probs[table] > 1.0:
-                    print('table %s has sp > 1.0.' % table)
                     success_probs[table] = 1.0
 
                 dsps[domain['name']] = sp
@@ -560,7 +563,6 @@ def get_success_prob_likelihood(g, domains):
                 else:
                     success_probs[table] += sp
                 if success_probs[table] > 1.0:
-                    print('table %s has sp > 1.0.' % table)
                     success_probs[table] = 1.0
 
         for p in gpp.nodes:
@@ -573,8 +575,6 @@ def get_success_prob_likelihood(g, domains):
         h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
 
     expected_success = sum(list(success_probs.values()))/float(len(success_probs))
-    if expected_success == 0:
-        print('zero expected_success.')
 
     return expected_success, h, success_probs, likelihood
 
@@ -592,7 +592,6 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds):
     samedom = 0
     dom_target_sims = []
     reachable_dom_probs = []
-    #find_target_probs = []
     # building a domain index on domain names
     domain_index = dict()
     for i in range(len(domains)):
@@ -607,6 +606,8 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds):
         # finding the tags of accepted domains
         accepted_tags = []
         for c in list(domainclouds[domain['name']].keys()):
+            if c not in domain_index:
+                continue
             for di in domain_index[c]:
                 accepted_tags.append(domains[di]['tag'])
         #
@@ -811,6 +812,7 @@ def log_likelihood(g, domains):
 
 
 def get_dom_trans_prob(choices, domain):
+    global gamma
     d2 = 0.0
     tps2 = dict()
     sis = dict()
@@ -823,7 +825,7 @@ def get_dom_trans_prob(choices, domain):
         ts[s['name']] = m
     for s in choices:
         #tps2[s['name']] = math.exp(5.0*ts[s['name']])
-        tps2[s['name']]  = math.exp((10.0/branching_factor)*ts[s['name']])
+        tps2[s['name']]  = math.exp((gamma/branching_factor)*ts[s['name']])
         sis[s['name']] = ts[s['name']]
         d2 += tps2[s['name']]
     for s in choices:
@@ -834,6 +836,7 @@ def get_dom_trans_prob(choices, domain):
 
 
 def get_trans_prob(g, p, domain):
+    global gamma
     d = 0.0
     d2 = 0.0
     tps = dict()
@@ -855,18 +858,15 @@ def get_trans_prob(g, p, domain):
         #else:
         #    tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
         tps2[s] = math.exp(5.0*ts[s])#(10.0/branching_factor)*ts[s])
-        tps[s]  = math.exp((10.0/branching_factor)*ts[s])
+        tps[s]  = math.exp((gamma/branching_factor)*ts[s])
         sis[s] = ts[s]
         d += tps[s]
         d2 += tps2[s]
     for s in sps:
         tps[s] = tps[s]/d
         tps2[s] = tps2[s]/d2
-        #print('trans prob - br: %d no-decay: %f  decay: %f' % (branching_factor, tps2[s], tps[s]))
-    #print('--------')
 
     return tps, sis
-    #return tps2, sis
 
 def get_domains_selection_probs(tagdomains):
     probs = dict()
@@ -878,6 +878,7 @@ def get_domains_selection_probs(tagdomains):
 
 
 def get_selection_probs(choices, domain):
+    global gamma
     d, d2 = 0.0, 0.0
     tps, tps2, sis, ts = dict(), dict(), dict(), dict()
     tsl = []
@@ -885,20 +886,14 @@ def get_selection_probs(choices, domain):
         m = get_transition_sim(s['mean'], domain['mean'])
         tsl.append(m)
         ts[s['name']] = m
-    #maxs, mins = max(tsl), min(tsl)
     branching_factor = len(choices)
     for s in choices:
-        #if maxs == mins:
-        #    tps[s['name']] = math.exp(ts[s['name']]-maxs)
-        #else:
-        #    tps[s['name']] = math.exp((ts[s['name']]-mins)/(maxs-mins))
         tps2[s['name']] = math.exp(5.0*ts[s['name']])
-        tps[s['name']] = math.exp((10.0/branching_factor)*ts[s['name']])
+        tps[s['name']] = math.exp((gamma/branching_factor)*ts[s['name']])
         sis[s['name']] = ts[s['name']]
         d += tps[s['name']]
         d2 += tps2[s['name']]
-    #print('dom sel - br: %d no-decay: %f  decay: %f' % (branching_factor, tps2[domain['name']]/d2, tps[domain['name']]/d))
-    return tps[domain['name']]/d2
+    return tps[domain['name']]/d
 
 
 def get_improvement(init, final):
@@ -967,6 +962,7 @@ def get_dimensions(tags, vecs, n_dims):
 
 
 def get_dimension_selection_prob(rs, domain):
+    global gamma
     d = 0.0
     d2 = 0.0
     tps = dict()
@@ -983,7 +979,7 @@ def get_dimension_selection_prob(rs, domain):
         ts[i] = m
     for s in range(len(sps)):
         tps2[s] = math.exp(5.0*ts[s])#(10.0/branching_factor)*ts[s])
-        tps[s]  = math.exp((10.0/branching_factor)*ts[s])
+        tps[s]  = math.exp((gamma/branching_factor)*ts[s])
         sis[s] = ts[s]
         d += tps[s]
         d2 += tps2[s]
