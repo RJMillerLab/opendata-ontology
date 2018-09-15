@@ -26,6 +26,7 @@ def iter_domains():
             tag = tags[i]
             yield dict(tag=tag, domain=domain, name=table+'_'+str(i))
 
+
 def lookup_ft_vector(cursor, word):
     cursor.execute("select vec from wv where word = ?", [word.strip()])
     result = cursor.fetchone()

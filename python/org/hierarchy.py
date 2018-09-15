@@ -20,7 +20,8 @@ gamma = 10.0
 
 def init(g, domains, tagdomains, tgparam=10.0):
     global node_dom_sims, dom_selection_probs, gamma
-    gamma = tgparam
+    gamma = float(tgparam)
+    print('gamma: %f' % gamma)
 
     dom_selection_probs = get_domains_selection_probs(tagdomains)
 
@@ -75,8 +76,6 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds):
         for i in range(len(tag_dist)):
             if tag_dist[i][0] not in accepted_tags:
                 continue
-            #if tag_dist[i][0] == domain['tag']:
-                #find_target_probs.append(dom_selection_probs[domain['tag']][domain['name']] * tag_dist[i][1])
             selps, sims = get_dom_trans_prob(tagdomains[tag_dist[i][0]], domain)
             for d in tagdomains[tag_dist[i][0]]:
                 sp = selps[d['name']] * tag_dist[i][1]
@@ -90,7 +89,9 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds):
                     most_reachable_dom = d['name']
         dom_target_sims.append(max_reached_dom_sim)
         reachable_dom_probs.append(max_reached_dom_prob)
-        table = domain['name'][:domain['name'].rfind('_')]
+        colid = int(domain['name'][domain['name'].rfind('_')+1:])
+        table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
+        #table = domain['name'][:domain['name'].rfind('_')]
         sp = max_reached_dom_prob
         if table not in success_probs:
             success_probs_intersect[table] = sp
@@ -127,8 +128,9 @@ def compute_reachability_probs(gp, domains, tagdomains):
     dsps = dict()
     # evaluation
     for domain in domains:
-        table = domain['name'][:domain['name'].rfind('_')]
-
+        colid = int(domain['name'][domain['name'].rfind('_')+1:])
+        table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
+        #table = domain['name'][:domain['name'].rfind('_')]
         g, tags = compute_tag_probs(h, domain, top, leaves)
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
         tag_dists[domain['tag']] = tag_dist
@@ -375,8 +377,9 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
             for di in domain_index[c]:
                 accepted_tags.append(domains[di]['tag'])
 
-        table = domain['name'][:domain['name'].rfind('_')]
-
+        #table = domain['name'][:domain['name'].rfind('_')]
+        colid = int(domain['name'][domain['name'].rfind('_')+1:])
+        table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
         gp = get_partial_domain_edge_probs(g, domain, nodes)
         gpp = get_partial_domain_node_probs(gp, domain, top, nodes)
 
@@ -399,7 +402,9 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
                     most_reachable_dom = d['name']
         dom_target_sims.append(max_reached_dom_sim)
         reachable_dom_probs.append(max_reached_dom_prob)
-        table = domain['name'][:domain['name'].rfind('_')]
+        colid = int(domain['name'][domain['name'].rfind('_')+1:])
+        table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
+        #table = domain['name'][:domain['name'].rfind('_')]
         sp = max_reached_dom_prob
 
         if table not in success_probs:
@@ -462,7 +467,9 @@ def recompute_success_prob_likelihood(g, adomains, nodes, tagdomains, do, all_su
         h.node[p]['reach_prob'] = 0.0
 
     for domain in domains:
-        table = domain['name'][:domain['name'].rfind('_')]
+        colid = int(domain['name'][domain['name'].rfind('_')+1:])
+        table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
+        #table = domain['name'][:domain['name'].rfind('_')]
 
         gp = get_partial_domain_edge_probs(g, domain, nodes)
         gpp = get_partial_domain_node_probs(gp, domain, top, nodes)
@@ -551,7 +558,9 @@ def get_success_prob_likelihood(g, domains):
         h.node[p]['reach_prob'] = 0.0
 
     for domain in domains:
-        table = domain['name'][:domain['name'].rfind('_')]
+        colid = int(domain['name'][domain['name'].rfind('_')+1:])
+        table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
+        #table = domain['name'][:domain['name'].rfind('_')]
         gp = get_domain_edge_probs(h, domain, leaves)
         gpp = get_domain_node_probs(gp, domain, top)
 
@@ -611,7 +620,9 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds):
             for di in domain_index[c]:
                 accepted_tags.append(domains[di]['tag'])
         #
-        table = domain['name'][:domain['name'].rfind('_')]
+        colid = int(domain['name'][domain['name'].rfind('_')+1:])
+        table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
+        #table = domain['name'][:domain['name'].rfind('_')]
         gp = get_domain_edge_probs(h, domain, leaves)
         gpp = get_domain_node_probs(gp, domain, top)
         # finding the most reachable domain
@@ -637,7 +648,9 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds):
         reachable_dom_probs.append(max_reached_dom_prob)
         #if max_reached_dom_prob < find_target_probs[-1]:
         #    print('weird %f < %f' % (max_reached_dom_prob, find_target_probs[-1]))
-        table = domain['name'][:domain['name'].rfind('_')]
+        colid = int(domain['name'][domain['name'].rfind('_')+1:])
+        table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
+        #table = domain['name'][:domain['name'].rfind('_')]
         sp = max_reached_dom_prob
 
         if table not in success_probs:
