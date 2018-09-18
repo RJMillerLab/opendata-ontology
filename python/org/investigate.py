@@ -8,41 +8,86 @@ import numpy as np
 
 def plot():
     before = []
-    before100 = []
     after = []
     flat = []
-    flat100 = []
+    #flat100 = []
     multidim = []
     for t, p in tableprobs_before.items():
         before.append(p)
         after.append(tableprobs_after[t])
-        before100.append(tableprobs_before100[t])
         flat.append(tableprobs_flat[t])
-        flat100.append(tableprobs_flat100[t])
+        #flat100.append(tableprobs_flat100[t])
         multidim.append(tableprobs_multidim[t])
-    inx = np.argsort(np.array(before))
+    inx = np.argsort(np.array(multidim))
     after = list(np.array(after)[inx])
     before = list(np.array(before)[inx])
-    before100 = list(np.array(before100)[inx])
     flat = list(np.array(flat)[inx])
-    flat100 = list(np.array(flat100)[inx])
+    #flat100 = list(np.array(flat100)[inx])
     multidim = list(np.array(multidim)[inx])
 
-    print('%f -> %f -> %f -> %f -> %f -> %f' % (sum(flat)/len(flat), sum(before)/len(before), sum(after)/len(after), sum(multidim)/len(multidim), sum(flat100)/len(flat100), sum(before100)/len(before100)))
     xs = [i for i in range(len(before))]
-    plt.plot(xs, before, color='r', label='clustering')
-    #plt.plot(xs, before100, color='brown', label='clustering100')
-    plt.plot(xs, after, color='b', label='fixed')
-    plt.plot(xs, flat, color='g', label='baseline')
-    plt.plot(xs, flat100, color='grey', label='baseline100')
-    #plt.plot(xs, multidim, color='black', label='2-dimensional')
+    plt.plot(xs, before, color='r', label='initial org (mean:'+'{:.3f}'.format(sum(before)/len(before))+')')
+    plt.plot(xs, after, color='b', label='fixed org (mean:'+'{:.3f}'.format(sum(after)/len(after))+')')
+    plt.plot(xs, flat, color='g', label='baseline (mean:'+'{:.3f}'.format(sum(flat)/len(flat))+')')
+    #plt.plot(xs, flat100, color='grey', label='baseline100')
+    plt.plot(xs, multidim, color='black', label='2-dimensional (mean:'+'{:.3f}'.format(sum(multidim)/len(multidim))+')')
     plt.legend(loc='best', fancybox=True)
     plt.grid(linestyle='dotted')
     plt.xlabel('Tables')
     plt.ylabel('Discovery Probability')
     plt.title('Table Discovery in Benchmark')
-    plt.savefig('org.pdf')
+    plt.savefig('bigbench_multidim_orgs.pdf')
 
+    print('%f -> %f -> %f -> %f' % (sum(flat)/len(flat), sum(before)/len(before), sum(after)/len(after), sum(multidim)/len(multidim)))
+
+
+# looking into tables in the LHS of plots.
+def look_lhs():
+    lhs = []
+    for t, p in tableprobs_before.items():
+        if tableprobs_before[t] > tableprobs_after[t]:
+            lhs.append(t)
+    print('lhs: %d' % len(lhs))
+    print("Loading domains")
+    adomains = list(orgl.add_ft_vectors(orgl.iter_domains()))
+    print("Reduce tags")
+    atags, atagdomains = orgl.reduce_tag_vectors(adomains)
+    tagtables = dict()
+    tabletags = dict()
+    tagcounts = dict()
+    tabledoms = dict()
+    for t, doms in atagdomains.items():
+        for dom in doms:
+            colid = int(dom['name'][dom['name'].rfind('_')+1:])
+            table = dom['name'][:dom['name'].rfind('_')]+'_'+str(colid%2)
+            if table not in tabledoms:
+                tabledoms[table] = 0
+            tabledoms[table] += 1
+            if table not in tabletags:
+                tabletags[table] = []
+            if t not in tabletags[table]:
+                tabletags[table].append(t)
+            if t not in tagtables:
+                tagtables[t] = []
+                tagcounts[t] = 0
+            if table not in tagtables[t]:
+                tagtables[t].append(table)
+                tagcounts[t] += 1
+    sings = 0
+    stags = dict()
+    for t in lhs:
+        if tabledoms[t] == 1:
+            sings += 1
+        for g in tabletags[t]:
+            stags[g] = len(tagtables[g])
+        print('%s: ds: %d ts: %d' % (t, tabledoms[t], len(tabletags[t])))
+    print('lhs sings: %d' % sings)
+    sings = 0
+    for t, d in tabledoms.items():
+        if d == 1:
+            sings += 1
+    print('all sings: %d' % sings)
+    print(stags)
 
 
 def test():
@@ -93,17 +138,24 @@ def test():
 
 
 
-tableprobs_flat = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/flat_dists_2651flat_br.json', 'r'))
+#tableprobs_flat = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/flat_dists_2651flat_br.json', 'r'))
+tableprobs_flat = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/flat_dists_2651_g10.json', 'r'))
 tableprobs_flat100 = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/flat_dists_2651_gamma100.json', 'r'))
 #tableprobs_before = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/agg_dists2651fuzzy.json', 'r'))
-tableprobs_before = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/agg_dists2651fuzzy_f2op.json', 'r'))
-tableprobs_before100 = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists2651fuzzy_gamma100.json', 'r'))
+#tableprobs_before = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/agg_dists2651fuzzy_f2op.json', 'r'))
+#tableprobs_before = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists2651fuzzy_f1opap.json', 'r'))
+tableprobs_before = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists2651fuzzy_g10t75frhap.json', 'r'))
 #tableprobs_after = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/fix_agg_singledim_2651_tag_dists.json', 'r'))
 #tableprobs_after = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/agg_dists_2651_single.json', 'r'))
-tableprobs_after = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/agg_dists_2651_single_f2op.json' , 'r'))
+#tableprobs_after = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/agg_dists_2651_single_f2op.json' , 'r'))
+#tableprobs_after = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists_2651_single_f1opap.json' , 'r'))
+tableprobs_after = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/fix_agg_singledim_g10t75frhap_2651_tag_dists.json', 'r'))
+
 tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_2651_2_f2op.json', 'r'))
+tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_2651_2_g10rhap.json', 'r'))
 #tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_2651_3.json', 'r'))
 #tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_2651_2.json', 'r'))
 
 plot()
 
+#look_lhs()
