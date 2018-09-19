@@ -26,7 +26,7 @@ def init(g, doms, tdoms, dclouds):
     return h
 
 
-def fix_plus(g, doms, tdoms, dclouds):
+def fix_plus(g, doms, tdoms, dclouds, dtype):
     init(g, doms, tdoms, dclouds)
     orgg.height(g)
     orgg.branching_factor(g)
@@ -35,7 +35,7 @@ def fix_plus(g, doms, tdoms, dclouds):
     iteration_likelihoods = []
     h = g
     #max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood(h, domains)
-    max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood_fuzzy(h, domains, tagdomains, domainclouds)
+    max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood_fuzzy(h, domains, tagdomains, domainclouds, dtype)
     #initial_success_probs = copy.deepcopy(max_success_probs)
     best = gp.copy()
     print('starting with success prob: fuzzy %f' % (max_success))
@@ -53,7 +53,7 @@ def fix_plus(g, doms, tdoms, dclouds):
         #level_n = set(set(gp.nodes).difference({orgg.get_root(gp)})).difference(set(orgg.level_down(gp, [orgg.get_root(gp)])))
         while len(level_n) > 1:
             print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
-            hf, ll, sps, its, ls = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, [fixfunctions[i]])
+            hf, ll, sps, its, ls = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, [fixfunctions[i]], dtype)
             iteration_success_probs.extend(list(its))
             iteration_likelihoods.extend(list(ls))
             #print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
@@ -73,11 +73,10 @@ def fix_plus(g, doms, tdoms, dclouds):
 
         gp = best.copy()
         print(datetime.datetime.now())
-        break
     return best, iteration_success_probs, iteration_likelihoods
 
 
-def fix_level_plus(g, level, success, success_probs, fixfunctions):
+def fix_level_plus(g, level, success, success_probs, fixfunctions, dtype):
     iteration_success_probs = []
     iteration_likelihoods = []
     fixes = what_to_fix(g, level)
@@ -92,7 +91,7 @@ def fix_level_plus(g, level, success, success_probs, fixfunctions):
         if f[1] == 1.0:
             continue
         for ffunc in fixfunctions:
-            hp, newsuccess, newsps, its, ls = ffunc(best.copy(), level, f[0], success, max_success_probs)
+            hp, newsuccess, newsps, its, ls = ffunc(best.copy(), level, f[0], success, max_success_probs, dtype)
             if newsuccess < 0.0:
                 continue
             if newsuccess > max_success:
@@ -168,7 +167,7 @@ def change_parent(g, level, n, success, success_probs):
     return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods
 
 
-def add_parent(g, level, n, success, success_probs):
+def add_parent(g, level, n, success, success_probs, dtype):
     print('add_parent')
     if n not in g.nodes:
         return g, -1.0, [], [], []
@@ -212,7 +211,7 @@ def add_parent(g, level, n, success, success_probs):
         #new, gl, sps, likelihood  = orgh.recompute_success_prob_likelihood_fuzzy(hap.copy(), domains, potentials, tagdomains, True, success_probs, domainclouds)
 
         #new, gl, sps, likelihood = orgh.get_success_prob_likelihood(hap.copy(), domains)
-        new, gl, sps, likelihood = orgh.get_success_prob_likelihood_fuzzy(hap.copy(), domains, tagdomains, domainclouds)
+        new, gl, sps, likelihood = orgh.get_success_prob_likelihood_fuzzy(hap.copy(), domains, tagdomains, domainclouds, dtype)
 
         iteration_success_probs.append(new)
         iteration_likelihoods.append(likelihood)
@@ -293,7 +292,7 @@ def update_graph_change_parent(g, p, c, newp):
     return h
 
 
-def reduce_height(h, level, n, success, success_probs):
+def reduce_height(h, level, n, success, success_probs, dtype):
     print('reduce_height')
     if n not in h.nodes:
         return h, -1.0, [], [], []
@@ -323,7 +322,7 @@ def reduce_height(h, level, n, success, success_probs):
     hp = merge_siblings_and_replace_parent(h, gpf[0])
 
     #new, gl, sps, likelihood = orgh.get_success_prob_likelihood(hp.copy(), domains)
-    new, gl, sps, likelihood = orgh.get_success_prob_likelihood_fuzzy(hp.copy(), domains, tagdomains, domainclouds)
+    new, gl, sps, likelihood = orgh.get_success_prob_likelihood_fuzzy(hp.copy(), domains, tagdomains, domainclouds, dtype)
 
     iteration_success_probs.append(new)
     iteration_likelihoods.append(likelihood)

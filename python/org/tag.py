@@ -19,7 +19,9 @@ FT_DIM = 300
 def get_good_labels():
     print('get_good_labels')
     label_names = json.load(open(LABELS_FILE, 'r'))
+    print('label_names: %d' % len(label_names))
     table_labels = json.load(open(TABLE_LABELS_FILE, 'r'))
+    print('tables: %d' % len(table_labels))
     labels = []
     for t, ls in table_labels.items():
         embCount = len(glob.glob1(os.path.join(OPENDATA_DIR, 'domains', t),"*.ft-mean"))
@@ -35,16 +37,11 @@ def get_good_labels():
     good_labels = labels[np.argsort(entropy)[-K:]].tolist()
     good_labels.reverse()
     good_labels = [int(l) for l in good_labels]
-    print(good_labels)
     good_probs = probs[np.argsort(entropy)[-K:]].tolist()
     good_probs.reverse()
-    print(probs)
     good_label_names = []
     for l in good_labels:
-        for k,v in label_names.items():
-            if v == l:
-                good_label_names.append(k)
-                print(k)
+        good_label_names.append(label_names[str(l)])
     json.dump(good_label_names, open(GOOD_LABELS_FILE, 'w'))
 
 
@@ -58,6 +55,7 @@ def tag_embs():
     count = 0
     print(len(table_labels))
     print(len(df))
+    return
     for index, row in df.iterrows():
         count += 1
         if count > 20000:
@@ -98,9 +96,23 @@ def tag_embs():
     print('done %d  %d' % (len(domains), len(label_embs2)))
 
 
+def filter_tags():
+    label_names = json.load(open(LABELS_FILE))
+    print('label_names: %d' % len(label_names))
+    socrata_labels = [int(i) for i, l in label_names.items() if l.startswith('socrata_')]
+    print('some_labels: %d' % len(socrata_labels))
+    table_labels = json.load(open(TABLE_LABELS_FILE))
+    socrata_tables = []
+    for t, ls in table_labels.items():
+        for l in ls:
+            if l in socrata_labels and t not in socrata_tables:
+                socrata_tables.append(t)
+    print('tables: %d' % len(table_labels))
+    print('socrata tables: %d' % len(socrata_tables))
 
 
 
+filter_tags()
 
 
 

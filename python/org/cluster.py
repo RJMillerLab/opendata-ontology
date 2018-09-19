@@ -6,6 +6,8 @@ import random
 import org.hierarchy as orgh
 import operator
 import skfuzzy as fuzz
+from sklearn.neighbors import kneighbors_graph
+import datetime
 
 
 def mk_tag_table(tags):
@@ -17,9 +19,40 @@ def mk_tag_table(tags):
 
 
 def basic_clustering(vecs, n_clusters, linkage, affinity):
-    cluster = AgglomerativeClustering(n_clusters=n_clusters,  affinity=affinity, linkage=linkage)
+    knn_graph = kneighbors_graph(vecs, min(50, len(vecs)-1), include_self=False)
+    cluster = AgglomerativeClustering(n_clusters=n_clusters,  affinity=affinity, linkage=linkage, memory='/home/fnargesian/tmp', connectivity=knn_graph)
     cluster.fit(vecs)
     return cluster
+
+
+def basic_plus(vecs, n_clusters, linkage, affinity):
+    knn_graph = kneighbors_graph(vecs, min(50, len(vecs)-1) , include_self=False)
+    t0 = datetime.datetime.now()
+    cluster = AgglomerativeClustering(n_clusters=n_clusters,  affinity=affinity, linkage=linkage)
+    elapsed_time = datetime.datetime.now() - t0
+    print(elapsed_time)
+
+
+    for connectivity in (None, knn_graph):
+        t0 = datetime.datetime.now()
+        cluster = AgglomerativeClustering(n_clusters=n_clusters,  affinity=affinity, linkage=linkage, connectivity=connectivity)
+        elapsed_time = datetime.datetime.now() - t0
+        print(elapsed_time)
+
+    #ys = cluster.fit_predict(vecs[:-100])
+    #print('comps: %d' % cluster.n_components_)
+    #print(ys)
+    #print('children: %d ys: %d' % (len(cluster.children_), len(ys)))
+    #n_leaves = len(vecs)
+    #edges = [(n_leaves+i, child) for i in range(len(cluster.children_)) for child in cluster.children_[i]]
+    #print(edges)
+    #print(len(cluster.children_))
+
+
+
+    return cluster
+
+
 
 
 def equi_depth_partition(vecs, tags, n_cluster):
@@ -265,10 +298,10 @@ def complete_kary_cluster(tags, vecs, n_cluster):
 def cmeans_clustering(tags, vecs):
     tags = np.array(tags)
     vecs = np.array(vecs)
-    ncenters = 5
-    cntr, u, u0, d, jm, p, fpc = fuzz.cluster.cmeans(vecs.T, ncenters, 2, error=0.005, maxiter=1000, init=None)
-    print('fpc: %f' % fpc)
-    print(u)
+
+    for ncenters in range(2,8):
+        cntr, u, u0, d, jm, p, fpc = fuzz.cluster.cmeans(vecs.T, ncenters, 2, error=0.005, maxiter=1000, init=None)
+        print('%d: fpc: %f' % (ncenters, fpc))
     dim_membership = np.argmax(u, axis=0)
     dims = dict()
     for i in range(ncenters):
