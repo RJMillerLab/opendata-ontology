@@ -63,12 +63,10 @@ def init_plus():
 
 def fix(g, hierarchy_name):
     print('fix')
-    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds)
+    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'synthetic')
 
-    print('strict')
-    results = orgh.evaluate(h.copy(), domains, tagdomains)
     print('fuzzy: ')
-    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds)
+    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds, 'synthetic')
     success_probs = results['success_probs']
 
     json.dump(success_probs, open('synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json', 'w'))
@@ -99,7 +97,7 @@ def agg_fuzzy(suffix1, suffix2):
     print('agg_fuzzy')
     gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs)
     orgh.init(gp, domains, tagdomains)
-    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds)
+    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'synthetic')
     success_probs = results['success_probs']
     avg_success_prob = sum(list(success_probs.values()))/float(len(success_probs))
 
@@ -108,11 +106,10 @@ def agg_fuzzy(suffix1, suffix2):
     orgp.plot('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists' + str(len(domains)) + suffix1 + '.json', '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix1 + '.pdf', 'simbased eval - single dimension - ' + str(avg_success_prob))
     print('printed the fuzzy eval of agg hierarchy to %s.' % ('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix1 + '.pdf'))
 
-    return gp, results
+    return gp, results['success_probs']
 
     print("evaluating")
-    #results = orgh.evaluate(gp, domains, tagdomains)
-    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds)
+    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'synthetic')
     success_probs = results['success_probs']
     avg_success_prob = sum(list(success_probs.values()))/float(len(success_probs))
     print("ploting")
@@ -161,15 +158,12 @@ def multidimensional_hierarchy(dim_num):
         print('tags: %d vecs: %d domains: %d  tagdomains: %d  domainclouds: %d' % (len(keys), len(vecs), len(domains), len(tagdomains), len(domainclouds)))
 
         gp, sps = agg_fuzzy('agg'+str(i)+'f2op', '')
-        sps = sps['success_probs']
         for t, p in sps.items():
             if t not in success_probs_before:
                 success_probs_before[t] = 0.0
                 success_probs_before_intersect[t] = 1.0
             success_probs_before[t] += p
             success_probs_before_intersect[t] *= p
-            if success_probs_before[t] > 1.0:
-                success_probs_before[t] = 1.0
 
 
         de = datetime.datetime.now()
@@ -186,24 +180,32 @@ def multidimensional_hierarchy(dim_num):
                 success_probs_after_intersect[t] = 1.0
             success_probs_after[t] += p
             success_probs_after_intersect[t] *= p
-            if success_probs_after[t] > 1.0:
-                success_probs_after[t] = 1.0
         print('---------------')
     for t, p in success_probs_before.items():
-        success_probs_before[t] = (p-success_probs_before_intersect[t])
+        if success_probs_before[t] != success_probs_before_intersect[t]:
+            success_probs_before[t] = (p-success_probs_before_intersect[t])
+        if success_probs_before[t] > 1.0:
+            success_probs_before[t] = 1.0
+    for t, p in success_probs_after.items():
+        if success_probs_after[t] != success_probs_after_intersect[t]:
+            success_probs_after[t] = (p-success_probs_after_intersect[t])
+        if success_probs_after[t] > 1.0:
+            success_probs_after[t] = 1.0
+
     before_sp = sum(list(success_probs_before.values()))/float(len(success_probs_before))
     print('success prob of multidimensions before fix: %f' % before_sp)
 
-    for t, p in success_probs_after.items():
-        success_probs_after[t] = (p-success_probs_after_intersect[t])
     after_sp = sum(list(success_probs_after.values()))/float(len(success_probs_after))
     print('success prob of multidimensions after fix: %f' % after_sp)
 
-    multi_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_' + str(len(alldomains)) + '_' + str(dim_num) + '_f2op.json'
+    multi_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_before_' + str(len(alldomains)) + '_' + str(dim_num) + '.json'
+    json.dump(success_probs_before, open(multi_json, 'w'))
+    print('printed mult before results to %s.' % multi_json)
+
+    multi_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_' + str(len(alldomains)) + '_' + str(dim_num) + '_g10rhap.json'
     json.dump(success_probs_after, open(multi_json, 'w'))
+    print('printed mult after results to %s.' % multi_json)
 
-
-    print('printed mult results to %s.' % multi_json)
 
 
 def multidim():

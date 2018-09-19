@@ -55,6 +55,7 @@ def init_plus():
     global domainclouds
     # finding the cloud
     simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/allpair_sims.json'
+    print('cloud thteshold: 0.75')
     domainclouds = orgk.make_cloud(simfile, 0.75)
     orgk.plot(domainclouds)
 
@@ -63,33 +64,31 @@ def singledimensional_hierarchy():
     print('singledimensional_hierarchy')
     global keys, vecs, domains, tagdomains
     print('single dim hierarchy')
-    gp, results = agg_fuzzy('fuzzy_f1op', 'strict_f1op')
+    gp, results = agg_fuzzy('fuzzy_g10t752opint', 'strict_g10t752opint')
     print('done agg clustering and evaluating')
     init_success_probs = results['success_probs']
     before_sp = sum(list(init_success_probs.values()))/float(len(init_success_probs))
     print('before_sp: %f' % before_sp)
 
     print('fixing')
-    sps = fix(gp, 'agg_singledim_f1op')
+    sps = fix(gp, 'agg_singledim_g10t752opint')
     after_sp = sum(list(sps.values()))/float(len(sps))
     print('success prob before fix %f after fix %f.' % (before_sp, after_sp))
 
-    single_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists_' + str(len(domains)) + '_single_f1op.json'
+    single_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/agg_dists_' + str(len(domains)) + '_single_g10t752opint.json'
     json.dump(sps, open(single_json, 'w'))
-    single_pdf = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + '_single_f1op.pdf'
-    orgp.plot(single_json, single_pdf, 'single-dimensional Hierarchy - ' + str(before_sp) + '->' + str(after_sp))
-
+    print('printed to %s' % single_json)
 
 
 
 def fix(g, hierarchy_name):
     print('fix')
-    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds)
+    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'synthetic')
 
-    print('strict')
-    results = orgh.evaluate(h.copy(), domains, tagdomains)
+    #print('strict')
+    #results = orgh.evaluate(h.copy(), domains, tagdomains)
     print('fuzzy: ')
-    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds)
+    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds, 'synthetic')
     success_probs = results['success_probs']
 
     json.dump(success_probs, open('synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json', 'w'))
@@ -120,20 +119,30 @@ def agg_fuzzy(suffix1, suffix2):
     print('agg_fuzzy')
     gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs)
     orgh.init(gp, domains, tagdomains)
-    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds)
+    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'synthetic')
     success_probs = results['success_probs']
     avg_success_prob = sum(list(success_probs.values()))/float(len(success_probs))
     print('fuzzy: %f' % avg_success_prob)
 
-    #results = orgh.evaluate(gp.copy(), domains, tagdomains)
-    #success_probs = results['success_probs']
-    #avg_success_prob = sum(list(success_probs.values()))/float(len(success_probs))
-    #print('strict: %f' % avg_success_prob)
+    print('number of tables: %d' % len(list(results['success_probs'].values())))
 
     json.dump(results['success_probs'], open('synthetic_output/agg_dists' + str(len(domains)) + suffix1 + '.json', 'w'))
     print('printed the fuzzy eval of agg hierarchy to %s.' % ('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix1 + '.pdf'))
 
     return gp, results
+
+def flat(suffix):
+    print('flat')
+    g = orgh.add_node_vecs(orgg.get_flat_cluster_graph(keys), vecs)
+    orgh.init(g, domains, tagdomains)
+    #results = orgh.evaluate(g, domains, tagdomains)
+    results = orgh.fuzzy_evaluate(g.copy(), domains, tagdomains, domainclouds, 'synthetic')
+    print(results['success_probs'])
+    jsonfile = 'synthetic_output/flat_dists_' + str(len(domains)) + '_' + suffix + '.json'
+    json.dump(results['success_probs'], open(jsonfile, 'w'))
+    print('number of tables: %d' % len(results['success_probs']))
+    print('sp: %f' % (sum(list(results['success_probs'].values()))/len(results['success_probs'])))
+    print('printed to %s' % jsonfile)
 
 
 
@@ -142,9 +151,19 @@ init(500)
 #simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/allpair_sims.json'
 #orgk.all_pair_sim(domains, simfile)
 
-init_plus()
+#init_plus()
 
-singledimensional_hierarchy()
+#singledimensional_hierarchy()
 
-#agg_fuzzy('fuzzy', 'strict')
+#flat('g10')
 
+#gp, results = agg_fuzzy('fuzzy_gamma10', 'strict')
+
+gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2,    'ward', 'euclidean'), vecs, keys), vecs)
+orgg.height(gp)
+print('nodes: %d' % len(gp.nodes()))
+gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 5,    'ward', 'euclidean'), vecs, keys), vecs)
+print('nodes: %d' % len(gp.nodes()))
+orgg.height(gp)
+
+#orgc.basic_plus(vecs, 5, 'ward', 'euclidean')
