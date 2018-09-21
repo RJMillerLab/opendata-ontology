@@ -10,6 +10,7 @@ import random
 from sklearn.cluster import KMeans
 #from itertools import repeat
 import json
+#import datetime
 
 
 node_dom_sims = dict()
@@ -19,12 +20,11 @@ leaves = []
 top = []
 gamma = 10.0
 
-def init(g, domains, tagdomains, tgparam=10.0):
+def init(g, domains, tagdomains, simfile, tgparam=10.0):
     global node_dom_sims, dom_selection_probs, dom_sims, gamma
     gamma = float(tgparam)
     print('gamma: %f' % gamma)
 
-    simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims.json'
     dom_sims = json.load(open(simfile, 'r'))
 
     #dom_selection_probs = get_domains_selection_probs(tagdomains)
@@ -32,6 +32,7 @@ def init(g, domains, tagdomains, tgparam=10.0):
     for n in g.nodes:
         node_dom_sims[n] = dict()
         for dom in domains:
+            #node_dom_sims[n][dom['name']] = np.random.random_sample()
             node_dom_sims[n][dom['name']] = get_transition_sim(g.node[n]['rep'], dom['mean'])
 
     print('done init')
@@ -42,16 +43,14 @@ def update_node_dom_sims(g, domains, ns):
             node_dom_sims[n][dom['name']] = get_transition_sim(g.node[n]['rep'], dom['mean'])
 
 
-def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds, dtype):
+def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds, dtype, domaintags):
     top = list(nx.topological_sort(gp))
-    tag_dists = dict()
     success_probs = dict()
     success_probs_intersect = dict()
     h = gp
     leaves = orgg.get_leaves(h)
     dom_target_sims = []
     reachable_dom_probs = []
-    #find_target_probs = []
     results = dict()
     # building a domain index on domain names
     domain_index = dict()
@@ -61,23 +60,40 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds, dtype
         domain_index[domains[i]['name']].append(i)
     # evaluation
     samedom = 0
-    ido = 0
+    #ido = 0
+    #se1, se2 = 0.0, 0.0
+    #ats = 0
     for domain in domains:
-        if (ido+1)%50 == 0:
-            print('ido: %d' % ido)
-        ido+=1
+        #if (ido+1)%50 == 0:
+        #    print('se1: %f  se2: %f' % (se1/50.0, se2/50.0))
+        #    print('ido: %d ats: %f' % (ido, ats/50.0))
+        #    se1 = 0.0
+        #    se2 = 0.0
+        #    ats = 0
+        #ido+=1
         # finding the tags of accepted domains
         accepted_tags = []
-        if domain['name'] not in list(domainclouds[domain['name']].keys()):
-            print('no')
         for c in list(domainclouds[domain['name']].keys()):
             if c not in domain_index:
                 continue
             for di in domain_index[c]:
-                accepted_tags.append(domains[di]['tag'])
+                accepted_tags.extend(domaintags[c])
+                #accepted_tags.append(domains[di]['tag'])
+        accepted_tags = list(set(accepted_tags))
+        #ats += len(accepted_tags)
+
+        #print('clouddoms: %d cloudtags: %d' % (len(domainclouds[domain['name']]), len(accepted_tags)))
+
+        #t0 = datetime.datetime.now()
+
         g, tags = compute_tag_probs(h, domain, top, leaves)
+
+        #t1 = datetime.datetime.now()
+        #se1 += ((t1-t0).microseconds/1000)
+
+        #t0 = datetime.datetime.now()
+
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
-        tag_dists[domain['tag']] = tag_dist
         # finding the most reachable domain
         max_reached_dom_prob = 0.0
         max_reached_dom_sim = 0.0
@@ -88,12 +104,12 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds, dtype
             selps, sims = get_dom_trans_prob(tagdomains[tag_dist[i][0]], domain)
             #selps = dom_target_sims[tag_dist[i][0]]][domain['name']]
             for d in tagdomains[tag_dist[i][0]]:
+                if d['name'] not in domainclouds[domain['name']]:
+                    continue
                 sp = selps[d['name']] * tag_dist[i][1]
                 if sp > max_reached_dom_prob:
                     max_reached_dom_prob = sp
-                    #max_reached_dom_sim = sims[d['name']]
                     most_reachable_dom = d['name']
-        #dom_target_sims.append(max_reached_dom_sim)
         reachable_dom_probs.append(max_reached_dom_prob)
         table = ''
         if dtype == 'synthetic':
@@ -115,6 +131,9 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds, dtype
         results[domain['name']] = {'most_reachable_dom': most_reachable_dom, 'dom_target_sim': max_reached_dom_sim, 'reachable_dom_prob': max_reached_dom_prob}
 
         h = g.copy()
+
+        #t1 = datetime.datetime.now()
+        #se2 += ((t1-t0).microseconds/1000)
 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
@@ -179,19 +198,22 @@ def get_reachability_probs(gp, domains):
     return tag_dists, tag_ranks, success_probs
 
 
-def add_node_vecs(g, vecs):
+def add_node_vecs(g, vecs, tags):
     leaves = orgg.get_leaves(g)
     for n in g.nodes:
         if n not in leaves:
             node_vecs = vecs[np.array(list(leaves.intersection(nx.descendants(g,n))))]
+            node_tags = tags[np.array(list(leaves.intersection(nx.descendants(g,n))))]
             g.node[n]['population'] = list(node_vecs)
+            g.node[n]['tags'] = list(node_tags)
             g.node[n]['rep'] = np.mean(node_vecs, axis=0)
-            g.node[n]['cov'] = np.cov(node_vecs)
+            #g.node[n]['cov'] = np.cov(node_vecs)
             g.node[n]['mean'] = g.node[n]['rep']
-            g.node[n]['det'] = linalg.det(g.node[n]['cov'])
+            #g.node[n]['det'] = linalg.det(g.node[n]['cov'])
         else:
             g.node[n]['rep'] = list(vecs[n])
             g.node[n]['population'] = [vecs[n]]
+            g.node[n]['tags'] = [tags[n]]
     return g
 
 
@@ -243,8 +265,8 @@ def get_domain_edge_probs(g, domain, leaves):
         if p in leaves:
             continue
         ts, sis = get_trans_prob(gd, p, domain)
-        if sum(ts.values()) > 1.0000001:
-            print('improper: %f' % sum(ts.values()))
+        #if sum(ts.values()) > 1.0000001:
+        #    print('improper: %f' % sum(ts.values()))
         for ch, prob in ts.items():
             gd[p][ch][domain['name']] = dict()
             gd[p][ch][domain['name']]['trans_prob_domain'] = prob
@@ -615,7 +637,7 @@ def get_success_prob_likelihood(g, domains, dtype):
 
 
 
-def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtype):
+def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
 
     top = list(nx.topological_sort(g))
     success_probs = dict()
@@ -643,7 +665,9 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
             if c not in domain_index:
                 continue
             for di in domain_index[c]:
-                accepted_tags.append(domains[di]['tag'])
+                #accepted_tags.append(domains[di]['tag'])
+                accepted_tags.extend(domaintags[c])
+        accepted_tags = list(set(accepted_tags))
         #
         table = ''
         if dtype == 'synthetic':
@@ -777,9 +801,9 @@ def get_local_success_prob(domain):
 
 
 
-def fuzzy_evaluate(g, domains, tagdomains, domainclouds, dtype):
+def fuzzy_evaluate(g, domains, tagdomains, domainclouds, dtype, domaintags):
     print('fuzzy_evaluate')
-    dom_reach_sims, dom_reach_probs, success_probs = compute_reachability_probs_plus(g, domains, tagdomains, domainclouds, dtype)
+    dom_reach_sims, dom_reach_probs, success_probs = compute_reachability_probs_plus(g, domains, tagdomains, domainclouds, dtype, domaintags)
     expected_success = sum(list(success_probs.values()))/float(len(success_probs))
     print('hierarchy success prob fuzzy: %f' % expected_success)
     results = {'success_probs': success_probs, 'dom_reach_sims': dom_reach_sims, 'dom_reach_probs': dom_reach_probs}
@@ -868,7 +892,8 @@ def get_dom_trans_prob(choices, domain):
         #m = get_transition_sim(s['mean'], domain['mean'])
         m = 0.0
         if s['name'] in dom_sims:
-            m = dom_sims[s['name']][domain['name']]
+            if domain['name'] in dom_sims[s['name']]:
+                m = dom_sims[s['name']][domain['name']]
         tsl.append(m)
         ts[s['name']] = m
     for s in choices:
@@ -934,7 +959,8 @@ def get_selection_probs(choices, domain):
         #m = get_transition_sim(s['mean'], domain['mean'])
         m = 0.0
         if s['name'] in dom_sims:
-            m = dom_sims[s['name']][domain['name']]
+            if domain['name'] in dom_sims[s['name']]:
+                m = dom_sims[s['name']][domain['name']]
         tsl.append(m)
         ts[s['name']] = m
     branching_factor = len(choices)
@@ -993,7 +1019,7 @@ def get_dimensions(tags, vecs, n_dims):
     for c in ocs:
         ts = dims[c]
         print(len(ts))
-        if len(ts) > 1:
+        if len(ts) > 15:
             continue
         # find the cluster to merge with
         mergec = c

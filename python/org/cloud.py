@@ -41,6 +41,8 @@ def make_cloud(simfile, threshold):
     sims = json.load(open(simfile, 'r'))
     aps = 0
     pts = 0
+    mincloudsize = len(sims)
+    maxcloudsize = 0
     # apply threshold on the sim of domains to a target
     cloud = dict()
     for d1, d2sims in sims.items():
@@ -50,8 +52,11 @@ def make_cloud(simfile, threshold):
             if s > threshold:
                 pts += 1
                 cloud[d1][d2] = s
+        maxcloudsize = max(maxcloudsize, len(cloud[d1]))
+        mincloudsize = min(mincloudsize, len(cloud[d1]))
 
     print("%d out of %d pairs passed the threshold." % (pts, aps))
+    print("size of clouds vary from %d to %d" % (mincloudsize, maxcloudsize))
     return cloud
 
 
