@@ -117,10 +117,10 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds, dtype
             table = domain['name'][:domain['name'].rfind('_')]
         sp = max_reached_dom_prob
         if table not in success_probs:
-            success_probs_intersect[table] = sp
+            success_probs_intersect[table] = (1.0-sp)
             success_probs[table] = sp
         else:
-            success_probs_intersect[table] *= sp
+            success_probs_intersect[table] *= (1.0-sp)
             success_probs[table] += sp
 
         if domain['name'] == most_reachable_dom:
@@ -447,10 +447,10 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
         sp = max_reached_dom_prob
 
         if table not in success_probs:
-            success_probs_intersect[table] = sp
+            success_probs_intersect[table] = (1.0-sp)
             success_probs[table] = sp
         else:
-            success_probs_intersect[table] *= sp
+            success_probs_intersect[table] *= (1.0-sp)
             success_probs[table] += sp
 
         if domain['name'] == most_reachable_dom:
@@ -709,10 +709,10 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
         sp = max_reached_dom_prob
 
         if table not in success_probs:
-            success_probs_intersect[table] = sp
+            success_probs_intersect[table] = (1.0-sp)
             success_probs[table] = sp
         else:
-            success_probs_intersect[table] *= sp
+            success_probs_intersect[table] *= (1.0-sp)
             success_probs[table] += sp
 
         if domain['name'] == most_reachable_dom:

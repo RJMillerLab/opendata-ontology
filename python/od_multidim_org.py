@@ -2,9 +2,10 @@ import org.hierarchy as orgh
 import org.graph as orgg
 import org.plot.dist_plot as orgp
 import org.cluster as orgc
-#import org.sample as orgs
+import org.sample as orgs
 import org.cloud as orgk
 import org.fix as orgf
+import org.semantic as orgm
 #import org.tag as orgt
 #import importlib
 #import operator
@@ -14,6 +15,8 @@ import json
 #import networkx as nx
 import copy
 import datetime
+import ntpath
+import os
 
 
 keys = []
@@ -21,6 +24,7 @@ vecs = np.array([])
 domains = []
 tagdomains = dict()
 domainclouds = dict()
+domaintags = dict()
 
 
 def write_emb_header():
@@ -37,26 +41,18 @@ def write_emb_header():
 
 
 def init(tag_num):
-    global keys, vecs, domains, tagdomains
-    #good_tags = json.load(open(GOOD_TAGS_FILE))
+    global keys, vecs, domains, tagdomains, domaintags
     tag_embs = json.load(open(TAG_EMB_FILE))
     ks = []
     vs = []
     for t, e in tag_embs.items():
-        #if not t.startswith('socrata_'):
-        #    continue
-        #if t not in good_tags:
-        #    continue
         ks.append(t)
         vs.append(e)
 
 
     #tag_num = len(ks)
 
-    #print('good_tags: %d' % len(good_tags))
-    print('tag_embs: %d' % len(tag_embs))
-
-    print('initial tags: %d vs: %d' % (len(ks), len(vs)))
+    print('tag_embs: %d ks: %d vs: %d' % (len(tag_embs), len(vs), len(vs)))
 
     keys = ks
     vecs = np.array(vs)
@@ -65,11 +61,17 @@ def init(tag_num):
 
     tbs = []
 
+    adomaintags = dict()
     atagdomains = dict()
     for dom in alldomains:
 
         if dom['tag'] not in ks:
             continue
+
+        if dom['name'] not in adomaintags:
+            adomaintags[dom['name']] = []
+        if dom['tag'] not in adomaintags[dom['name']]:
+            adomaintags[dom['name']].append(dom['tag'])
 
         table = dom['name'][:dom['name'].rfind('_')]
         if table not in tbs:
@@ -90,36 +92,37 @@ def init(tag_num):
     #tvs = tvs[:tag_num]
 
     # random sample of tags
-    tvs = list(tagdomains.keys())[:tag_num]
-
+    tvs = list(atagdomains.keys())[:tag_num]
+    print('tvs: %d' % len(tvs))
     tagdomains = dict()
     domains = []
     lvecs = []
+    keys = []
     for t in tvs:
         keys.append(t)
         lvecs.append(tag_embs[t])
         tagdomains[t] = copy.deepcopy(atagdomains[t])
         domains.extend(list(tagdomains[t]))
     vecs = np.array(lvecs)
+    print('domains: %d vecs: %d keys: %d' % (len(domains), len(vecs), len(keys)))
     # sampling
-    #stagdomains, sdomains = orgs.stratified_sample(tagdomains, 0.3)
-    #print('domains: %d tagdomains: %d  tags: %d vecs: %d sampled domains: %d sampled tagdomains: %d' % (len(domains),      len(tagdomains), len(keys), len(vecs), len(sdomains), len(stagdomains)))
-    #tagdomains = stagdomains
-    #domains = []
+    stagdomains, sdomains = orgs.stratified_sample(tagdomains, 0.3)
+    print('sampled domains: %d sampled tagdomains: %d' % (len(sdomains), len(stagdomains)))
+    tagdomains = copy.deepcopy(stagdomains)
+    domaintags = copy.deepcopy(adomaintags)
+    domains = []
     # making domains unique
-    #seen = dict()
-    #tbs = []
-    #for domain in sdomains:
-    #    if domain['name'] not in seen:
-    #        domains.append(domain)
-    #        seen[domain['name']] = True
-    #        table = domain['name'][:domain['name'].rfind('_')]
-    #        if table not in tbs:
-    #            tbs.append(table)
-    #print('sampled tables: %d' % len(tbs))
-    #print('sdomains: %d  domains: %d' % (len(sdomains), len(domains)))
-    print('domains: %d' % len(domains))
-    print('keys: %d' % len(keys))
+    seen = dict()
+    tbs = []
+    for domain in sdomains:
+        if domain['name'] not in seen:
+            domains.append(domain)
+            seen[domain['name']] = True
+            table = domain['name'][:domain['name'].rfind('_')]
+            if table not in tbs:
+                tbs.append(table)
+    print('sampled tables: %d' % len(tbs))
+    print('sdomains: %d  domains: %d keys: %d vecs: %d tagdomains: %d domaintags: %d' % (len(sdomains), len(domains), len(keys), len(vecs), len(tagdomains), len(domaintags)))
 
 
 def init_load(simfile):
@@ -172,12 +175,12 @@ def init_plus():
 
 def fix(g, hierarchy_name):
     print('fix')
-    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'opendata')
+    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'opendata', domaintags)
 
-    print('strict')
-    results = orgh.evaluate(h.copy(), domains, tagdomains)
+    #print('strict')
+    #results = orgh.evaluate(h.copy(), domains, tagdomains)
     print('fuzzy: ')
-    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds, 'opendata')
+    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
     success_probs = results['success_probs']
 
     json.dump(success_probs, open('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json', 'w'))
@@ -200,17 +203,17 @@ def fix(g, hierarchy_name):
     print('printed iteration success plot to %s' % ('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.pdf'))
     print('printed iteration likelihood plot to %s' % ('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_ls.pdf'))
 
-    return success_probs
+    return success_probs, h
 
 
 
 def agg_fuzzy(suffix1, suffix2):
     print('agg_fuzzy')
-    gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs)
+    gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs, keys)
     print('done clustering')
     print('initial hierarchy with %d nodes' % len(list(gp.nodes)))
-    orgh.init(gp, domains, tagdomains)
-    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'opendata')
+    orgh.init(gp, domains, tagdomains, simfile)
+    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
 
     #json.dump(results['success_probs'], open('od_output/agg_dists' + str(len(domains)) + suffix1 + '.json', 'w'))
     #print('printed the fuzzy eval of agg hierarchy to %s.' % ('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix1 + '.pdf'))
@@ -232,18 +235,9 @@ def multidimensional_hierarchy(dim_num):
     success_probs_after = dict()
     success_probs_after_intersect = dict()
 
-
-    mi, mv = 0, 0
-    for i, ts in dims.items():
-        if len(ts) > mv:
-            mi = i
-            mv = len(ts)
-
+    org_filenames = []
 
     for i, ts in dims.items():
-        if i != mi:
-            continue
-
 
         print('dim %d' % i)
         ds = datetime.datetime.now()
@@ -279,52 +273,66 @@ def multidimensional_hierarchy(dim_num):
         for t, p in sps.items():
             if t not in success_probs_before:
                 success_probs_before[t] = 0.0
-                success_probs_before_intersect[t] = 1.0
+                success_probs_before_intersect[t] = (1.0-p)
             success_probs_before[t] += p
-            success_probs_before_intersect[t] *= p
+            success_probs_before_intersect[t] *= (1.0-p)
 
         de = datetime.datetime.now()
         delapsed = de - ds
         print('elapsed time of dim %d is %d' % (i, int(delapsed.total_seconds() * 1000)))
 
-        continue
-
         print('fixing cluster %d' % i)
-        sps = fix(gp, 'agg_'+str(i)+'f2op')
+        sps, fg = fix(gp, 'agg_'+str(i)+'f2op')
         sp = sum(list(sps.values()))/float(len(sps))
         print('sp of dim %d after fix is %f.' % (i, sp))
         for t, p in sps.items():
             if t not in success_probs_after:
                 success_probs_after[t] = 0.0
-                success_probs_after_intersect[t] = 1.0
+                success_probs_after_intersect[t] = (1.0-p)
             success_probs_after[t] += p
-            success_probs_after_intersect[t] *= p
+            success_probs_after_intersect[t] *= (1.0-p)
+        print('saving fg')
+        graph_file = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/hierarchy_' + str(i) + '.txt'
+        org_filenames.append(graph_file)
+        print('getting semantics')
+        orgh.save(fg, graph_file)
+        orgm.get_states_semantic(graph_file)
         print('---------------')
+
     for t, p in success_probs_before.items():
-        if success_probs_before[t] != success_probs_before_intersect[t]:
-            success_probs_before[t] = (p-success_probs_before_intersect[t])
+        success_probs_before[t] = 1-success_probs_before_intersect[t]
+        #if success_probs_before[t] != success_probs_before_intersect[t]:
+        #    success_probs_before[t] = (p-success_probs_before_intersect[t])
         if success_probs_before[t] > 1.0:
             success_probs_before[t] = 1.0
-    #for t, p in success_probs_after.items():
-    #    if success_probs_after[t] != success_probs_after_intersect[t]:
-    #       success_probs_after[t] = (p-success_probs_after_intersect[t])
-    #    if success_probs_after[t] > 1.0:
-    #        success_probs_after[t] = 1.0
+    for t, p in success_probs_after.items():
+        success_probs_after[t] =1.0-success_probs_after_intersect[t]
+        #if success_probs_after[t] != success_probs_after_intersect[t]:
+        #   success_probs_after[t] = (p-success_probs_after_intersect[t])
+        if success_probs_after[t] > 1.0:
+            success_probs_after[t] = 1.0
 
 
-    #before_sp = sum(list(success_probs_before.values()))/float(len(success_probs_before))
-    #print('success prob of multidimensions before fix: %f' % before_sp)
+    before_sp = sum(list(success_probs_before.values()))/float(len(success_probs_before))
+    print('success prob of multidimensions before fix: %f' % before_sp)
 
-    #after_sp = sum(list(success_probs_after.values()))/float(len(success_probs_after))
-    #print('success prob of multidimensions after fix: %f' % after_sp)
+    after_sp = sum(list(success_probs_after.values()))/float(len(success_probs_after))
+    print('success prob of multidimensions after fix: %f' % after_sp)
 
     multi_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/multidim_dists_before_' + str(len(alldomains)) + '_' + str(dim_num) + '.json'
-    #json.dump(success_probs_before, open(multi_json, 'w'))
+    json.dump(success_probs_before, open(multi_json, 'w'))
     print('printed mult results to %s.' % multi_json)
 
-    #multi_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/multidim_dists_' + str(len(alldomains)) + '_' + str(dim_num) + '_g10rhap.json'
-    #json.dump(success_probs_before, open(multi_json, 'w'))
-    #print('printed mult results to %s.' % multi_json)
+    multi_json = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/multidim_dists_' + str(len(alldomains)) + '_' + str(dim_num) + '_g10rhap.json'
+    json.dump(success_probs_after, open(multi_json, 'w'))
+    print('printed mult results to %s.' % multi_json)
+
+
+    print('extracting semantics of orgs')
+    dirpath = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_sem'
+    for of in org_filenames:
+        h, t = ntpath.split(of)
+        orgm.get_org_semantic(of, os.path.join(dirpath, t))
 
 
 
@@ -338,20 +346,18 @@ def multidimensional_hierarchy(dim_num):
 
 TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_embs'
 DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/domain_embs'
-GOOD_TAGS_FILE = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/output/good_labels.json'
 
 init(400)
 
 simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims_' + str(len(domains)) + '.json'
 orgk.all_pair_sim(domains, simfile)
-
+#
 #init_load(simfile)
 
 init_plus()
 
+multidimensional_hierarchy(2)
+
 #orgc.cmeans_clustering(keys, vecs)
-
-multidimensional_hierarchy(3)
-
 #dims = orgh.get_dimensions(keys, vecs, 10)
 
