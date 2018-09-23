@@ -3,14 +3,12 @@ import org.graph as orgg
 import operator
 import numpy as np
 import math
-from scipy import linalg
 #import datetime
 import multiprocessing
 import random
 from sklearn.cluster import KMeans
 #from itertools import repeat
 import json
-#import datetime
 
 
 node_dom_sims = dict()
@@ -137,8 +135,9 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds, dtype
 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
-        if success_probs[t] != success_probs_intersect[t]:
-            success_probs[t] -= success_probs_intersect[t]
+        success_probs[t] = 1-success_probs_intersect[t]
+        #if success_probs[t] != success_probs_intersect[t]:
+            #success_probs[t] -= success_probs_intersect[t]
         if success_probs[t] > 1.0:
              print('table %s has sp > 1.0.' % t)
              success_probs[t] = 1.0
@@ -203,7 +202,7 @@ def add_node_vecs(g, vecs, tags):
     for n in g.nodes:
         if n not in leaves:
             node_vecs = vecs[np.array(list(leaves.intersection(nx.descendants(g,n))))]
-            node_tags = tags[np.array(list(leaves.intersection(nx.descendants(g,n))))]
+            node_tags = np.array(tags)[np.array(list(leaves.intersection(nx.descendants(g,n))))]
             g.node[n]['population'] = list(node_vecs)
             g.node[n]['tags'] = list(node_tags)
             g.node[n]['rep'] = np.mean(node_vecs, axis=0)
@@ -470,8 +469,9 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
         # don't use the union if a table has only one table
-        if success_probs[t] != success_probs_intersect[t]:
-            success_probs[t] -= success_probs_intersect[t]
+        success_probs[t] = 1-success_probs_intersect[t]
+        #if success_probs[t] != success_probs_intersect[t]:
+            #success_probs[t] -= success_probs_intersect[t]
         if success_probs[t] > 1.0:
             print('table %s has sp > 1.0.' % t)
             success_probs[t] = 1.0
@@ -726,8 +726,9 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
-        if success_probs[t] != success_probs_intersect[t]:
-            success_probs[t] -= success_probs_intersect[t]
+        success_probs[t] = 1-success_probs_intersect[t]
+        #if success_probs[t] != success_probs_intersect[t]:
+            #success_probs[t] -= success_probs_intersect[t]
         if success_probs[t] > 1.0:
             print('table %s has sp > 1.0.' % t)
             success_probs[t] = 1.0
@@ -1024,7 +1025,7 @@ def get_dimensions(tags, vecs, n_dims):
         # find the cluster to merge with
         mergec = c
         maxsim = 0.0
-        for k, m in cmeans.items():
+        for k in list(dims.keys()):
             if c != k:
                 sim = max(0.000001, cosine(cmeans[c], cmeans[k]))
                 if sim > maxsim:
@@ -1034,6 +1035,8 @@ def get_dimensions(tags, vecs, n_dims):
         print('merging cluster %d with %d.' % (c, mergec))
         dims[mergec].extend(dims[c])
         del dims[c]
+        ocs.remove(c)
+        print('ocs: %d dims: %d' % (len(ocs), len(dims)))
     print('number of dims: %d' % len(dims))
     return dims
 
@@ -1069,6 +1072,22 @@ def get_dimension_selection_prob(rs, domain):
     return ps
 
 
+def save(h, hierarchy_filename):
+    hfile = open(hierarchy_filename,'w')
+    line = str(len(h.nodes))
+    hfile.write(line + '\n')
+    for s in h.nodes:
+        line = str(s) + ':' + '|'.join(map(str, h.node[s]['tags']))
+        hfile.write(line + '\n')
+        #line = str(s) + ':' + ','.join(map(str, h.node[s]['rep']))
+        #hfile.write(line + '\n')
+
+    line = str(len(h.edges))
+    hfile.write(line + '\n')
+    for e in h.edges:
+        line = str(e[0]) + ':' + str(e[1])
+        hfile.write(line + '\n')
+    hfile.close()
 
 
 
