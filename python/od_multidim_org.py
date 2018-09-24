@@ -292,7 +292,7 @@ def multidimensional_hierarchy(dim_num):
             success_probs_after[t] += p
             success_probs_after_intersect[t] *= (1.0-p)
         print('saving fg')
-        graph_file = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/hierarchy_' + str(i) + '.txt'
+        graph_file = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/hierarchy_' + str(len(domains)) + '_' + str(i) + '.txt'
         org_filenames.append(graph_file)
         print('getting semantics')
         orgh.save(fg, graph_file)
@@ -347,7 +347,7 @@ def multidimensional_hierarchy(dim_num):
 TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_embs'
 DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/domain_embs'
 
-init(400)
+init(800)
 
 simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims_' + str(len(domains)) + '.json'
 orgk.all_pair_sim(domains, simfile)
