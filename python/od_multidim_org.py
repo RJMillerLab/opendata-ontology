@@ -25,6 +25,7 @@ domains = []
 tagdomains = dict()
 domainclouds = dict()
 domaintags = dict()
+testdomains = []
 
 
 def write_emb_header():
@@ -46,8 +47,9 @@ def init(tag_num):
     ks = []
     vs = []
     for t, e in tag_embs.items():
-        ks.append(t)
-        vs.append(e)
+        if t.startswith('socrata_'):
+            ks.append(t)
+            vs.append(e)
 
 
     #tag_num = len(ks)
@@ -105,9 +107,11 @@ def init(tag_num):
         domains.extend(list(tagdomains[t]))
     vecs = np.array(lvecs)
     print('domains: %d vecs: %d keys: %d' % (len(domains), len(vecs), len(keys)))
+    testdomains = list(domains)
     # sampling
-    stagdomains, sdomains = orgs.stratified_sample(tagdomains, 0.3)
+    stagdomains, sdomains = orgs.stratified_sample(tagdomains, 0.6)
     print('sampled domains: %d sampled tagdomains: %d' % (len(sdomains), len(stagdomains)))
+    print('testdomains: %d' % len(testdomains))
     tagdomains = copy.deepcopy(stagdomains)
     domaintags = copy.deepcopy(adomaintags)
     domains = []
@@ -168,8 +172,9 @@ def init_load(simfile):
 def init_plus():
     global domainclouds
     # finding the cloud
-    simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims.json'
-    domainclouds = orgk.make_cloud(simfile, 0.80)
+    #simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims_' + str(len(domains)) + '.json'
+    domainclouds = orgk.make_cloud(simfile, 0.75)
+    print('domainclouds: %d' % len(domainclouds))
     orgk.plot(domainclouds)
 
 
@@ -247,6 +252,7 @@ def multidimensional_hierarchy(dim_num):
         domainclouds = dict()
         domain_names = {}
         tagdomains = dict()
+        print('alldomainclouds: %d' % len(alldomainclouds))
         for t in ts:
             vecs.append(allvecs[allkeys.index(t)])
             for td in alltagdomains[t]:
@@ -296,6 +302,7 @@ def multidimensional_hierarchy(dim_num):
         org_filenames.append(graph_file)
         print('getting semantics')
         orgh.save(fg, graph_file)
+        orgm.init_fromfile('/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_embs')
         orgm.get_states_semantic(graph_file)
         print('---------------')
 
@@ -316,6 +323,7 @@ def multidimensional_hierarchy(dim_num):
     before_sp = sum(list(success_probs_before.values()))/float(len(success_probs_before))
     print('success prob of multidimensions before fix: %f' % before_sp)
 
+
     after_sp = sum(list(success_probs_after.values()))/float(len(success_probs_after))
     print('success prob of multidimensions after fix: %f' % after_sp)
 
@@ -335,6 +343,18 @@ def multidimensional_hierarchy(dim_num):
         orgm.get_org_semantic(of, os.path.join(dirpath, t))
 
 
+def flat(suffix):
+    print('flat')
+    g = orgh.add_node_vecs(orgg.get_flat_cluster_graph(keys), vecs, keys)
+    orgh.init(g, domains, tagdomains, simfile)
+    results = orgh.fuzzy_evaluate(g.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
+    jsonfile = 'od_output/flat_dists_' + str(len(domains)) + '_' + suffix + '.json'
+    json.dump(results['success_probs'], open(jsonfile, 'w'))
+    print('number of tables: %d' % len(results['success_probs']))
+    print('sp: %f' % (sum(list(results['success_probs'].values()))/len(results['success_probs'])))
+    print('printed to %s' % jsonfile)
+
+
 
 #orgt.get_good_labels()
 
@@ -347,17 +367,29 @@ def multidimensional_hierarchy(dim_num):
 TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_embs'
 DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/domain_embs'
 
-init(800)
+#init(1000)
 
 simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims_' + str(len(domains)) + '.json'
-orgk.all_pair_sim(domains, simfile)
+#orgk.all_pair_sim(domains, simfile)
 #
 #init_load(simfile)
 
-init_plus()
+#init_plus()
 
-multidimensional_hierarchy(2)
+#multidimensional_hierarchy(2)
+
+#flat('od')
 
 #orgc.cmeans_clustering(keys, vecs)
 #dims = orgh.get_dimensions(keys, vecs, 10)
+gf1 = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_sem/hierarchy_1355_1.txt'
+gf2 = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_sem/hierarchy_105_0.txt'
+org_filenames = [gf1, gf2]
+orgm.init_fromfile('/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_embs')
+orgm.get_states_semantic(gf1)
+print('extracting semantics of orgs')
+dirpath = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_sem'
+for of in org_filenames:
+    h, t = ntpath.split(of)
+    orgm.get_org_semantic(of, os.path.join(dirpath, t))
 

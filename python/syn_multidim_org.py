@@ -17,13 +17,12 @@ vecs = np.array([])
 domains = []
 tagdomains = dict()
 domainclouds = dict()
-
+domaintags = dict()
 
 def init(tag_num):
-    global keys, vecs, domains, tagdomains
+    global keys, vecs, domains, tagdomains, domaintags
     print("Loading domains")
     adomains = list(orgl.add_ft_vectors(orgl.iter_domains()))
-    domains = domains
     print("Reduce tags")
     atags, atagdomains = orgl.reduce_tag_vectors(adomains)
     print('number of tags: %d' % len(atags))
@@ -34,6 +33,13 @@ def init(tag_num):
     tags = dict()
     tagdomains = dict()
     nudomains = []
+
+    for dom in adomains:
+        if dom['name'] not in domaintags:
+            domaintags[dom['name']] = []
+            if dom['tag'] not in domaintags[dom['name']]:
+                domaintags[dom['name']].append(dom['tag'])
+    print('domain tags: %d' % len(domaintags))
     for t in tvs:
         tags[t] = copy.deepcopy(atags[t])
         tagdomains[t] = copy.deepcopy(atagdomains[t])
@@ -47,7 +53,6 @@ def init(tag_num):
             seen[domain['name']] = True
     print('domains: %d  -> domains: %d' % (len(nudomains), len(domains)))
     keys, vecs = orgc.mk_tag_table(tags)
-    return keys, vecs, tagdomains
 
 
 
@@ -63,10 +68,10 @@ def init_plus():
 
 def fix(g, hierarchy_name):
     print('fix')
-    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'synthetic')
+    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'synthetic', domaintags)
 
     print('fuzzy: ')
-    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds, 'synthetic')
+    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds, 'synthetic', domaintags)
     success_probs = results['success_probs']
 
     json.dump(success_probs, open('synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json', 'w'))
@@ -95,9 +100,9 @@ def fix(g, hierarchy_name):
 
 def agg_fuzzy(suffix1, suffix2):
     print('agg_fuzzy')
-    gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs)
-    orgh.init(gp, domains, tagdomains)
-    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'synthetic')
+    gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs, keys)
+    orgh.init(gp, domains, tagdomains, simfile)
+    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'synthetic', domaintags)
     success_probs = results['success_probs']
     avg_success_prob = sum(list(success_probs.values()))/float(len(success_probs))
 
@@ -109,7 +114,7 @@ def agg_fuzzy(suffix1, suffix2):
     return gp, results['success_probs']
 
     print("evaluating")
-    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'synthetic')
+    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'synthetic', domaintags)
     success_probs = results['success_probs']
     avg_success_prob = sum(list(success_probs.values()))/float(len(success_probs))
     print("ploting")
@@ -218,7 +223,7 @@ def multidim():
 
 init(500)
 
-#simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/allpair_sims.json'
+simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/allpair_sims.json'
 #orgk.all_pair_sim(domains, simfile)
 
 init_plus()

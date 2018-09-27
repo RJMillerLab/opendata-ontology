@@ -19,13 +19,13 @@ vecs = np.array([])
 domains = []
 tagdomains = dict()
 domainclouds = dict()
+domaintags = dict()
 
 
 def init(tag_num):
-    global keys, vecs, domains, tagdomains
+    global keys, vecs, domains, tagdomains, domaintags
     print("Loading domains")
     adomains = list(orgl.add_ft_vectors(orgl.iter_domains()))
-    domains = domains
     print("Reduce tags")
     atags, atagdomains = orgl.reduce_tag_vectors(adomains)
     print('number of tags: %d' % len(atags))
@@ -33,6 +33,15 @@ def init(tag_num):
     satagdomcounts = sorted(atagdomcounts.items(), key=operator.itemgetter(1), reverse=True)
     tvs = [p[0] for p in satagdomcounts]
     tvs = tvs[:tag_num]
+
+    for dom in adomains:
+        if dom['tag'] not in tvs:
+            continue
+        if dom['name'] not in domaintags:
+            domaintags[dom['name']] = []
+            if dom['tag'] not in domaintags[dom['name']]:
+                domaintags[dom['name']].append(dom['tag'])
+
     tags = dict()
     tagdomains = dict()
     nudomains = []
@@ -86,6 +95,7 @@ def singledimensional_hierarchy():
     graph_file = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/hierarchy_' + str(len(domains)) + '.txt'
     print('getting semantics')
     orgh.save(fg, graph_file)
+    orgm.init_fromarrays(keys, vecs)
     orgm.get_states_semantic(graph_file)
     print('extracting semantics of org')
     dirpath = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_sem'
@@ -96,12 +106,12 @@ def singledimensional_hierarchy():
 
 def fix(g, hierarchy_name):
     print('fix')
-    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'synthetic')
+    h, iteration_sps, iteration_ls = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'synthetic', domaintags)
 
     #print('strict')
     #results = orgh.evaluate(h.copy(), domains, tagdomains)
     print('fuzzy: ')
-    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds, 'synthetic')
+    results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds, 'synthetic', domaintags)
     success_probs = results['success_probs']
 
     json.dump(success_probs, open('synthetic_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json', 'w'))
@@ -132,7 +142,7 @@ def agg_fuzzy(suffix1, suffix2):
     print('agg_fuzzy')
     gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs, keys)
     orgh.init(gp, domains, tagdomains, simfile)
-    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'synthetic')
+    results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'synthetic', domaintags)
     success_probs = results['success_probs']
     avg_success_prob = sum(list(success_probs.values()))/float(len(success_probs))
     print('fuzzy: %f' % avg_success_prob)
@@ -146,11 +156,9 @@ def agg_fuzzy(suffix1, suffix2):
 
 def flat(suffix):
     print('flat')
-    g = orgh.add_node_vecs(orgg.get_flat_cluster_graph(keys), vecs)
-    orgh.init(g, domains, tagdomains)
-    #results = orgh.evaluate(g, domains, tagdomains)
-    results = orgh.fuzzy_evaluate(g.copy(), domains, tagdomains, domainclouds, 'synthetic')
-    print(results['success_probs'])
+    g = orgh.add_node_vecs(orgg.get_flat_cluster_graph(keys), vecs, keys)
+    orgh.init(g, domains, tagdomains, simfile)
+    results = orgh.fuzzy_evaluate(g.copy(), domains, tagdomains, domainclouds, 'synthetic', domaintags)
     jsonfile = 'synthetic_output/flat_dists_' + str(len(domains)) + '_' + suffix + '.json'
     json.dump(results['success_probs'], open(jsonfile, 'w'))
     print('number of tables: %d' % len(results['success_probs']))
@@ -159,16 +167,16 @@ def flat(suffix):
 
 
 
-init(20)
+init(500)
 
 simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/allpair_sims.json'
 #orgk.all_pair_sim(domains, simfile)
 
 init_plus()
 
-singledimensional_hierarchy()
+#singledimensional_hierarchy()
 
-#flat('g10')
+flat('notor')
 
 #gp, results = agg_fuzzy('fuzzy_gamma10', 'strict')
 
