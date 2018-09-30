@@ -10,8 +10,8 @@ GOOD_LABELS_FILE = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-onto
 LABELS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_names_31k.json'
 OPENDATA_DIR = '/home/fnargesian/FINDOPENDATA_DATASETS/10k'
 EMBS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/table_embs'
-DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/domain_embs'
-LABEL_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_embs'
+DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_domain_embs'
+LABEL_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_label_embs'
 K = 1000
 FT_DIM = 300
 
@@ -53,25 +53,33 @@ def tag_embs():
     domains = []
     df = pd.read_csv(EMBS_FILE)
     count = 0
-    print(len(table_labels))
-    print(len(df))
-    return
+    print('total number of tables: %d' % len(table_labels))
+    print('number of rows: %d' % len(df))
+    domcount = 0
+    tablenotfound = []
+
     for index, row in df.iterrows():
         count += 1
-        if count > 20000:
-            continue
+        if (count+1) % 50 == 0:
+            print('processed %d rows ().' % count)
+        #if count > 20000:
+        #    continue
         e = []
         t = row['dataset_name'].replace('\\\"', '')
         for i in range(FT_DIM):
             e.append(float(row['f' + str(i)]))
         # summing emb vectors
         if t not in table_labels:
-            print('%s is not in table_labels.' % t)
+            #print('%s is not in table_labels.' % t)
+            if t not in tablenotfound:
+                tablenotfound.append(t)
             continue
-        else:
-            print('exists')
         for l in table_labels[t]:
             l = str(l)
+            if not l.startswith('socrata_'):
+                continue
+            domcount += 1
+            continue
             # creating a domain
             dom = dict()
             c = str(row['column_id']).replace('\\\"', '')
@@ -91,6 +99,7 @@ def tag_embs():
     for l, e in label_embs.items():
         label_embs2[label_names[l]] = list(label_embs[l] / label_emb_counts[l])
 
+    print('%d tables out of %d do not have lables.' % (len(tablenotfound), len(table_labels)))
     json.dump(domains, open(DOMAIN_FILE, 'w'))
     json.dump(label_embs2, open(LABEL_EMB_FILE, 'w'))
     print('done %d  %d' % (len(domains), len(label_embs2)))
@@ -112,9 +121,9 @@ def filter_tags():
 
 
 
-filter_tags()
+#filter_tags()
 
-
+tag_embs()
 
 
 
