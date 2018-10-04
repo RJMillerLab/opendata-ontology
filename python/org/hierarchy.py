@@ -19,7 +19,10 @@ top = []
 gamma = 10.0
 
 def init(g, domains, tagdomains, simfile, tgparam=10.0):
-    print('not considering intact domains and among domains in the subtree of head only considering those with >0.0 trans prob.')
+    #print('trans sim > 0.5')
+    #print('reach prob > 0.1')
+    #print('considering only domains that need to updated.')
+    print('sanity check of domain prunning')
     global node_dom_sims, dom_selection_probs, dom_sims, gamma
     gamma = float(tgparam)
     print('gamma: %f' % gamma)
@@ -35,6 +38,7 @@ def init(g, domains, tagdomains, simfile, tgparam=10.0):
             node_dom_sims[n][dom['name']] = get_transition_sim(g.node[n]['rep'], dom['mean'])
 
     print('done init')
+
 
 def update_node_dom_sims(g, domains, ns):
     for n in ns:
@@ -616,33 +620,34 @@ def get_success_prob_likelihood(g, domains, dtype):
     return expected_success, h, success_probs, likelihood
 
 
+
 def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
+
+    domains, dnames = get_domains_to_update_plus(g, adomains, nodes, tagdomains, domainclouds, update_head)
+
+    expected_success1, h1, success_probs1, likelihood1, domain_success_probs1 = get_success_prob_prune_domains(g.copy(), domains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head, prev_success_probs, prev_domain_success_probs, domains, dnames)
+
+    #domains, dnames = get_domains_to_update(g, adomains, nodes, tagdomains, domainclouds, update_head)
+
+    #expected_success2, h2, success_probs2, likelihood2, domain_success_probs2 = get_success_prob_prune_domains(g.copy(), domains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head, prev_success_probs, prev_domain_success_probs, domains, dnames)
+
+    expected_success3, h3, success_probs3, likelihood3, domain_success_probs3 = get_success_prob_likelihood_fuzzy(g.copy(), domains, tagdomains, domainclouds, dtype, domaintags)
+
+    if expected_success3 != expected_success1:
+        print('mistake in computing success prob')
+
+    #print('expected success with exact: %f  with approximate: %f' % (expected_success1, expected_success2))
+    return expected_success1, h1, success_probs1, likelihood1, domain_success_probs1
+
+def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,      prev_success_probs, prev_domain_success_probs, domains, update_domain_names):
 
     h = g
     top = list(nx.topological_sort(g))
-
-    domains, dnames = get_domains_to_update_plus(g, adomains, nodes, tagdomains, domainclouds, update_head)
-    domains2, dnames2 = get_domains_to_update(g, adomains, nodes, top, domainclouds, update_head)
-    domains3, dnames3 = get_domains_to_update_plus_plus(g, adomains, nodes, tagdomains, domainclouds, update_head)
-
-
-    print('intact - threshold: %d' % (len(list(set(dnames).difference(set(dnames2))))))
-    print('threshold - intact: %d' % (len(list(set(dnames2).difference(set(dnames))))))
-
-    print('considering %d domains (not intact) and %d domains (threshold based) and %d (trans_prob) instead of %d.' % (len(domains), len(domains2), len(domains3), len(adomains)))
-
-    domains = list(domains3)
 
     success_probs = dict()
     success_probs_intersect = dict()
     domain_success_probs = dict()
     likelihood = 0.0
-
-    update_domain_names = [dom['name'] for dom in domains]
-    update_domain_names2 = [dom['name'] for dom in domains2]
-
-    if len(list(set(update_domain_names).intersection(set(update_domain_names2)))) < len(update_domain_names):
-        print('inequal intersection')
 
     # reset states' reachability
     for p in h.nodes:
@@ -659,7 +664,7 @@ def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, d
         if dtype == 'opendata':
             table = dom['name'][:dom['name'].rfind('_')]
 
-        sp = prev_success_probs[table]
+        sp = prev_domain_success_probs[dom['name']]
         if table not in success_probs_intersect:
             success_probs_intersect[table] = (1.0-sp)
             success_probs[table] = sp
@@ -748,7 +753,7 @@ def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, d
 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
-        success_probs[t] = 1-success_probs_intersect[t]
+        success_probs[t] = 1.0-success_probs_intersect[t]
         if success_probs[t] > 1.0:
             print('table %s has sp > 1.0.' % t)
             success_probs[t] = 1.0
@@ -1132,10 +1137,8 @@ def get_domains_to_update_plus(g, domains, nodes, tagdomains, domainclouds, head
     dnames = []
     leaves = orgg.get_leaves(g)
     leaf_nodes = set()
-    ds = {}
-    if head in leaves:
-        ds = ds.union({head})
-    else:
+    ds = {head}
+    if head not in leaves:
         ds = set(nx.descendants(g, head)).intersection(set(leaves))
     leaf_nodes = leaf_nodes.union(ds)
     for s in leaf_nodes:
@@ -1149,7 +1152,8 @@ def get_domains_to_update_plus(g, domains, nodes, tagdomains, domainclouds, head
     for dom in domains:
         if dom['name'] not in dnames and dom['name'] not in intactdomains:
             intactdomains.append(dom['name'])
-    print('intactdomains: %d' % len(intactdomains))
+    if (len(intactdomains)+len(dnames))!=len(domains):
+        print('exact and intact are not equal.')
     update_domains = list(updomains)
     for dom in updomains:
         for dp in domainclouds[dom['name']].keys():
@@ -1157,31 +1161,12 @@ def get_domains_to_update_plus(g, domains, nodes, tagdomains, domainclouds, head
                 for l in domain_index[dp]:
                     update_domains.append(domains[l])
                 dnames.append(dp)
-    return updomains, dnames
-
-def get_domains_to_update(g, domains, nodes_toupdate, top, domainclouds, head):
-    domain_index = dict()
-    for i in range(len(domains)):
-        if domains[i]['name'] not in domain_index:
-            domain_index[domains[i]['name']] = []
-            domain_index[domains[i]['name']].append(i)
-    udomains = []
-    seen = []
-    for dom in domains:
-        if dom['name'] in node_dom_sims[head]:
-            if node_dom_sims[head][dom['name']]>=0.5:
-                if dom['name'] not in seen:
-                    udomains.append(dom)
-                    seen.append(dom['name'])
-                for d in domainclouds[dom['name']].keys():
-                    if d not in seen:
-                        for l in domain_index[d]:
-                            udomains.append(domains[l])
-                        seen.append(d)
-    return udomains, seen
+    if len(dnames) != len(update_domains):
+        print('names and domains do not match.')
+    return update_domains, dnames
 
 
-def get_domains_to_update_plus_plus(g, domains, nodes, tagdomains, domainclouds, head):
+def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head):
 
     exact_updates, exact_up_names = get_domains_to_update_plus(g, domains, nodes, tagdomains, domainclouds, head)
 
@@ -1200,12 +1185,9 @@ def get_domains_to_update_plus_plus(g, domains, nodes, tagdomains, domainclouds,
             if dom['name'] not in seen:
                 udomains.append(dom)
                 seen.append(dom['name'])
-            for d in domainclouds[dom['name']].keys():
-                if d not in seen:
-                    for l in domain_index[d]:
-                        udomains.append(domains[l])
-                        seen.append(d)
-    print('exatct updates: %d vs approximate updates: %d' % (len(set(exact_up_names)), len(seen)))
+        if g.node[head][dom['name']]['reach_prob_domain'] == 0.0:
+            print('reach prob to domains is 0.')
+
     return udomains, seen
 
 
