@@ -9,7 +9,7 @@ import random
 from sklearn.cluster import KMeans
 #from itertools import repeat
 import json
-
+from sklearn.metrics import silhouette_score
 
 node_dom_sims = dict()
 dom_selection_probs = dict()
@@ -19,6 +19,7 @@ top = []
 gamma = 10.0
 
 def init(g, domains, tagdomains, simfile, tgparam=10.0):
+    print('not considering intact domains and among domains in the subtree of head only considering those with >0.0 trans prob.')
     global node_dom_sims, dom_selection_probs, dom_sims, gamma
     gamma = float(tgparam)
     print('gamma: %f' % gamma)
@@ -58,17 +59,7 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds, dtype
         domain_index[domains[i]['name']].append(i)
     # evaluation
     samedom = 0
-    #ido = 0
-    #se1, se2 = 0.0, 0.0
-    #ats = 0
     for domain in domains:
-        #if (ido+1)%50 == 0:
-        #    print('se1: %f  se2: %f' % (se1/50.0, se2/50.0))
-        #    print('ido: %d ats: %f' % (ido, ats/50.0))
-        #    se1 = 0.0
-        #    se2 = 0.0
-        #    ats = 0
-        #ido+=1
         # finding the tags of accepted domains
         accepted_tags = []
         for c in list(domainclouds[domain['name']].keys()):
@@ -78,18 +69,8 @@ def compute_reachability_probs_plus(gp, domains, tagdomains, domainclouds, dtype
                 accepted_tags.extend(domaintags[c])
                 #accepted_tags.append(domains[di]['tag'])
         accepted_tags = list(set(accepted_tags))
-        #ats += len(accepted_tags)
-
-        #print('clouddoms: %d cloudtags: %d' % (len(domainclouds[domain['name']]), len(accepted_tags)))
-
-        #t0 = datetime.datetime.now()
 
         g, tags = compute_tag_probs(h, domain, top, leaves)
-
-        #t1 = datetime.datetime.now()
-        #se1 += ((t1-t0).microseconds/1000)
-
-        #t0 = datetime.datetime.now()
 
         tag_dist = sorted(tags.items(), key=operator.itemgetter(1), reverse=True)
         # finding the most reachable domain
@@ -377,10 +358,10 @@ def recompute_local_success_prob(domain):
 def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, all_success_probs, domainclouds, dtype):
     domains = []
     if do:
-        domains = get_domains_to_update(g, adomains, nodes, tagdomains)
+        domains, dnames = get_domains_to_update(g, adomains, nodes, tagdomains)
         print('considering %d doms instead of %d.' % (len(domains), len(adomains)))
     else:
-        domains = adomains
+        domains = list(adomains)
 
     top = list(nx.topological_sort(g))
     leaves = orgg.get_leaves(g)
@@ -493,7 +474,7 @@ def recompute_success_prob_likelihood_fuzzy(g, adomains, nodes, tagdomains, do, 
 def recompute_success_prob_likelihood(g, adomains, nodes, tagdomains, do, all_success_probs, dtype):
     domains = []
     if do:
-        domains = get_domains_to_update(g, adomains, nodes, tagdomains)
+        domains, dnames = get_domains_to_update(g, adomains, nodes, tagdomains)
         print('considering %d doms instead of %d.' % (len(domains), len(adomains)))
     else:
         domains = adomains
@@ -635,12 +616,166 @@ def get_success_prob_likelihood(g, domains, dtype):
     return expected_success, h, success_probs, likelihood
 
 
+def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
+
+    h = g
+    top = list(nx.topological_sort(g))
+
+    domains, dnames = get_domains_to_update_plus(g, adomains, nodes, tagdomains, domainclouds, update_head)
+    domains2, dnames2 = get_domains_to_update(g, adomains, nodes, top, domainclouds, update_head)
+    domains3, dnames3 = get_domains_to_update_plus_plus(g, adomains, nodes, tagdomains, domainclouds, update_head)
+
+
+    print('intact - threshold: %d' % (len(list(set(dnames).difference(set(dnames2))))))
+    print('threshold - intact: %d' % (len(list(set(dnames2).difference(set(dnames))))))
+
+    print('considering %d domains (not intact) and %d domains (threshold based) and %d (trans_prob) instead of %d.' % (len(domains), len(domains2), len(domains3), len(adomains)))
+
+    domains = list(domains3)
+
+    success_probs = dict()
+    success_probs_intersect = dict()
+    domain_success_probs = dict()
+    likelihood = 0.0
+
+    update_domain_names = [dom['name'] for dom in domains]
+    update_domain_names2 = [dom['name'] for dom in domains2]
+
+    if len(list(set(update_domain_names).intersection(set(update_domain_names2)))) < len(update_domain_names):
+        print('inequal intersection')
+
+    # reset states' reachability
+    for p in h.nodes:
+        h.node[p]['reach_prob'] = 0
+    # the reachability prob of domains that are not candidates for update remains intact
+    for dom in adomains:
+        if dom['name'] in update_domain_names:
+            continue
+
+        table = ''
+        if dtype == 'synthetic':
+            colid = int(dom['name'][dom['name'].rfind('_')+1:])
+            table = dom['name'][:dom['name'].rfind('_')]+'_'+str(colid%2)
+        if dtype == 'opendata':
+            table = dom['name'][:dom['name'].rfind('_')]
+
+        sp = prev_success_probs[table]
+        if table not in success_probs_intersect:
+            success_probs_intersect[table] = (1.0-sp)
+            success_probs[table] = sp
+        else:
+            success_probs_intersect[table] *= (1.0-sp)
+            success_probs[table] += sp
+        domain_success_probs[dom['name']] = prev_domain_success_probs[dom['name']]
+        # accumulate the reachability of non-updatable domains
+        for p in h.nodes:
+            h.node[p]['reach_prob'] += h.node[p][dom['name']]['reach_prob_domain']
+            likelihood += math.log(h.node[p][dom['name']]['reach_prob_domain'])
+
+    leaves = orgg.get_leaves(g)
+    samedom = 0
+    dom_target_sims = []
+    reachable_dom_probs = []
+    # building a domain index on domain names
+    domain_index = dict()
+    for i in range(len(domains)):
+        if domains[i]['name'] not in domain_index:
+            domain_index[domains[i]['name']] = []
+        domain_index[domains[i]['name']].append(i)
+    #
+    inc_count = 0
+    dec_count = 0
+    for domain in domains:
+        # finding the tags of accepted domains
+        accepted_tags = []
+        for c in list(domainclouds[domain['name']].keys()):
+            if c not in domain_index:
+                continue
+            for di in domain_index[c]:
+                accepted_tags.extend(domaintags[c])
+        accepted_tags = list(set(accepted_tags))
+        #
+        table = ''
+        if dtype == 'synthetic':
+            colid = int(domain['name'][domain['name'].rfind('_')+1:])
+            table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
+        if dtype == 'opendata':
+            table = domain['name'][:domain['name'].rfind('_')]
+        gp = get_domain_edge_probs(h, domain, leaves)
+        gpp = get_domain_node_probs(gp, domain, top)
+        # finding the most reachable domain
+        max_reached_dom_prob = 0.0
+        max_reached_dom_sim = 0.0
+        most_reachable_dom = ''
+        #
+        for n in leaves:
+            if gpp.node[n]['tag'] not in accepted_tags:
+                continue
+            if domain['name'] not in list(domainclouds[domain['name']].keys()):
+                print('no %d' % len(list(domainclouds[domain['name']].keys())))
+            selps, sims = get_dom_trans_prob(tagdomains[gpp.node[n]['tag']], domain)
+            for d in tagdomains[gpp.node[n]['tag']]:
+                sp = selps[d['name']] * gpp.node[n][domain['name']]['reach_prob_domain']
+                if sp > max_reached_dom_prob:
+                    max_reached_dom_prob = sp
+                    max_reached_dom_sim = sims[d['name']]
+                    most_reachable_dom = d['name']
+        dom_target_sims.append(max_reached_dom_sim)
+        reachable_dom_probs.append(max_reached_dom_prob)
+        sp = max_reached_dom_prob
+
+        domain_success_probs[domain['name']] = sp
+        if domain_success_probs[domain['name']] > prev_domain_success_probs[domain['name']]:
+            inc_count += 1
+        else:
+            dec_count += 1
+
+        if table not in success_probs:
+            success_probs_intersect[table] = (1.0-sp)
+            success_probs[table] = sp
+        else:
+            success_probs_intersect[table] *= (1.0-sp)
+            success_probs[table] += sp
+
+        if domain['name'] == most_reachable_dom:
+            samedom += 1
+
+        for p in gpp.nodes:
+            gpp.node[p]['reach_prob'] += gpp.node[p][domain['name']]['reach_prob_domain']
+            likelihood += math.log(gpp.node[n][domain['name']]['reach_prob_domain'])
+
+        h = gpp
+
+    # the prob of finding a table is the union of the prob of finding its domains
+    for t, p in success_probs.items():
+        success_probs[t] = 1-success_probs_intersect[t]
+        if success_probs[t] > 1.0:
+            print('table %s has sp > 1.0.' % t)
+            success_probs[t] = 1.0
+
+
+    for p in h.nodes:
+        h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(adomains))
+
+    if len(success_probs) != len(prev_success_probs) or len(prev_domain_success_probs) != len(domain_success_probs):
+        print('have not looked at all doms and tables.')
+    expected_success = sum(list(success_probs.values()))/float(len(success_probs))
+    if expected_success == 0:
+        print('zero expected_success.')
+
+    print('inc: %d dec: %d out of %d (%d)' % (inc_count, dec_count, len(domains), len(adomains)))
+
+    return expected_success, h, success_probs, likelihood, domain_success_probs
+
+
+
 
 
 def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
 
     top = list(nx.topological_sort(g))
     success_probs = dict()
+    domain_success_probs = dict()
     success_probs_intersect = dict()
     h = g
     leaves = orgg.get_leaves(g)
@@ -708,6 +843,9 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
             table = domain['name'][:domain['name'].rfind('_')]
         sp = max_reached_dom_prob
 
+        domain_success_probs[domain['name']] = sp
+
+
         if table not in success_probs:
             success_probs_intersect[table] = (1.0-sp)
             success_probs[table] = sp
@@ -741,7 +879,7 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
     if expected_success == 0:
         print('zero expected_success.')
 
-    return expected_success, h, success_probs, likelihood
+    return expected_success, h, success_probs, likelihood, domain_success_probs
 
 
 def get_success_prob_likelihood_plus(g, domains):
@@ -981,22 +1119,94 @@ def get_improvement(init, final):
     return imp
 
 
-def get_domains_to_update(g, domains, nodes, tagdomains):
+# remove intact domains from domains to be evaluated.
+def get_domains_to_update_plus(g, domains, nodes, tagdomains, domainclouds, head):
+    # build an index on domain names
+    domain_index = dict()
+    for i in range(len(domains)):
+        if domains[i]['name'] not in domain_index:
+            domain_index[domains[i]['name']] = []
+            domain_index[domains[i]['name']].append(i)
+
     updomains = []
     dnames = []
     leaves = orgg.get_leaves(g)
     leaf_nodes = set()
-    for n in nodes:
-        ds = set(nx.descendants(g, n)).intersection(set(leaves))
-        if n in leaves:
-            ds = ds.union({n})
-        leaf_nodes = leaf_nodes.union(ds)
+    ds = {}
+    if head in leaves:
+        ds = ds.union({head})
+    else:
+        ds = set(nx.descendants(g, head)).intersection(set(leaves))
+    leaf_nodes = leaf_nodes.union(ds)
     for s in leaf_nodes:
         for d in tagdomains[g.node[s]['tag']]:
             if d['name'] not in dnames:
                 updomains.append(d)
                 dnames.append(d['name'])
-    return updomains
+
+    # finding intact domains
+    intactdomains = []
+    for dom in domains:
+        if dom['name'] not in dnames and dom['name'] not in intactdomains:
+            intactdomains.append(dom['name'])
+    print('intactdomains: %d' % len(intactdomains))
+    update_domains = list(updomains)
+    for dom in updomains:
+        for dp in domainclouds[dom['name']].keys():
+            if dp not in dnames and dp not in intactdomains:
+                for l in domain_index[dp]:
+                    update_domains.append(domains[l])
+                dnames.append(dp)
+    return updomains, dnames
+
+def get_domains_to_update(g, domains, nodes_toupdate, top, domainclouds, head):
+    domain_index = dict()
+    for i in range(len(domains)):
+        if domains[i]['name'] not in domain_index:
+            domain_index[domains[i]['name']] = []
+            domain_index[domains[i]['name']].append(i)
+    udomains = []
+    seen = []
+    for dom in domains:
+        if dom['name'] in node_dom_sims[head]:
+            if node_dom_sims[head][dom['name']]>=0.5:
+                if dom['name'] not in seen:
+                    udomains.append(dom)
+                    seen.append(dom['name'])
+                for d in domainclouds[dom['name']].keys():
+                    if d not in seen:
+                        for l in domain_index[d]:
+                            udomains.append(domains[l])
+                        seen.append(d)
+    return udomains, seen
+
+
+def get_domains_to_update_plus_plus(g, domains, nodes, tagdomains, domainclouds, head):
+
+    exact_updates, exact_up_names = get_domains_to_update_plus(g, domains, nodes, tagdomains, domainclouds, head)
+
+    domain_index = dict()
+    for i in range(len(domains)):
+        if domains[i]['name'] not in domain_index:
+            domain_index[domains[i]['name']] = []
+            domain_index[domains[i]['name']].append(i)
+    udomains = []
+    seen = []
+    for dom in domains:
+        if dom['name'] not in exact_up_names:
+            continue
+        if g.node[head][dom['name']]['reach_prob_domain'] > 0.0:
+        #if node_dom_sims[head][dom['name']]>0.5:
+            if dom['name'] not in seen:
+                udomains.append(dom)
+                seen.append(dom['name'])
+            for d in domainclouds[dom['name']].keys():
+                if d not in seen:
+                    for l in domain_index[d]:
+                        udomains.append(domains[l])
+                        seen.append(d)
+    print('exatct updates: %d vs approximate updates: %d' % (len(set(exact_up_names)), len(seen)))
+    return udomains, seen
 
 
 def get_dimensions(tags, vecs, n_dims):
@@ -1040,6 +1250,53 @@ def get_dimensions(tags, vecs, n_dims):
     print('number of dims: %d' % len(dims))
     return dims
 
+def get_dimensions_plus(tags, vecs):
+    print('vecs: %d tags: %d' % (len(vecs), len(tags)))
+    range_n_dims = [i for i in range(2, 20)]
+    for n_dims in range_n_dims:
+        kmeans = KMeans(n_clusters=n_dims, random_state=random.randint(1,1000)).fit(vecs)
+        cluster_labels = kmeans.fit_predict(vecs)
+        silhouette_avg = silhouette_score(vecs, cluster_labels)
+        print("For n_clusters =", n_dims, "The average silhouette_score is :", silhouette_avg)
+    dims = dict()
+    dimvecs = dict()
+    for i in range(len(kmeans.labels_)):
+        c = kmeans.labels_[i]
+        if c not in dims:
+            dims[c] = []
+            dimvecs[c] = []
+        dims[c].append(tags[i])
+        dimvecs[c].append(vecs[i])
+    # computing the means vectors
+    cmeans = dict()
+    for c, ts in dims.items():
+        cmeans[c] = np.mean(dimvecs[c], axis=0)
+    # merge the clusters with one member into a random cluster
+    ocs = list(dims.keys())
+    for c in ocs:
+        ts = dims[c]
+        print(len(ts))
+        if len(ts) > 15:
+            continue
+        # find the cluster to merge with
+        mergec = c
+        maxsim = 0.0
+        for k in list(dims.keys()):
+            if c != k:
+                sim = max(0.000001, cosine(cmeans[c], cmeans[k]))
+                if sim > maxsim:
+                    maxsim = sim
+                    mergec = k
+        # merge
+        print('merging cluster %d with %d.' % (c, mergec))
+        dims[mergec].extend(dims[c])
+        del dims[c]
+        ocs.remove(c)
+        print('ocs: %d dims: %d' % (len(ocs), len(dims)))
+    print('number of dims: %d' % len(dims))
+    return dims
+
+
 
 def get_dimension_selection_prob(rs, domain):
     global gamma
@@ -1079,8 +1336,6 @@ def save(h, hierarchy_filename):
     for s in h.nodes:
         line = str(s) + ':' + '|'.join(map(str, h.node[s]['tags']))
         hfile.write(line + '\n')
-        #line = str(s) + ':' + ','.join(map(str, h.node[s]['rep']))
-        #hfile.write(line + '\n')
 
     line = str(len(h.edges))
     hfile.write(line + '\n')
