@@ -299,7 +299,7 @@ def cmeans_clustering(tags, vecs):
     tags = np.array(tags)
     vecs = np.array(vecs)
 
-    for ncenters in range(2,8):
+    for ncenters in range(2,15):
         cntr, u, u0, d, jm, p, fpc = fuzz.cluster.cmeans(vecs.T, ncenters, 2, error=0.005, maxiter=1000, init=None)
         print('%d: fpc: %f' % (ncenters, fpc))
     dim_membership = np.argmax(u, axis=0)

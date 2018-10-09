@@ -9,6 +9,8 @@ def cluster_to_graph(cluster, vecs, tags):
     g.add_edges_from(edges)
     for n in get_leaves(g):
         g.node[n]['tag'] = tags[n]
+    if len(tags) != len(get_leaves(g)):
+        print('len(tags) != len(get_leaves(g))')
     return g
 
 
@@ -26,6 +28,12 @@ def get_flat_cluster_graph(tags):
 
 def get_leaves(g):
     return set([x for x in g.nodes() if g.out_degree(x)==0 and g.in_degree(x)>0])
+
+
+def isconnected(g):
+    if len([x for x in g.nodes() if g.in_degree(x)==0])==1:
+        return True
+    return False
 
 
 def get_root(g):

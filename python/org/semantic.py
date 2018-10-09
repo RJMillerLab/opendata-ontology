@@ -63,10 +63,10 @@ def get_org_semantic(org_filename, sem_filename):
         tags = statestags[s]
         parentsems = []
         for p in g.predecessors(s):
-            parentsems.extend(statesems[p])
+            parentsems.extend(statesems[str(p)])
         parentsems = list(set(parentsems))
         cent = get_state_rep(tags, parentsems)
-        statesems[state] = cent
+        statesems[str(s)] = cent
 
     print('ss %d' % len(statesems))
 

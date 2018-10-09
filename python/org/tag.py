@@ -5,8 +5,9 @@ from scipy.special import entr
 import os
 import glob
 
+
 TABLE_LABELS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/table_labels_31k.json'
-GOOD_LABELS_FILE = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/output/good_labels.json'
+GOOD_LABELS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/socrata/good_labels.json'
 LABELS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_names_31k.json'
 OPENDATA_DIR = '/home/fnargesian/FINDOPENDATA_DATASETS/10k'
 EMBS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/table_embs'
@@ -16,7 +17,7 @@ K = 1000
 FT_DIM = 300
 
 
-def get_good_labels():
+def get_good_labels_plus():
     print('get_good_labels')
     label_names = json.load(open(LABELS_FILE, 'r'))
     print('label_names: %d' % len(label_names))
@@ -61,7 +62,7 @@ def tag_embs():
     for index, row in df.iterrows():
         count += 1
         if (count+1) % 50 == 0:
-            print('processed %d rows ().' % count)
+           print('processed %d rows.' % count)
         #if count > 20000:
         #    continue
         e = []
@@ -76,10 +77,9 @@ def tag_embs():
             continue
         for l in table_labels[t]:
             l = str(l)
-            if not l.startswith('socrata_'):
+            if not label_names[l].startswith('socrata'):
                 continue
             domcount += 1
-            continue
             # creating a domain
             dom = dict()
             c = str(row['column_id']).replace('\\\"', '')
@@ -120,10 +120,33 @@ def filter_tags():
     print('socrata tables: %d' % len(socrata_tables))
 
 
+def get_good_labels():
+    good_labels = []
+    table_labels = json.load(open(TABLE_LABELS_FILE))
+    label_names = json.load(open(LABELS_FILE))
+    xs = [l for t, ls in table_labels.items() for l in ls if label_names[str(l)].startswith('socrata')]
+    xs = list(set(xs))
+    ys = [0 for l in xs]
+
+    for t, ls in table_labels.items():
+        for l in ls:
+            if not label_names[str(l)].startswith('socrata'):
+                continue
+            ys[xs.index(int(l))] += 1
+
+    for i in range(len(ys)):
+        if ys[i] > 9:
+            good_labels.append(int(xs[i]))
+
+    print('number of good labels: %d' % len(good_labels))
+    json.dump(good_labels, open(GOOD_LABELS_FILE, 'w'))
+
+
 
 #filter_tags()
 
-tag_embs()
+#tag_embs()
 
+get_good_labels()
 
 
