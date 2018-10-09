@@ -45,6 +45,8 @@ def plot():
 def look_lhs():
     rhs = []
     for t, p in tableprobs_multidim.items():
+        if p == 0.0:
+            print('0.0 prob')
         if tableprobs_before[t] <= tableprobs_multidim[t]:
             rhs.append(t)
     print('rhs multidim: %d' % len(rhs))

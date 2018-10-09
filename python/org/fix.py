@@ -40,7 +40,7 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
     best = gp.copy()
     print('starting with success prob: fuzzy %f' % (max_success))
 
-    fixfunctions = [add_parent, reduce_height, add_parent]
+    fixfunctions = [reduce_height, add_parent]
 
     for i in range(2):
         print(datetime.datetime.now())

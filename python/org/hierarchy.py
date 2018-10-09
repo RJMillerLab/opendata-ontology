@@ -623,10 +623,11 @@ def get_success_prob_likelihood(g, domains, dtype):
     return expected_success, h, success_probs, likelihood
 
 
-def get_success_prob_likelihood_partial_plus(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
+def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
 
     active_domains, dnames = get_domains_to_update(g.copy(), adomains, nodes, tagdomains, domainclouds, update_head, domaintags)
     print('exact doms: %d vs. %d' % (len(active_domains), len(adomains)))
+
 
     expected_success1, h1, success_probs1, likelihood1, domain_success_probs1 = get_success_prob_prune_domains(g.copy(), adomains, tagdomains, domainclouds, dtype, domaintags, prev_success_probs, prev_domain_success_probs, active_domains, dnames)
 
@@ -634,7 +635,7 @@ def get_success_prob_likelihood_partial_plus(g, adomains, tagdomains, domainclou
 
 
 
-def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
+def get_success_prob_likelihood_partial_plus(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
 
 
     active_domains, dnames = get_domains_to_update(g.copy(), adomains, nodes, tagdomains, domainclouds, update_head, domaintags)
@@ -1150,8 +1151,8 @@ def get_trans_prob(g, p, domain):
     sps = list(g.successors(p))
     branching_factor = len(sps)
     for s in sps:
-        m = get_transition_sim(g.node[s]['rep'], domain['mean'])
-        #m = node_dom_sims[s][domain['name']]
+        #m = get_transition_sim(g.node[s]['rep'], domain['mean'])
+        m = node_dom_sims[s][domain['name']]
         tsl.append(m)
         ts[s] = m
     #maxs = max(tsl)
@@ -1233,26 +1234,20 @@ def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, dom
     if head not in leaves:
         leaf_nodes = list(set(list(nx.descendants(g, head))).intersection(set(leaves)))
 
-    dnames2 = []
     for s in leaf_nodes:
         if len(tagdomains[g.node[s]['tag']]) == 0:
             print('err: no dom found')
-        tds = get_tag_domains(domains, g.node[s]['tag'])
-        for d in tds:
-            dnames2.append(d['name'])
         for d in tagdomains[g.node[s]['tag']]:
             if d['name'] not in dnames:
-                if True:
+                #if True:
                 #if g.node[head][d['name']]['reach_prob_domain'] > 0.0:
-                #if node_dom_sims[head][d['name']] > 0.6:
+                if node_dom_sims[head][d['name']] > 0.8:
                     updomains.append(d)
                     dnames.append(d['name'])
 
     if set([g.node[l]['tag'] for l in leaf_nodes])!=sts:
         print('err: tags in nodes are diff %d vs %d' % (len(set([g.node[l]['tag'] for l in leaf_nodes])), len(sts)))
 
-    if set(dnames2)!=set(dnames):
-        print('err: dnames and dnames2 are not teh same')
 
     # finding intact domains
     intactdomains = []
@@ -1280,13 +1275,6 @@ def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, dom
 
 
     return update_domains, update_domain_names
-
-def get_tag_domains(domains, tag):
-    tds = []
-    for dom in domains:
-        if dom['tag'] == tag:
-            tds.append(dom)
-    return tds
 
 
 def get_dimensions(tags, vecs, n_dims):
