@@ -135,3 +135,12 @@ def merge_graphs(gs):
 def get_nodeid_bounds(g):
     return min(list(g.nodes())), max(list(g.nodes()))
 
+
+def get_nodes(g):
+    return dict(g.nodes(data=True))
+
+def update_nodes_from_dict(g, nodes):
+    for n in g.nodes:
+        g.node[n] = copy.deepcopy(nodes[n])
+    return g
+
