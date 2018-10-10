@@ -34,9 +34,8 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
     iteration_success_probs = []
     iteration_likelihoods = []
     h = g.copy()
-    #max_success, gp, max_success_probs, likelihood = orgh.get_success_prob_likelihood(h, domains)
     max_success, gp, max_success_probs, likelihood, max_domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(h, domains, tagdomains, domainclouds, dtype, domaintags)
-    #initial_success_probs = copy.deepcopy(max_success_probs)
+
     best = gp.copy()
     print('starting with success prob: fuzzy %f' % (max_success))
 
@@ -51,7 +50,9 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
         level_n = orgg.level_down(gp, orgg.level_down(gp, [orgg.get_root(gp)]))
         print('top down')
         #level_n = set(set(gp.nodes).difference({orgg.get_root(gp)})).difference(set(orgg.level_down(gp, [orgg.get_root(gp)])))
-        while len(level_n) > 1:
+        #first = True
+        while len(level_n) > 1:# and first:
+            #first = False
             print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
             hf, ll, sps, its, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype, domaintags)
             iteration_success_probs.extend(list(its))
@@ -78,8 +79,8 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
 
 def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfunctions, dtype, domaintags):
 
-    if len(list(nx.simple_cycles(g)))!=0:
-        print('organization has cycles!')
+    #if len(list(nx.simple_cycles(g)))!=0:
+    #    print('organization has cycles!')
 
     iteration_success_probs = []
     iteration_likelihoods = []
