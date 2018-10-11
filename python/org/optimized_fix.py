@@ -148,9 +148,8 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
 
         potentials2 = list(nx.descendants(best, update_head))
 
-
-        #new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_partial(hap.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials2, update_head, max_success_probs, max_domain_success_probs)
-        new, likelihood = 0.0, 0.0
+        new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_partial(hap.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials2, update_head, max_success_probs, max_domain_success_probs)
+        print('after eval: nodes: %d edge: %d' % (len(gl.nodes), len(gl.edges)))
         apcount += 1
         print('after add_parent: prev %f new %f' % (max_success, new))
 
@@ -219,6 +218,7 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
     global rhcount
     print('reduce_height')
     if n not in h.nodes:
+        print('node has been removed')
         return h, -1.0, [], [], [], []
     g = h.copy()
 
@@ -235,6 +235,7 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
     pf = pfixes[0]
     grandparents = list(g.predecessors(pf[0]))
     if len(grandparents) == 0:
+        print('no grandparents')
         return g, -1.0, [], [], [], []
     # mix the siblings from the least reachable grand parent
     gpfixes = what_to_fix(g, grandparents)
@@ -243,12 +244,9 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
 
     potentials = list(set(nx.descendants(hp,gpf[0])))
 
-    #new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_partial(hp.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials, gpf[0], success_probs, domain_success_probs)
+    new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_partial(hp.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials, gpf[0], success_probs, domain_success_probs)
     rhcount += 1
 
-    new, likelihood = 0.0, 0.0
-    sps, dsps = dict()
-    gl = hp
     iteration_success_probs.append(new)
     iteration_likelihoods.append(likelihood)
     if new > max_success:

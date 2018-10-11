@@ -141,6 +141,25 @@ def get_nodes(g):
 
 def update_nodes_from_dict(g, nodes):
     for n in g.nodes:
-        g.node[n] = copy.deepcopy(nodes[n])
+        for p, v in nodes[n].items():
+            g.node[n][p] = v
+    return g
+
+def get_edges(g):
+    es = dict()
+    for e in list(g.edges(data=True)):
+        if e[0] not in es:
+            es[e[0]] = dict()
+        es[e[0]][e[1]] = dict()
+        #es[e[0]][e[1]] = {p:v for p, v in e[2].items()}
+        for p, v in e[2].items():
+            es[e[0]][e[1]][p] = v
+    return es
+
+def update_edges_from_dict(g, edges):
+    for s, os in edges.items():
+        for o, ps in os.items():
+            for p, v in ps.items():
+                g[s][o][p] = v
     return g
 
