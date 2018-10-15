@@ -1,19 +1,19 @@
-import org.hierarchy as orgh
+import org.optimized_hierarchy as orgh
 import org.graph as orgg
 import org.plot.dist_plot as orgp
 import org.cluster as orgc
 import org.sample as orgs
 import org.cloud as orgk
-import org.fix as orgf
-import org.semantic as orgm
+import org.optimized_fix as orgf
 import numpy as np
 import json
 import copy
 import datetime
-import ntpath
-import os
 
-
+simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims.json'
+dimfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/od_dims.json'
+traindomainfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/od_sample_domain_names.json'
+tagdomsimfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/tag_domain_sims.json'
 keys = []
 vecs = np.array([])
 domains = []
@@ -25,23 +25,22 @@ testtagdomains = dict()
 testdomainclouds = dict()
 testdomaintags = dict()
 testdomainsclouds = dict()
+dimdomains = []
+
+dim_num = 10
 
 
-dim_num = 6
+def init_load_dim(dim_id):
 
-
-def init_load_dim(dims_file, dim_id):
-
-    global testdomainclouds, domainclouds, testdomainnames, keys, vecs, testdomains, testtagdomains, testdomaintags,  domains, tagdomains, domaintags
+    global testdomainclouds, domainclouds, keys, vecs, testdomains, testtagdomains, testdomaintags,  domains, tagdomains, domaintags, dimdomains
 
     domaintags, tagdomains, testdomaintags, testtagdomains, testdomainclouds, domainclouds = dict(), dict(), dict(), dict(), dict(), dict()
     domains, testdomains = [], []
 
-    dims = json.load(open(dims_file, 'r'))
+    dims = json.load(open(dimfile, 'r'))
     dimtags = dims[dim_id]
 
-    sample_domain_names = json.load(open('od_sample_domain_names.json', 'r'))
-
+    sample_domain_names = json.load(open(traindomainfile, 'r'))
 
     tag_embs = json.load(open(TAG_EMB_FILE))
     ks = []
@@ -52,24 +51,34 @@ def init_load_dim(dims_file, dim_id):
             vs.append(e)
 
 
-    print('tag_embs: %d ks: %d vs: %d' % (len(tag_embs), len(vs), len(vs)))
+    print('tag_embs: %d dim ks: %d vs: %d' % (len(tag_embs), len(vs), len(vs)))
 
     keys = ks
     vecs = np.array(vs)
 
     alldomains = json.load(open(DOMAIN_FILE))
 
-    seen, tseen = [], []
     tbs, ttbs = [], []
-    traindomainnames = []
-
+    traindomainnames = dict()
+    testdomainnames = dict()
+    atagdomains = dict()
+    dimdomains = []
     for dom in alldomains:
 
         if dom['tag'] not in ks:
             continue
 
+        if dom['tag'] not in atagdomains:
+            atagdomains[dom['tag']] = []
+        if dom['name'] not in atagdomains[dom['tag']]:
+            atagdomains[dom['tag']].append(dom['name'])
+
         if dom['name'] not in sample_domain_names:
-            testdomainnames.append(dom['name'])
+            if dom['name'] not in testdomainnames:
+                testdomainnames[dom['name']] = True
+                testdomains.append(dom)
+                dimdomains.append(dom)
+
             if dom['name'] not in testdomaintags:
                 testdomaintags[dom['name']] = []
             if dom['tag'] not in testdomaintags[dom['name']]:
@@ -79,18 +88,91 @@ def init_load_dim(dims_file, dim_id):
             if table not in ttbs:
                 ttbs.append(table)
 
-
-            if dom['tag'] not in testtagdomains:
-                testtagdomains[dom['tag']] = []
-            testtagdomains[dom['tag']].append(dom)
-
-            if dom['name'] not in tseen:
-                testdomains.append(dom)
-                tseen.append(dom['name'])
-
             continue
+
+
         if dom['name'] not in traindomainnames:
-            traindomainnames.append(dom['name'])
+            traindomainnames[dom['name']] = True
+            domains.append(dom)
+            if dom['name'] not in testdomainnames:
+                dimdomains.append(dom)
+
+        if dom['name'] not in domaintags:
+            domaintags[dom['name']] = []
+        if dom['tag'] not in domaintags[dom['name']]:
+            domaintags[dom['name']].append(dom['tag'])
+
+        table = dom['name'][:dom['name'].rfind('_')]
+        if table not in tbs:
+            tbs.append(table)
+
+
+        if dom['tag'] not in tagdomains:
+            tagdomains[dom['tag']] = []
+        if dom['name'] not in tagdomains[dom['tag']]:
+            tagdomains[dom['tag']].append(dom)
+
+
+    testtagdomains = copy.deepcopy(atagdomains)
+
+
+    print('testdomainnames: %d traindomainnames: %d' % (len(testdomainnames), len(traindomainnames)))
+    print('num of train tables: %d test tables: %d' % (len(tbs), len(ttbs)))
+    print('all domains: %d train domains: %d keys: %d vecs: %d tagdomains: %d domaintags: %d' % (len(alldomains), len(domains), len(keys), len(vecs), len(tagdomains), len(domaintags)))
+    print('all domains: %d domains: %d keys: %d vecs: %d tagdomains: %d domaintags: %d'  % (len(alldomains), len(testdomains), len(keys), len(vecs), len(testtagdomains), len(testdomaintags)))
+
+    # building test and train domain clouds
+    alldomainclouds = orgk.make_cloud(simfile, 0.75)
+    print('all domainclouds: %d' % len(alldomainclouds))
+
+    for dom in domains:
+        domainclouds[dom['name']] = dict()
+        for cd, cp in alldomainclouds[dom['name']].items():
+            if cd in traindomainnames:
+                domainclouds[dom['name']][cd] = cp
+    print('done dom cloud of train')
+    for dom in testdomains:
+        testdomainclouds[dom['name']] = dict()
+        for cd, cp in alldomainclouds[dom['name']].items():
+            if cd in testdomainnames:
+                testdomainclouds[dom['name']][cd] = cp
+
+    print('domainclouds: %d testdomainclouds: %d' % (len(domainclouds), len(testdomainclouds)))
+
+
+
+def init_flat():
+    print('init_flat')
+    global domainclouds, keys, vecs, domains, tagdomains, domaintags
+    tag_embs = json.load(open(TAG_EMB_FILE))
+    ks = []
+    vs = []
+    for t, e in tag_embs.items():
+        if t.startswith('socrata_'):
+            ks.append(t)
+            vs.append(e)
+
+
+    print('tag_embs: %d socrata tags: %d vecs: %d' % (len(tag_embs), len(vs), len(vs)))
+
+    keys = ks
+    vecs = np.array(vs)
+
+    alldomains = json.load(open(DOMAIN_FILE))
+
+    tbs = []
+    domains = []
+    seen = []
+    domaintags = dict()
+    tagdomains = dict()
+    for dom in alldomains:
+
+        if dom['tag'] not in ks:
+            continue
+
+        if dom['name'] not in seen:
+            domains.append(dom)
+            seen.append(dom['name'])
 
         if dom['name'] not in domaintags:
             domaintags[dom['name']] = []
@@ -106,36 +188,14 @@ def init_load_dim(dims_file, dim_id):
             tagdomains[dom['tag']] = []
         tagdomains[dom['tag']].append(dom)
 
-        if dom['name'] not in seen:
-            domains.append(dom)
-            seen.append(dom['name'])
+    print('num of alli unique domains: %d tables: %d all domains: %d all tagdomains: %d' % (len(seen), len(tbs),len(domains), len(tagdomains)))
+
+    domainclouds = orgk.make_cloud(simfile, 0.75)
+    print('domainclouds: %d' % len(domainclouds))
 
 
-    testdomainnames = list(set(testdomainnames))
-    traindomainnames = list(set(traindomainnames))
-
-    print('num of train tables: %d test tables: %d' % (len(tbs), len(ttbs)))
-    print('all domains: %d domains: %d keys: %d vecs: %d tagdomains: %d domaintags: %d' % (len(alldomains), len(domains), len(keys), len(vecs), len(tagdomains), len(domaintags)))
-    print('all domains: %d domains: %d keys: %d vecs: %d tagdomains: %d domaintags: %d'  % (len(alldomains), len(testdomains), len(keys), len(vecs), len(testtagdomains), len(testdomaintags)))
-
-    # building test and train domain clouds
-    alldomainclouds = orgk.make_cloud(simfile, 0.75)
-    print('all domainclouds: %d' % len(alldomainclouds))
-    for dom in domains:
-        domainclouds[dom['name']] = dict()
-        for cd, cp in alldomainclouds[dom['name']].items():
-            if cd in traindomainnames:
-                domainclouds[dom['name']][cd] = cp
-    for dom in testdomains:
-        testdomainclouds[dom['name']] = dict()
-        for cd, cp in alldomainclouds[dom['name']].items():
-            if cd in testdomainnames:
-                testdomainclouds[dom['name']][cd] = cp
-
-
-
-def init(tag_num):
-    global keys, vecs, domains, tagdomains, domaintags, comptagdomains, comptestdomains
+def init():
+    global keys, vecs, domains, tagdomains, domaintags
     tag_embs = json.load(open(TAG_EMB_FILE))
     ks = []
     vs = []
@@ -145,9 +205,8 @@ def init(tag_num):
             vs.append(e)
 
 
-    tag_num = len(ks)
 
-    print('tag_embs: %d ks: %d vs: %d' % (len(tag_embs), len(vs), len(vs)))
+    print('tag_embs: %d socrata tags: %d vecs: %d' % (len(tag_embs), len(vs), len(vs)))
 
     keys = ks
     vecs = np.array(vs)
@@ -155,13 +214,16 @@ def init(tag_num):
     alldomains = json.load(open(DOMAIN_FILE))
 
     tbs = []
-
+    seen = []
     adomaintags = dict()
     atagdomains = dict()
     for dom in alldomains:
 
         if dom['tag'] not in ks:
             continue
+
+        if dom['name'] not in seen:
+            seen.append(dom['name'])
 
         if dom['name'] not in adomaintags:
             adomaintags[dom['name']] = []
@@ -177,59 +239,41 @@ def init(tag_num):
             atagdomains[dom['tag']] = []
         atagdomains[dom['tag']].append(dom)
 
-    print('num of tables: %d' % len(tbs))
-    print('all domains: %d atagdomains: %d' % (len(alldomains), len(atagdomains)))
-
-    #building an index on domain names
-    domain_index = dict()
-    for i in range(len(domains)):
-        if domains[i]['name'] not in domain_index:
-            domain_index[domains[i]['name']] = []
-        domain_index[domains[i]['name']].append(i)
+    print('num of alli unique domains: %d tables: %d all domains: %d all tagdomains: %d' % (len(seen), len(tbs),len(alldomains), len(atagdomains)))
 
     # random sample of tags
-    tvs = list(atagdomains.keys())[:tag_num]
-    print('tvs: %d' % len(tvs))
-    tagdomains = dict()
-    domains = []
-    lvecs = []
-    keys = []
-    for t in tvs:
-        keys.append(t)
-        lvecs.append(tag_embs[t])
-        tagdomains[t] = copy.deepcopy(atagdomains[t])
-        domains.extend(list(tagdomains[t]))
-    vecs = np.array(lvecs)
-    print('domains: %d vecs: %d keys: %d' % (len(domains), len(vecs), len(keys)))
-    comptestdomains = list(domains)
-    comptagdomains = list(tagdomains)
+    tvs = list(atagdomains.keys())
+    print('selected tags: %d' % len(tvs))
+    tagdomains = copy.deepcopy(atagdomains)
+    domains = alldomains
+    print('selected tags: domains: %d vecs: %d keys: %d' % (len(domains), len(vecs), len(keys)))
     # sampling
-    stagdomains, sdomains = orgs.stratified_sample(tagdomains, 0.6)
+    stagdomains, sdomains = orgs.stratified_sample(tagdomains, 0.5)
     print('sampled domains: %d sampled tagdomains: %d' % (len(sdomains), len(stagdomains)))
-    print('testdomains: %d' % len(comptestdomains))
     tagdomains = copy.deepcopy(stagdomains)
     domaintags = copy.deepcopy(adomaintags)
     domains = []
     # making domains unique
-    seen = dict()
+    seen = []
     tbs = []
     sample_domain_names = []
     for domain in sdomains:
         sample_domain_names.append(domain['name'])
         if domain['name'] not in seen:
             domains.append(domain)
-            seen[domain['name']] = True
+            seen.append(domain['name'])
             table = domain['name'][:domain['name'].rfind('_')]
             if table not in tbs:
                 tbs.append(table)
     sample_domain_names = list(set(sample_domain_names))
     print('sample_domain_names: %d' % len(sample_domain_names))
     print('sampled tables: %d' % len(tbs))
-    print('sdomains: %d  domains: %d keys: %d vecs: %d tagdomains: %d domaintags: %d' % (len(sdomains), len(domains), len(keys), len(vecs), len(tagdomains), len(domaintags)))
-    json.dump(sample_domain_names, open('od_sample_domain_names.json', 'w'))
+    print('sampled domains: %d  unique domains: %d keys: %d vecs: %d sampled tagdomains: %d domaintags: %d' % (len(sdomains), len(domains), len(keys), len(vecs), len(tagdomains), len(domaintags)))
+    json.dump(sample_domain_names, open(traindomainfile, 'w'))
     dims = orgh.get_dimensions(keys, vecs, dim_num)
-    json.load(dims, open('od_dims.json', 'w'))
+    json.dump(list(dims.values()), open(dimfile, 'w'))
 
+    #orgk.all_pair_sim(alldomains, simfile)
 
 
 def fix(g, hierarchy_name):
@@ -237,10 +281,7 @@ def fix(g, hierarchy_name):
     h, iteration_sps, iteration_ls, sps, dsps = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'opendata', domaintags)
 
     print('fuzzy eval: ')
-    #results = orgh.fuzzy_evaluate(h.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
     max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(h.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
-    #success_probs = results['success_probs']
-    #domain_success_probs = results['dom_reach_probs']
 
     json.dump(success_probs, open('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_tag_dists.json', 'w'))
     json.dump(iteration_sps, open('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.json', 'w'))
@@ -271,8 +312,7 @@ def agg_fuzzy(suffix1, suffix2):
     gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs, keys)
     print('done clustering')
     print('initial hierarchy with %d nodes' % len(list(gp.nodes)))
-    orgh.init(gp, domains, tagdomains, simfile)
-    #results = orgh.fuzzy_evaluate(gp.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
+    orgh.init(gp, dimdomains, tagdomains, simfile, tagdomsimfile)
     max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(gp.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
 
     return gp, success_probs, domain_success_probs
@@ -284,8 +324,6 @@ def multidimensional_hierarchy(dim_id):
     success_probs_before_intersect = dict()
     success_probs_after = dict()
     success_probs_after_intersect = dict()
-
-    org_filenames = []
 
 
     ds = datetime.datetime.now()
@@ -340,8 +378,7 @@ def multidimensional_hierarchy(dim_id):
 def flat(suffix):
     print('flat')
     g = orgh.add_node_vecs(orgg.get_flat_cluster_graph(keys), vecs, keys)
-    orgh.init(g, domains, tagdomains, simfile)
-    #results = orgh.fuzzy_evaluate(g.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
+    orgh.init(g, domains, tagdomains, simfile, tagdomsimfile)
     max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(g.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
 
 
@@ -361,20 +398,20 @@ TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_label_embs'
 #TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/boosted_socrata_label_embs'
 #DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/boosted_socrata_domain_embs'
 
+#init_flat()
+#flat('socrata')
 
-init(1000)
+#init()
 
-simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims_' + str(len(domains)) + '.json'
-#orgk.all_pair_sim(domains, simfile)
-
-#init_plus()
-
+init_load_dim(1)
+print('-------------------')
+multidimensional_hierarchy(1)
 
 
-multidimensional_hierarchy(6, 1)
+#multidimensional_hierarchy(6, 1)
 
-#flat('od')
 
 #orgc.cmeans_clustering(keys, vecs)
 #dims = orgh.get_dimensions(keys, vecs, 10)
 #dims = orgh.get_dimensions_plus(keys, vecs)
+
