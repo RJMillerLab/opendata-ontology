@@ -1,5 +1,4 @@
 import org.optimized_hierarchy as orgh
-#import org.hierarchy as orgh
 import org.graph as orgg
 import networkx as nx
 import operator
@@ -24,9 +23,6 @@ def init(g, doms, tdoms, dclouds):
     tagdomains = tdoms
     domainclouds = dclouds
     h = g.copy()
-    #for n in h.nodes:
-    #    populations[n] = copy.deepcopy(h.node[n]['population'])
-    #    h.node[n]['population'] = []
     return h
 
 
@@ -35,7 +31,7 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
     #orgg.height(g)
     #orgg.branching_factor(g)
     print('started fixing with %d domains.' % len(domains))
-    iteration_success_probs = []
+    stats = []
     iteration_likelihoods = []
     h = g.copy()
     max_success, gp, max_success_probs, likelihood, max_domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(h, domains, tagdomains, domainclouds, dtype, domaintags)
@@ -65,8 +61,8 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
                 break
             #print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
             print('len(level_n): %d' % (len(level_n)))
-            hf, ll, sps, its, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype, domaintags)
-            iteration_success_probs.extend(list(its))
+            hf, ll, sps, levelstats, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype, domaintags)
+            stats.extend(list(levelstats))
             iteration_likelihoods.extend(list(ls))
             #print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
             if ll > max_success:
@@ -91,12 +87,12 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
         gp = best.copy()
         print('Number of fix() iterations: %d' % fix_count)
         print(datetime.datetime.now())
-    return best, iteration_success_probs, iteration_likelihoods, max_success_probs, max_domain_success_probs
+    return best, stats, iteration_likelihoods, max_success_probs, max_domain_success_probs
 
 
 def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfunctions, dtype, domaintags):
 
-    iteration_success_probs = []
+    stats = []
     iteration_likelihoods = []
     fixes = what_to_fix(g, level)
     max_success = success
@@ -126,9 +122,9 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
                 bnodes = best.nodes
             #else:
             #    print('opeartor did not help.')
-            iteration_success_probs.extend(list(its))
+            stats.extend(list(its))
             iteration_likelihoods.extend(list(ls))
-    return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods, max_domain_success_probs
+    return best, max_success, max_success_probs, stats, iteration_likelihoods, max_domain_success_probs
 
 
 def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_success_probs, gnodes):
@@ -150,24 +146,15 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
 
     leaves = orgg.get_leaves_plus(gp, gnodes)
     choices = (((set(gnodes).difference(set(nx.descendants(gp, n)))).difference(set(gp.predecessors(n)))).difference({n})).difference(leaves)
-    #choices = (((set(gp.nodes).difference(set(nx.descendants(gp, n)))).difference(set(gp.predecessors(n)))).difference({n})).difference(leaves)
-    #schoices = sort_nodes_sim(g, n, choices)
     schoices = find_second_parent(g, choices)
     print('fix %d' % n)
     for sp in schoices[:2]:
         p = sp[0]
         h = best.copy()
 
-        #if p in orgg.get_leaves(h):
-        #    print('chosen parent is a leaf.')
-        #elif p in nx.ancestors(h, n):
-        #    print('chosen parent is an ancestor')
-        #else:
-        #    print('chosen parent is indep')
 
         if len(list(h.predecessors(p))) > 1:
             print('multiple grand parents')
-        #potentials2 = list(nx.descendants(h, nx.lowest_common_ancestor(h, n, p)))
         update_head1 = nx.lowest_common_ancestor(best, n, p)
 
         hap, update_head = update_graph_add_parent(best.copy(), p, n)
@@ -177,12 +164,7 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
         potentials2 = list(nx.descendants(best, update_head))
 
 
-        #new, gl, sps, likelihood  = orgh.recompute_success_prob_likelihood(hap.copy(), domains, potentials, tagdomains, True, success_probs)
-        #new, gl, sps, likelihood  = orgh.recompute_success_prob_likelihood_fuzzy(hap.copy(), domains, potentials, tagdomains, True, success_probs, domainclouds)
-
-        #new, gl, sps, likelihood = orgh.get_success_prob_likelihood(hap.copy(), domains)
-        #new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_fuzzy(hap.copy(), domains, tagdomains, domainclouds, dtype, domaintags)
-        new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_partial(hap.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials2, update_head, max_success_probs, max_domain_success_probs)
+        new, gl, sps, likelihood, dsps, num_active_domains = orgh.get_success_prob_likelihood_partial(hap.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials2, update_head, max_success_probs, max_domain_success_probs)
         apcount += 1
         print('after adding parent: prev %f new %f' % (max_success, new))
 
@@ -195,10 +177,9 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
             best = gl.copy()
             max_domain_success_probs = copy.deepcopy(dsps)
             print('fixing %d: adding parent: %d' % (n, p))
-            return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods, max_domain_success_probs
+            return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials2)}], iteration_likelihoods, max_domain_success_probs
 
-        #iteration_success_probs.append(max_success)
-    return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods, max_domain_success_probs
+    return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials2)}], iteration_likelihoods, max_domain_success_probs
 
 
 def what_to_fix(g, nodes):
@@ -228,7 +209,6 @@ def update_graph_add_parent(g, p, c):
     h.add_edge(p, c)
     leaves = orgg.get_leaves(h)
     for n in to_update:
-        #h.node[n]['population'] = []
         pops = []
         to_add = []
         if n in prev_leaves:
@@ -236,11 +216,9 @@ def update_graph_add_parent(g, p, c):
         to_add.extend(list((set(nx.descendants(h,n)).intersection(set(leaves)))))
         to_add = list(set(to_add))
         for a in to_add:
-            #h.node[n]['population'].append(h.node[a]['rep'])
             pops.append(h.node[a]['rep'])
             if h.node[a]['tag'] not in h.node[n]['tags']:
                 h.node[n]['tags'].append(h.node[a]['tag'])
-        #h.node[n]['rep'] = list(np.mean(np.array(h.node[n]['population']), axis=0))
         if len(pops) > 0:
             h.node[n]['rep'] = list(np.mean(np.array(pops), axis=0))
     orgh.update_node_dom_sims(h, domains, to_update)
@@ -251,7 +229,6 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
     global rhcount
     print('reduce_height')
     if n not in hnodes:
-    #if n not in h.nodes:
         return h, -1.0, [], [], [], []
     g = h.copy()
 
@@ -269,7 +246,6 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
     # choose the least reachable parent
     pfixes = what_to_fix(g, parents)
     pf = pfixes[0]
-    #print('fixing parent %d with %f' % (pf[0], pf[1]))
     grandparents = list(g.predecessors(pf[0]))
     if len(grandparents) == 0:
         return g, -1.0, [], [], [], []
@@ -282,9 +258,7 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
     if set(effs)!=set(potentials):
         print('delusion')
 
-    #new, gl, sps, likelihood = orgh.get_success_prob_likelihood(hp.copy(), domains)
-    #new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_fuzzy(hp.copy(), domains, tagdomains, domainclouds, dtype, domaintags)
-    new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_partial(hp.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials, gpf[0], success_probs, domain_success_probs)
+    new, gl, sps, likelihood, dsps, num_active_domains = orgh.get_success_prob_likelihood_partial(hp.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials, gpf[0], success_probs, domain_success_probs)
     rhcount += 1
 
     iteration_success_probs.append(new)
@@ -295,8 +269,9 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
         max_success_probs = copy.deepcopy(sps)
         best = gl.copy()
         max_domain_success_probs = copy.deepcopy(dsps)
+
     print('after reduction: prev %f new %f' % (max_success, new))
-    return best, max_success, max_success_probs, iteration_success_probs, iteration_likelihoods, max_domain_success_probs
+    return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials)}], iteration_likelihoods, max_domain_success_probs
 
 
 def merge_siblings_and_replace_parent(g, p, gnodes):

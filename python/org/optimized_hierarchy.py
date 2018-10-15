@@ -18,16 +18,14 @@ gamma = 10.0
 domain_index = dict()
 
 def init(g, domains, tagdomains, simfile, tagdomsimfile, tgparam=10.0):
-    #print('trans sim > 0.5')
-    #print('reach prob > 0.1')
-    print('sanity check of domain prunning')
     global domain_index, node_dom_sims, dom_selection_probs, dom_sims, gamma
     gamma = float(tgparam)
 
     dom_sims = json.load(open(simfile, 'r'))
 
-    #dom_selection_probs = get_domains_selection_probs(tagdomains)
     print('domains: %d' % len(domains))
+    # Tag-domain sims are precalcualted.
+    # Now, the state-domain sims are calculated for the dynamic hierarchy.
     i = 0
     leaves = orgg.get_leaves(g)
     tag_dom_sims = json.load(open(tagdomsimfile, 'r'))
@@ -46,11 +44,11 @@ def init(g, domains, tagdomains, simfile, tagdomsimfile, tgparam=10.0):
         for dom in domains:
             s = get_transition_sim(g.node[n]['rep'],dom['mean'])
             node_dom_sims[n][dom['name']] = s
+    print('node_dom_sims: %d' % len(node_dom_sims))
 
     for i in range(len(domains)):
         if domains[i]['name'] not in domain_index:
-            domain_index[domains[i]['name']] = []
-        domain_index[domains[i]['name']].append(i)
+            domain_index[domains[i]['name']] = i
 
     #json.dump(tag_dom_sims, open(nodedomsimfile, 'w'))
     print('done init')
@@ -68,15 +66,10 @@ def add_node_vecs(g, vecs, tags):
         if n not in leaves:
             node_vecs = vecs[np.array(list(leaves.intersection(nx.descendants(g,n))))]
             node_tags = np.array(tags)[np.array(list(leaves.intersection(nx.descendants(g,n))))]
-            #g.node[n]['population'] = list(node_vecs)
             g.node[n]['tags'] = list(set(node_tags))
             g.node[n]['rep'] = np.mean(node_vecs, axis=0)
-            #g.node[n]['cov'] = np.cov(node_vecs)
-            #g.node[n]['mean'] = np.mean(node_vecs, axis=0)
-            #g.node[n]['det'] = linalg.det(g.node[n]['cov'])
         else:
             g.node[n]['rep'] = list(vecs[n])
-            #g.node[n]['population'] = [vecs[n]]
             g.node[n]['tags'] = [tags[n]]
     return g
 
@@ -140,15 +133,16 @@ def get_partial_domain_node_probs(g, domain, top, pots, head, root, to_comp):
 
 def get_domain_node_probs(gd, domain, top, root, gnodes):
 
+    domainname = domain['name']
     for n in gnodes:
-        gd.node[n][domain['name']] = dict()
+        gd.node[n][domainname] = dict()
         if n == root:
-            gd.node[n][domain['name']]['reach_prob_domain'] = 1.0
+            gd.node[n][domainname]['reach_prob_domain'] = 1.0
         else:
-            gd.node[n][domain['name']]['reach_prob_domain'] = 0.0
+            gd.node[n][domainname]['reach_prob_domain'] = 0.0
     for p in top:
         for ch in list(gd.successors(p)):
-            gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*                                       gd[p][ch][domain['name']]['trans_prob_domain']
+            gd.node[ch][domainname]['reach_prob_domain'] += gd.node[p][domainname]['reach_prob_domain']*gd[p][ch][domainname]['trans_prob_domain']
     return gd
 
 
@@ -192,7 +186,7 @@ def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, d
     print('dom exact: %d' % (int(e3.total_seconds() *1000)))
 
 
-    return expected_success1, h1.copy(), success_probs1, likelihood1, domain_success_probs1
+    return expected_success1, h1.copy(), success_probs1, likelihood1, domain_success_probs1, len(active_domains)
 
 
 
@@ -311,19 +305,13 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
 
     # reset states' reachability
     for p in gnodes:
-    #for p in h.nodes:
         h.node[p]['reach_prob'] = 0
     # the reachability prob of domains that are not candidates for update remains intact
     for dom in adomains:
         if dom['name'] in update_domain_names:
             continue
 
-        table = ''
-        if dtype == 'synthetic':
-            colid = int(dom['name'][dom['name'].rfind('_')+1:])
-            table = dom['name'][:dom['name'].rfind('_')]+'_'+str(colid%2)
-        if dtype == 'opendata':
-            table = dom['name'][:dom['name'].rfind('_')]
+        table = get_table_from_domain(dom['name'], dtype)
 
         sp = prev_domain_success_probs[dom['name']]
         if table not in success_probs_intersect:
@@ -335,11 +323,8 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
         domain_success_probs[dom['name']] = prev_domain_success_probs[dom['name']]
         # accumulate the reachability of non-updatable domains
         for p in gnodes:
-        #for p in h.nodes:
             h.node[p]['reach_prob'] += h.node[p][dom['name']]['reach_prob_domain']
 
-    #if len(domain_success_probs) + len(update_domain_names) != len(prev_domain_success_probs):
-    #    print('sum of doms not euqal')
 
     to_comp = list(set(sum((list(g.predecessors(n)) for n in potentials), [])))
     samedom = 0
@@ -354,18 +339,13 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
         accepted_tags.extend(list(domaintags[domain['name']]))
         for c in list(domainclouds[domain['name']].keys()):
             if c not in domain_index:
-                print('domain cloud not in index.')
+                #print('domain cloud not in index.')
                 continue
-            for di in domain_index[c]:
-                accepted_tags.extend(domaintags[adomains[di]['name']])
+            accepted_tags.extend(domaintags[adomains[domain_index[c]]['name']])
         accepted_tags = list(set(accepted_tags))
         #
-        table = ''
-        if dtype == 'synthetic':
-            colid = int(domain['name'][domain['name'].rfind('_')+1:])
-            table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
-        if dtype == 'opendata':
-            table = domain['name'][:domain['name'].rfind('_')]
+        table = get_table_from_domain(domain['name'], dtype)
+
         if prune:
             gp = get_partial_domain_edge_probs(h, domain, potentials, head, leaves, gnodes, to_comp)
             gpp = get_partial_domain_node_probs(gp, domain, top, potentials, head, root, to_comp)
@@ -441,7 +421,6 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
 def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
 
     top = list(nx.topological_sort(g))
-    #gnodes = orgg.get_nodes(g)
     gnodes = list(g.nodes)
     root = orgg.get_root_plus(g, gnodes)
     leaves = orgg.get_leaves_plus(g, gnodes)
@@ -455,7 +434,6 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
     reachable_dom_probs = []
     #
     for p in gnodes:
-    #for p in h.nodes:
         h.node[p]['reach_prob'] = 0.0
 
     for domain in domains:
@@ -464,18 +442,13 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
         accepted_tags.extend(list(domaintags[domain['name']]))
         for c in list(domainclouds[domain['name']].keys()):
             if c not in domain_index:
-                print('domain cloud not in index.')
+                #print('domain cloud not in index.')
                 continue
-            for di in domain_index[c]:
-                accepted_tags.extend(domaintags[domains[di]['name']])
+            accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
         accepted_tags = list(set(accepted_tags))
         #
-        table = ''
-        if dtype == 'synthetic':
-            colid = int(domain['name'][domain['name'].rfind('_')+1:])
-            table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
-        if dtype == 'opendata':
-            table = domain['name'][:domain['name'].rfind('_')]
+        table = get_table_from_domain(domain['name'], dtype)
+
         gp = get_domain_edge_probs(h, domain, leaves, gnodes)
         gpp = get_domain_node_probs(gp, domain, top, root, gnodes)
         # finding the most reachable domain
@@ -484,10 +457,11 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
         most_reachable_dom = ''
         #
         for n in leaves:
-            if gpp.node[n]['tag'] not in accepted_tags:
+            stag = gpp.node[n]['tag']
+            if stag not in accepted_tags:
                 continue
-            selps, sims = get_dom_trans_prob(tagdomains[gpp.node[n]['tag']], domain)
-            for d in tagdomains[gpp.node[n]['tag']]:
+            selps, sims = get_dom_trans_prob(tagdomains[stag], domain)
+            for d in tagdomains[stag]:
                 if d['name'] not in domainclouds[domain['name']]:
                     continue
                 sp = selps[d['name']] * gpp.node[n][domain['name']]['reach_prob_domain']
@@ -497,12 +471,9 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
                     most_reachable_dom = d['name']
         dom_target_sims.append(max_reached_dom_sim)
         reachable_dom_probs.append(max_reached_dom_prob)
-        table = ''
-        if dtype == 'synthetic':
-            colid = int(domain['name'][domain['name'].rfind('_')+1:])
-            table = domain['name'][:domain['name'].rfind('_')]+'_'+str(colid%2)
-        if dtype == 'opendata':
-            table = domain['name'][:domain['name'].rfind('_')]
+
+        table = get_table_from_domain(domain['name'], dtype)
+
         sp = max_reached_dom_prob
 
         domain_success_probs[domain['name']] = sp
@@ -582,37 +553,6 @@ def get_trans_prob(g, p, domain):
 
     return tps, sis
 
-def get_domains_selection_probs(tagdomains):
-    probs = dict()
-    for tag, doms in tagdomains.items():
-        probs[tag] = dict()
-        for target in doms:
-            probs[tag][target['name']] = get_selection_probs(doms, target)
-    return probs
-
-
-def get_selection_probs(choices, domain):
-    global gamma
-    d = 0.0
-    tps, sis, ts = dict(), dict(), dict()
-    tsl = []
-    for s in choices:
-        #m = get_transition_sim(s['mean'], domain['mean'])
-        m = 0.0
-        if s['name'] in dom_sims:
-            if domain['name'] in dom_sims[s['name']]:
-                m = dom_sims[s['name']][domain['name']]
-        tsl.append(m)
-        ts[s['name']] = m
-    branching_factor = len(choices)
-    for s in choices:
-        #tps2[s['name']] = math.exp(5.0*ts[s['name']])
-        tps[s['name']] = math.exp((gamma/branching_factor)*ts[s['name']])
-        sis[s['name']] = ts[s['name']]
-        d += tps[s['name']]
-        #d2 += tps2[s['name']]
-    return tps[domain['name']]/d
-
 
 def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, domaintags, prune):
 
@@ -664,8 +604,7 @@ def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, dom
             continue
         for dp in list(domainclouds[dom].keys()):
             if dp in dnames and dom not in update_domain_names:
-                for l in domain_index[dom]:
-                    update_domains.append(domains[l])
+                update_domains.append(domains[domain_index[dom]])
                 update_domain_names.append(dom)
 
     if len(update_domain_names) > len(dnames):
@@ -792,9 +731,21 @@ def get_tag_domain_sim(domains, tags, vecs, tagdomsimfile):
         if t not in sims:
             sims[t] = dict()
         for d in domains:
-            sims[t][d['name']] = get_transition_sim(v,d['mean'])
+            s = get_transition_sim(v,d['mean'])
+            if s > 0.5:
+                sims[t][d['name']] = s
     json.dump(sims, open(tagdomsimfile, 'w'))
     print('done computing sims for %d tags ' % (len(sims)))
 
+
+
+def get_table_from_domain(domainname, dtype):
+    table = ''
+    if dtype == 'synthetic':
+        colid = int(domainname[domainname.rfind('_')+1:])
+        table = domainname[:domainname.rfind('_')]+'_'+str(colid%2)
+    if dtype == 'opendata':
+        table = domainname[:domainname.rfind('_')]
+    return table
 
 
