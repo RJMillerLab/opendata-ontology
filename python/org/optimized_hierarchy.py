@@ -27,7 +27,6 @@ def init(g, domains, tagdomains, simfile, tagdomsimfile, tgparam=10.0):
     dom_sims = json.load(open(simfile, 'r'))
 
     #dom_selection_probs = get_domains_selection_probs(tagdomains)
-    print('g.nodes: %d' % len(g.nodes))
     print('domains: %d' % len(domains))
     i = 0
     leaves = orgg.get_leaves(g)
@@ -63,22 +62,21 @@ def update_node_dom_sims(g, domains, ns):
             node_dom_sims[n][dom['name']] = get_transition_sim(g.node[n]['rep'], dom['mean'])
 
 
-
 def add_node_vecs(g, vecs, tags):
     leaves = orgg.get_leaves(g)
     for n in g.nodes:
         if n not in leaves:
             node_vecs = vecs[np.array(list(leaves.intersection(nx.descendants(g,n))))]
             node_tags = np.array(tags)[np.array(list(leaves.intersection(nx.descendants(g,n))))]
-            g.node[n]['population'] = list(node_vecs)
+            #g.node[n]['population'] = list(node_vecs)
             g.node[n]['tags'] = list(set(node_tags))
             g.node[n]['rep'] = np.mean(node_vecs, axis=0)
             #g.node[n]['cov'] = np.cov(node_vecs)
-            g.node[n]['mean'] = g.node[n]['rep']
+            #g.node[n]['mean'] = np.mean(node_vecs, axis=0)
             #g.node[n]['det'] = linalg.det(g.node[n]['cov'])
         else:
             g.node[n]['rep'] = list(vecs[n])
-            g.node[n]['population'] = [vecs[n]]
+            #g.node[n]['population'] = [vecs[n]]
             g.node[n]['tags'] = [tags[n]]
     return g
 
@@ -138,8 +136,24 @@ def get_partial_domain_node_probs(g, domain, top, pots, head, root, to_comp):
             gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*                                       gd[p][ch][domain['name']]['trans_prob_domain']
     return gd
 
-def get_domain_node_probs(g, domain, top, root, gnodes):
-    gd = g
+
+
+def get_domain_node_probs(gd, domain, top, root, gnodes):
+
+    for n in gnodes:
+        gd.node[n][domain['name']] = dict()
+        if n == root:
+            gd.node[n][domain['name']]['reach_prob_domain'] = 1.0
+        else:
+            gd.node[n][domain['name']]['reach_prob_domain'] = 0.0
+    for p in top:
+        for ch in list(gd.successors(p)):
+            gd.node[ch][domain['name']]['reach_prob_domain'] += gd.node[p][domain['name']]['reach_prob_domain']*                                       gd[p][ch][domain['name']]['trans_prob_domain']
+    return gd
+
+
+
+def get_domain_node_probs_plus(gd, domain, top, root, gnodes):
     for n in gnodes:
         gd.node[n][domain['name']] = dict()
         if n == root:
@@ -165,9 +179,9 @@ def cosine(vec1, vec2):
     return c
 
 
-def get_success_prob_likelihood_partial_plus(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
+def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
 
-    active_domains, dnames = get_domains_to_update(g.copy(), adomains, nodes, tagdomains, domainclouds, update_head, domaintags, True)
+    active_domains, dnames = get_domains_to_update(g.copy(), adomains, nodes, tagdomains, domainclouds, update_head, domaintags, False)
     print('exact doms: %d vs. %d' % (len(active_domains), len(adomains)))
 
     start = datetime.datetime.now()
@@ -175,18 +189,14 @@ def get_success_prob_likelihood_partial_plus(g, adomains, tagdomains, domainclou
     e3 = datetime.datetime.now()-start
 
 
-    start = datetime.datetime.now()
-    expected_success3, h3, success_probs3, likelihood3, domain_success_probs3 =          get_success_prob_prune_domains(g.copy(), adomains, tagdomains, domainclouds,             dtype,      domaintags, prev_success_probs, prev_domain_success_probs, adomains,         [dom['name'] for dom in adomains], update_head, nodes, False)
-    e2 = datetime.datetime.now()-start
-
-    print('dom pruning: %d  dom exact: %d' % (int(e3.total_seconds() *1000), int(e2.total_seconds() *1000)))
+    print('dom exact: %d' % (int(e3.total_seconds() *1000)))
 
 
     return expected_success1, h1.copy(), success_probs1, likelihood1, domain_success_probs1
 
 
 
-def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
+def get_success_prob_likelihood_partial_plus(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
 
     gnodes_num = len(g.nodes)
 
@@ -296,10 +306,12 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
     domain_success_probs = dict()
     likelihood = 0.0
 
-    root = orgg.get_root(g)
+    root = orgg.get_root_plus(g, gnodes)
+    leaves = orgg.get_leaves_plus(g, gnodes)
 
     # reset states' reachability
-    for p in h.nodes:
+    for p in gnodes:
+    #for p in h.nodes:
         h.node[p]['reach_prob'] = 0
     # the reachability prob of domains that are not candidates for update remains intact
     for dom in adomains:
@@ -322,13 +334,13 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
             success_probs[table] += sp
         domain_success_probs[dom['name']] = prev_domain_success_probs[dom['name']]
         # accumulate the reachability of non-updatable domains
-        for p in h.nodes:
+        for p in gnodes:
+        #for p in h.nodes:
             h.node[p]['reach_prob'] += h.node[p][dom['name']]['reach_prob_domain']
 
-    if len(domain_success_probs) + len(update_domain_names) != len(prev_domain_success_probs):
-        print('sum of doms not euqal')
+    #if len(domain_success_probs) + len(update_domain_names) != len(prev_domain_success_probs):
+    #    print('sum of doms not euqal')
 
-    leaves = orgg.get_leaves(g)
     to_comp = list(set(sum((list(g.predecessors(n)) for n in potentials), [])))
     samedom = 0
     dom_target_sims = []
@@ -399,7 +411,8 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
         if domain['name'] == most_reachable_dom:
             samedom += 1
 
-        for p in gpp.nodes:
+        for p in gnodes:
+        #for p in gpp.nodes:
             gpp.node[p]['reach_prob'] += gpp.node[p][domain['name']]['reach_prob_domain']
 
         h = gpp
@@ -411,8 +424,8 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
             print('table %s has sp > 1.0.' % t)
             success_probs[t] = 1.0
 
-
-    for p in h.nodes:
+    for p in gnodes:
+    #for p in h.nodes:
         h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(adomains))
 
     expected_success = sum(list(success_probs.values()))/float(len(success_probs))
@@ -428,20 +441,21 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
 def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
 
     top = list(nx.topological_sort(g))
-    root = orgg.get_root(g)
     #gnodes = orgg.get_nodes(g)
     gnodes = list(g.nodes)
+    root = orgg.get_root_plus(g, gnodes)
+    leaves = orgg.get_leaves_plus(g, gnodes)
     success_probs = dict()
     domain_success_probs = dict()
     success_probs_intersect = dict()
     h = g
-    leaves = orgg.get_leaves(g)
     likelihood = 0.0
     samedom = 0
     dom_target_sims = []
     reachable_dom_probs = []
     #
-    for p in h.nodes:
+    for p in gnodes:
+    #for p in h.nodes:
         h.node[p]['reach_prob'] = 0.0
 
     for domain in domains:
@@ -504,7 +518,8 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
         if domain['name'] == most_reachable_dom:
             samedom += 1
 
-        for p in gpp.nodes:
+        for p in gnodes:
+        #for p in gpp.nodes:
             gpp.node[p]['reach_prob'] += gpp.node[p][domain['name']]['reach_prob_domain']
 
         h = gpp
@@ -516,8 +531,8 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
             print('table %s has sp > 1.0.' % t)
             success_probs[t] = 1.0
 
-
-    for p in h.nodes:
+    for p in gnodes:
+    #for p in h.nodes:
         h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
 
     expected_success = sum(list(success_probs.values()))/float(len(success_probs))
@@ -751,9 +766,10 @@ def get_dimensions_plus(tags, vecs):
 
 def save(h, hierarchy_filename):
     hfile = open(hierarchy_filename,'w')
-    line = str(len(h.nodes))
+    hnodes = list(h.nodes)
+    line = str(len(hnodes))
     hfile.write(line + '\n')
-    for s in h.nodes:
+    for s in hnodes:
         line = str(s) + ':' + '|'.join(map(str, h.node[s]['tags']))
         hfile.write(line + '\n')
 

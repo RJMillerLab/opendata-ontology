@@ -1,11 +1,13 @@
 import json
 import numpy as np
 import datetime
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
 def all_pair_sim(domains, simsfile):
-    print('all_pair_sim')
+    print('all_pair_sim for %d domains' % len(domains))
     s = datetime.datetime.now()
     # computing all pair sim between domains
     # potentially using lsh for scalability
@@ -14,6 +16,8 @@ def all_pair_sim(domains, simsfile):
         d1 = domains[i]
         if ((i+1)%100) == 0:
             print('processed pairs for %d domains.' % i)
+            print('elapsed time of pair sim calc %d' % int((datetime.datetime.now()-s).total_seconds() * 1000))
+
         for j in range(i, len(domains)):
             d2 = domains[j]
             sim = 1.0
@@ -84,4 +88,7 @@ def cosine(vec1, vec2):
     dp = np.dot(vec1,vec2)
     c = dp / (np.linalg.norm(vec1)*np.linalg.norm(vec2))
     return c
+
+
+
 

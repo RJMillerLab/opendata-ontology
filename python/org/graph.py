@@ -29,6 +29,9 @@ def get_flat_cluster_graph(tags):
 def get_leaves(g):
     return set([x for x in g.nodes() if g.out_degree(x)==0 and g.in_degree(x)>0])
 
+def get_leaves_plus(g, gnodes):
+    return set([x for x in gnodes if g.out_degree(x)==0 and g.in_degree(x)>0])
+
 
 def isconnected(g):
     if len([x for x in g.nodes() if g.in_degree(x)==0])==1:
@@ -38,6 +41,10 @@ def isconnected(g):
 
 def get_root(g):
     return [x for x in g.nodes() if g.out_degree(x)>0 and g.in_degree(x)==0][0]
+
+def get_root_plus(g, gnodes):
+    return [x for x in gnodes if g.out_degree(x)>0 and g.in_degree(x)==0][0]
+
 
 
 def get_siblings(g, n, p):
@@ -163,3 +170,6 @@ def update_edges_from_dict(g, edges):
                 g[s][o][p] = v
     return g
 
+
+def graph_to_org(g):
+    return {'nodes': get_nodes(g), 'edges': get_edges(g), 'root': get_root(g), 'leaves': get_leaves(g), 'topology': list(nx.topological_sort(g))}

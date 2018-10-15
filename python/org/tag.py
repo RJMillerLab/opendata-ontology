@@ -7,12 +7,15 @@ import glob
 
 
 TABLE_LABELS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/table_labels_31k.json'
+TABLE_LABELS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/socrata/tables.boosted_labels'
 GOOD_LABELS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/socrata/good_labels.json'
 LABELS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_names_31k.json'
 OPENDATA_DIR = '/home/fnargesian/FINDOPENDATA_DATASETS/10k'
 EMBS_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/table_embs'
 DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_domain_embs'
+DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/boosted_socrata_domain_embs'
 LABEL_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_label_embs'
+LABEL_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/boosted_socrata_label_embs'
 K = 1000
 FT_DIM = 300
 
@@ -147,6 +150,6 @@ def get_good_labels():
 
 #tag_embs()
 
-get_good_labels()
+#get_good_labels()
 
 
