@@ -17,13 +17,25 @@ top = []
 gamma = 10.0
 domain_index = dict()
 
-def init(g, domains, tagdomains, simfile, tagdomsimfile, tgparam=10.0):
+def init(g, domains, tagdomains, simfile, tgparam=10.0):
     global domain_index, node_dom_sims, dom_selection_probs, dom_sims, gamma
     gamma = float(tgparam)
 
     dom_sims = json.load(open(simfile, 'r'))
 
     print('domains: %d' % len(domains))
+
+    for i in range(len(domains)):
+        if domains[i]['name'] not in domain_index:
+            domain_index[domains[i]['name']] = i
+
+    #json.dump(tag_dom_sims, open(nodedomsimfile, 'w'))
+    print('done init')
+
+
+def get_state_domain_sims(g, tagdomsimfile, domains):
+    print('domains: %d stats: %d' % (len(domains), len(g.nodes)))
+    global node_dom_sims
     # Tag-domain sims are precalcualted.
     # Now, the state-domain sims are calculated for the dynamic hierarchy.
     i = 0
@@ -46,12 +58,7 @@ def init(g, domains, tagdomains, simfile, tagdomsimfile, tgparam=10.0):
             node_dom_sims[n][dom['name']] = s
     print('node_dom_sims: %d' % len(node_dom_sims))
 
-    for i in range(len(domains)):
-        if domains[i]['name'] not in domain_index:
-            domain_index[domains[i]['name']] = i
 
-    #json.dump(tag_dom_sims, open(nodedomsimfile, 'w'))
-    print('done init')
 
 
 def update_node_dom_sims(g, domains, ns):
@@ -732,8 +739,7 @@ def get_tag_domain_sim(domains, tags, vecs, tagdomsimfile):
             sims[t] = dict()
         for d in domains:
             s = get_transition_sim(v,d['mean'])
-            if s > 0.5:
-                sims[t][d['name']] = s
+            sims[t][d['name']] = s
     json.dump(sims, open(tagdomsimfile, 'w'))
     print('done computing sims for %d tags ' % (len(sims)))
 
