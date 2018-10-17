@@ -12,18 +12,24 @@ def plot():
     flat = []
     #flat100 = []
     multidim = []
+    multidim_prune = []
     for t, p in tableprobs_before.items():
         before.append(p)
         after.append(tableprobs_after[t])
         flat.append(tableprobs_flat[t])
         #flat100.append(tableprobs_flat100[t])
         multidim.append(tableprobs_multidim[t])
-    inx = np.argsort(np.array(multidim))
+        multidim_prune.append(tableprobs_multidim_prune[t])
+    inx = np.argsort(np.array(after))
     after = list(np.array(after)[inx])
+    inx = np.argsort(np.array(before))
     before = list(np.array(before)[inx])
+    inx = np.argsort(np.array(flat))
     flat = list(np.array(flat)[inx])
-    #flat100 = list(np.array(flat100)[inx])
+    inx = np.argsort(np.array(multidim))
     multidim = list(np.array(multidim)[inx])
+    inx = np.argsort(np.array(multidim_prune))
+    multidim_prune = list(np.array(multidim_prune)[inx])
 
     xs = [i for i in range(len(before))]
     plt.plot(xs, before, color='r', label='initial org (avg:'+'{:.3f}'.format(sum(before)/len(before))+')')
@@ -31,14 +37,15 @@ def plot():
     plt.plot(xs, flat, color='g', label='baseline (avg:'+'{:.3f}'.format(sum(flat)/len(flat))+')')
     #plt.plot(xs, flat100, color='grey', label='baseline100')
     plt.plot(xs, multidim, color='black', label='2-dimensional (avg:'+'{:.3f}'.format(sum(multidim)/len(multidim))+')')
+    plt.plot(xs, multidim_prune, color='orange', label='2-dimensional prune (avg:'+'{:.3f}'.format(sum(multidim_prune)/len(multidim_prune))+')')
     plt.legend(loc='best', fancybox=True)
     plt.grid(linestyle='dotted')
     plt.xlabel('Tables')
     plt.ylabel('Discovery Probability')
     plt.title('Table Discovery in Benchmark')
-    plt.savefig('bigbench_multidim_orgs.pdf')
+    plt.savefig('bigbench_multidim_all_orgs.pdf')
 
-    print('%f -> %f -> %f -> %f' % (sum(flat)/len(flat), sum(before)/len(before), sum(after)/len(after), sum(multidim)/len(multidim)))
+    print('%f -> %f -> %f -> %f -> %f' % (sum(flat)/len(flat), sum(before)/len(before), sum(after)/len(after), sum(multidim)/len(multidim), sum(multidim_prune)/len(multidim_prune)))
 
 
 # looking into tables in the LHS of plots.
@@ -154,6 +161,90 @@ def test():
 
 
 
+def plot_stats():
+    stats = syn_multidim_stats
+    domprune = []
+    repprune = []
+    for st in stats:
+        domprune.append(st['active_domains'])
+        repprune.append(st['active_reps'])
+    xs = [i for i in range(len(domprune))]
+    domprune.sort()
+    repprune.sort()
+    num_domains = max(domprune)
+    noprune = [num_domains for i in xs]
+    plt.plot(xs, domprune, color='blue', label='Prunning Domains')
+    plt.plot(xs, repprune, color='green', label='Prunning by Reps')
+    plt.plot(xs, noprune, color='red', linestyle='--', label='No Prunning')
+    plt.legend(loc='best', fancybox=True)
+    plt.grid(linestyle='dotted')
+    plt.xlabel('Exploration Iteration')
+    plt.ylabel('Number of Considered Data Points')
+    plt.title('Prunning Domains and States in Synthetic Benchmark')
+    plt.savefig('synthetic_prunning_dom_rep.pdf')
+
+def plot_synthetic_label_dom_sims():
+    tagdomsims = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/rep_domain_sims.json', 'r'))
+    ys = []
+    for t, dsims in tagdomsims.items():
+        for d, s in dsims.items():
+            ys.append(s)
+    ys.sort()
+    xs = [i for i in range(len(ys))]
+    plt.plot(xs, ys, color='blue')
+    plt.xlabel('label-domain pairs')
+    plt.ylabel('similarity')
+    plt.savefig('syntehtic_labeldomain_sims.pdf')
+    plt.clf()
+
+
+
+
+def plot_od_label_dom_sims():
+    table_labels = json.load(open('/home/fnargesian/FINDOPENDATA_DATASETS/10k/table_labels_31k.json', 'r'))
+    label_names = json.load(open('/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_names_31k.json', 'r'))
+    table_label_names = dict()
+    for t, ls in table_labels.items():
+        table_label_names[t] = []
+        for l in ls:
+            table_label_names[t].append(label_names[str(l)])
+    ys = []
+    doms = dict()
+    for label, domsims in label_dom_sims.items():
+        for dom, sim in domsims.items():
+            if dom not in doms:
+                doms[dom] = 0
+            doms[dom] += 1
+            table = dom[:dom.rfind('_')]
+            if label in table_label_names[table]:
+                ys.append(sim)
+    print('doms: %d  labels: %d  pairs: %d' % (len(doms), len(label_dom_sims), sum(list(doms.values()))))
+    xs = [i for i in range(len(ys))]
+    ys.sort()
+    plt.plot(xs, ys, color='blue')
+    plt.xlabel('label-domain pairs')
+    plt.ylabel('similarity')
+    plt.savefig('od_labeldomain_sims.pdf')
+    plt.clf()
+
+
+def plot_od_dom_dom_sims():
+    dom_sims = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims.json', 'r'))
+    ys = []
+    for dom, dsims in dom_sims.items():
+        ys.extend(list(dsims.values()))
+    ys.sort()
+    xs = [i for i in range(len(ys))]
+    plt.plot(xs, ys, color='blue')
+    plt.xlabel('domain-domain pairs')
+    plt.ylabel('similarity')
+    plt.savefig('od_domaindomain_sims.pdf')
+
+
+label_dom_sims = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/tag_domain_sims.json', 'r'))
+syn_multidim_stats = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/fix_1773_prunning_stats.json', 'r'))
+
+
 #tableprobs_flat = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/flat_dists_2651flat_br.json', 'r'))
 tableprobs_flat = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/flat_dists_2651_g10.json', 'r'))
 tableprobs_flat = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/flat_dists_2651_notor.json', 'r'))
@@ -174,7 +265,17 @@ tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMille
 #tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_2651_2_g10rhap.json', 'r'))
 #tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_2651_3.json', 'r'))
 #tableprobs_multidim = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_2651_2.json', 'r'))
+tableprobs_multidim_prune = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/multidim_dists_partial_sim_threshold_2651_2_g10rhap.json', 'r'))
+#tableprobs_multidim_prune = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_partial_sim_threshold06_2651_2_g10rhap.json', 'r'))
+#tableprobs_multidim_prune = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/multidim_dists_partial_sim_threshold06_2651_2_g10rhap.json', 'r'))
+tableprobs_multidim_prune = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/multidim_dists_partial_sim_threshold062_2651_2_g10rhap.json', 'r'))
+tableprobs_multidim_prune = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/results/multidim_dists_prune_rep_sim_threshold062_2651_2_g10rhap.json', 'r'))
+
 
 #plot()
-
-look_lhs()
+#plot_stats()
+#look_lhs()
+#plot_od_label_dom_sims()
+#plot_od_dom_dom_sims()
+plot_od_label_dom_sims()
+plot_synthetic_label_dom_sims()
