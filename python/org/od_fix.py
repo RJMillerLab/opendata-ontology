@@ -88,8 +88,8 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags, oreps, orepdomains):
             #level_n = []
         print('initial success prob: %f  and best success prob: %f' % (initial_sp, max_success))
         #print('after fix_level: node %d edge %d' % (len(best.nodes), len(best.edges)))
-        #orgg.height(best)
-        #orgg.branching_factor(best)
+        orgg.height(best)
+        orgg.branching_factor(best)
 
         gp = best.copy()
         print('Number of fix() iterations: %d' % fix_count)

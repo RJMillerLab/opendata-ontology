@@ -17,12 +17,15 @@ top = []
 gamma = 10.0
 domain_index = dict()
 
-def init(g, domains, simfile, tgparam=10.0):
+def init(g, domainsfile, simfile, tgparam=10.0):
     global domain_index, dom_sims, gamma
     gamma = float(tgparam)
 
+    domains = json.load(open(domainsfile, 'r'))
+
     dom_sims = json.load(open(simfile, 'r'))
 
+    print('org.init domains: %d' % len(domains))
 
     for i in range(len(domains)):
         if domains[i]['name'] not in domain_index:
@@ -34,8 +37,9 @@ def init(g, domains, simfile, tgparam=10.0):
 
 
 def get_state_domain_sims(g, tagdomsimfile, domains):
-    print('domains: %d stats: %d' % (len(domains), len(g.nodes)))
+    print('domains: %d states: %d' % (len(domains), len(g.nodes)))
     global node_dom_sims
+    node_dom_sims = dict()
     # Tag-domain sims are precalcualted.
     # Now, the state-domain sims are calculated for the dynamic hierarchy.
     i = 0
@@ -45,7 +49,7 @@ def get_state_domain_sims(g, tagdomsimfile, domains):
         node_dom_sims[l] = copy.deepcopy(tag_dom_sims[g.node[l]['tag']])
         if len(tag_dom_sims[g.node[l]['tag']]) == 0:
             print('no doms')
-    print('loaded %d nodes: leaves: %d' % (len(node_dom_sims), len(leaves)))
+    print('loaded %d nodes and leaves: %d' % (len(node_dom_sims), len(leaves)))
     for n in g.nodes:
         i += 1
         if i % 100 == 0:
@@ -144,10 +148,9 @@ def cosine(vec1, vec2):
 def get_success_prob_rep_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs, repdomains, reps):
 
     start = datetime.datetime.now()
-    active_reps, drnames = get_reps_to_update(g.copy(), adomains, nodes, tagdomains, domainclouds, update_head, domaintags, False, tagdomains, reps)
-    active_domains, dnames = get_domains_to_update(g, adomains, nodes, tagdomains, domainclouds, update_head, domaintags, False)
+    active_reps, drnames, active_domain_names = get_reps_to_update(g.copy(), adomains, nodes, tagdomains, domainclouds, update_head, domaintags, False, repdomains, reps)
     print('finding active doms: %d' % (int((datetime.datetime.now()-start).total_seconds() *1000)))
-    print('exact dom prunning: %d  rep: %d' % (len(active_domains), len(active_reps)))
+    print('exact dom prunning: %d  rep: %d' % (len(active_domain_names), len(active_reps)))
 
     start = datetime.datetime.now()
 
@@ -158,7 +161,7 @@ def get_success_prob_rep_partial(g, adomains, tagdomains, domainclouds, dtype, d
     print('dom exact: %d' % (int(e3.total_seconds() *1000)))
 
 
-    return expected_success1, h1.copy(), success_probs1, likelihood1, domain_success_probs1, len(active_domains), len(active_reps)
+    return expected_success1, h1.copy(), success_probs1, likelihood1, domain_success_probs1, len(active_domain_names), len(active_reps)
 
 
 
@@ -223,7 +226,7 @@ def get_success_prob_rep_domains(g, domains, tagdomains, domainclouds, dtype, do
             accepted_tags = list(domaintags[domainname])
             for c in list(domainclouds[domainname].keys()):
                 if c not in domain_index:
-                    #print('domain cloud not in index.')
+                    print('domain cloud not in index.')
                     continue
                 accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
             accepted_tags = list(set(accepted_tags))
@@ -285,7 +288,7 @@ def get_success_prob_rep_domains(g, domains, tagdomains, domainclouds, dtype, do
 
 def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags, repdomains, reps):
 
-    print('domain_index: %d' % len(domain_index))
+    print('get_success_rep_prob_fuzzy')
 
     top = list(nx.topological_sort(g))
     gnodes = list(g.nodes)
@@ -299,8 +302,6 @@ def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, doma
     #
     for p in gnodes:
         h.node[p]['reach_prob'] = 0.0
-
-    print('repdomains: %d' % len(repdomains))
 
     for rep in reps:
 
@@ -320,7 +321,7 @@ def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, doma
             accepted_tags.extend(list(domaintags[domainname]))
             for c in list(domainclouds[domainname].keys()):
                 if c not in domain_index:
-                    #print('domain cloud not in index.')
+                    print('domain cloud not in index.')
                     continue
                 accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
             accepted_tags = list(set(accepted_tags))
@@ -461,9 +462,11 @@ def get_reps_to_update(g, domains, nodes, tagdomains, domainclouds, head, domain
 
     active_reps = []
     active_rep_names = dict()
+
     rep_index = dict()
     for i in range(len(reps)):
         rep_index[reps[i]['name']] = i
+
     for rep, rdomains in repdomains.items():
         for dom in rdomains:
             if dom in update_domain_names:
@@ -471,7 +474,7 @@ def get_reps_to_update(g, domains, nodes, tagdomains, domainclouds, head, domain
                     active_rep_names[rep] = True
                     active_reps.append(reps[rep_index[rep]])
 
-    return active_reps, active_rep_names
+    return active_reps, active_rep_names, update_domain_names
 
 
 def get_dimensions(tags, vecs, n_dims):
@@ -659,7 +662,8 @@ def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, dom
     return update_domains, update_domain_names
 
 
-def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
+def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
+    print('get_success_prob_likelihood_fuzzy')
 
     top = list(nx.topological_sort(g))
     gnodes = list(g.nodes)
@@ -684,7 +688,7 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
         accepted_tags.extend(list(domaintags[domainname]))
         for c in list(domainclouds[domainname].keys()):
             if c not in domain_index:
-                #print('domain cloud not in index.')
+                print('domain cloud not in index.')
                 continue
             accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
         accepted_tags = list(set(accepted_tags))
@@ -733,7 +737,6 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
             samedom += 1
 
         for p in gnodes:
-        #for p in gpp.nodes:
             gpp.node[p]['reach_prob'] += gpp.node[p][domainname]['reach_prob_domain']
 
         h = gpp
@@ -746,7 +749,6 @@ def get_success_prob_likelihood_fuzzy(g, domains, tagdomains, domainclouds, dtyp
             success_probs[t] = 1.0
 
     for p in gnodes:
-    #for p in h.nodes:
         h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
 
     expected_success = sum(list(success_probs.values()))/float(len(success_probs))
