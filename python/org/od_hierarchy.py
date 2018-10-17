@@ -21,6 +21,8 @@ def init(g, domainsfile, simfile, tgparam=10.0):
     global domain_index, dom_sims, gamma
     gamma = float(tgparam)
 
+    domain_index = dict()
+
     domains = json.load(open(domainsfile, 'r'))
 
     dom_sims = json.load(open(simfile, 'r'))
@@ -30,6 +32,8 @@ def init(g, domainsfile, simfile, tgparam=10.0):
     for i in range(len(domains)):
         if domains[i]['name'] not in domain_index:
             domain_index[domains[i]['name']] = i
+        else:
+            print('dup domains')
 
 
     #json.dump(tag_dom_sims, open(nodedomsimfile, 'w'))
@@ -60,7 +64,7 @@ def get_state_domain_sims(g, tagdomsimfile, domains):
         for dom in domains:
             s = get_transition_sim(g.node[n]['rep'],dom['mean'])
             node_dom_sims[n][dom['name']] = s
-    print('node_dom_sims: %d' % len(node_dom_sims))
+    print('node_dom_sims: %d and states: %d' % (len(node_dom_sims), len(g.nodes)))
 
 
 
@@ -239,12 +243,11 @@ def get_success_prob_rep_domains(g, domains, tagdomains, domainclouds, dtype, do
             for n in leaves:
                 if gpp.node[n]['tag'] not in accepted_tags:
                     continue
-                selps, sims = get_dom_trans_prob(tagdomains[gpp.node[n]['tag']], domain)
+                selps = get_dom_trans_prob(tagdomains[gpp.node[n]['tag']], domain)
                 for dn in tagdomains[gpp.node[n]['tag']]:
-                    d = domains[domain_index[dn]]
-                    if d['name'] not in domainclouds[domainname]:
+                    if dn not in domainclouds[domainname]:
                         continue
-                    sp = selps[d['name']] * gpp.node[n][repname]['reach_prob_domain']
+                    sp = selps[dn] * gpp.node[n][repname]['reach_prob_domain']
                     if sp > max_reached_dom_prob:
                         max_reached_dom_prob = sp
             reachable_dom_probs.append(max_reached_dom_prob)
@@ -335,12 +338,11 @@ def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, doma
                 stag = gpp.node[n]['tag']
                 if stag not in accepted_tags:
                     continue
-                selps, sims = get_dom_trans_prob(tagdomains[stag], domain)
+                selps = get_dom_trans_prob(tagdomains[stag], domain)
                 for dn in tagdomains[stag]:
-                    d = domains[domain_index[dn]]
-                    if d['name'] not in domainclouds[domainname]:
+                    if dn not in domainclouds[domainname]:
                         continue
-                    sp = selps[d['name']] * gpp.node[n][repname]['reach_prob_domain']
+                    sp = selps[dn] * gpp.node[n][repname]['reach_prob_domain']
                     if sp > max_reached_dom_prob:
                         max_reached_dom_prob = sp
 
@@ -382,7 +384,6 @@ def get_dom_trans_prob(choices, domain):
     global gamma
     d2 = 0.0
     tps2 = dict()
-    sis = dict()
     branching_factor = len(choices)
     for s in choices:
         #m = get_transition_sim(s['mean'], domain['mean'])
@@ -391,11 +392,10 @@ def get_dom_trans_prob(choices, domain):
             if domain['name'] in dom_sims[s]:
                 m = dom_sims[s][domain['name']]
         tps2[s] = math.exp((gamma/branching_factor)*m)
-        sis[s] = m
         d2 += tps2[s]
     for s in choices:
         tps2[s] = (tps2[s]/d2)
-    return tps2, sis
+    return tps2
 
 
 
@@ -663,7 +663,7 @@ def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, dom
 
 
 def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
-    print('get_success_prob_likelihood_fuzzy')
+    print('get_success_prob_fuzzy')
 
     top = list(nx.topological_sort(g))
     gnodes = list(g.nodes)
@@ -674,8 +674,6 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
     success_probs_intersect = dict()
     h = g
     likelihood = 0.0
-    samedom = 0
-    dom_target_sims = []
     reachable_dom_probs = []
     #
     for p in gnodes:
@@ -699,24 +697,18 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
         gpp = get_domain_node_probs(gp, domain, top, root, gnodes)
         # finding the most reachable domain
         max_reached_dom_prob = 0.0
-        max_reached_dom_sim = 0.0
-        most_reachable_dom = ''
         #
         for n in leaves:
             stag = gpp.node[n]['tag']
             if stag not in accepted_tags:
                 continue
-            selps, sims = get_dom_trans_prob(tagdomains[stag], domain)
+            selps = get_dom_trans_prob(tagdomains[stag], domain)
             for dn in tagdomains[stag]:
-                d = domains[domain_index[dn]]
-                if d['name'] not in domainclouds[domainname]:
+                if dn not in domainclouds[domainname]:
                     continue
-                sp = selps[d['name']] * gpp.node[n][domainname]['reach_prob_domain']
+                sp = selps[dn] * gpp.node[n][domainname]['reach_prob_domain']
                 if sp > max_reached_dom_prob:
                     max_reached_dom_prob = sp
-                    max_reached_dom_sim = sims[d['name']]
-                    most_reachable_dom = d['name']
-        dom_target_sims.append(max_reached_dom_sim)
         reachable_dom_probs.append(max_reached_dom_prob)
 
         table = get_table_from_domain(domainname, dtype)
@@ -732,9 +724,6 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
         else:
             success_probs_intersect[table] *= (1.0-sp)
             success_probs[table] += sp
-
-        if domainname == most_reachable_dom:
-            samedom += 1
 
         for p in gnodes:
             gpp.node[p]['reach_prob'] += gpp.node[p][domainname]['reach_prob_domain']
@@ -758,8 +747,8 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
     return expected_success, h, success_probs, likelihood, domain_success_probs
 
 
-def get_domain_edge_probs(g, domain, leaves, gnodes):
-    gd = g
+def get_domain_edge_probs(gd, domain, leaves, gnodes):
+
     for p in gnodes:
         if p in leaves:
             continue

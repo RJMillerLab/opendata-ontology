@@ -34,7 +34,7 @@ dim_num = 10
 
 def get_reps(rep_num):
     global repdomains, reps
-
+    print('rep_num: %d' % rep_num)
     domvecs = [dom['mean'] for dom in domains]
     kmeans = KMeans(n_clusters=rep_num, random_state=random.randint(1,1000)).fit(domvecs)
     subs = dict()
@@ -42,16 +42,18 @@ def get_reps(rep_num):
         c = kmeans.labels_[i]
         if c not in subs:
             subs[c] = []
+        if 'centroid_' + str(c) not in repdomains:
+            repdomains['centroid_' + str(c)] = []
         repdomains['centroid_' + str(c)].append(domains[i]['name'])
+    print('kmeans.cluster_centers_: %d' % len(kmeans.cluster_centers_))
     for i in range(len(kmeans.cluster_centers_)):
-        reps.append({'name': 'centroid_' + str(c), 'mean': kmeans.cluster_centers_[i]})
+        reps.append({'name': 'centroid_' + str(i), 'mean': list(kmeans.cluster_centers_[i])})
     print('repdomains: %d' % len(repdomains))
     print('tagdomains: %d' % len(tagdomains))
 
 
 
-
-def init_load_dim(dim_id):
+def init_dim(dim_id):
 
     global domainclouds, keys, vecs, domains, tagdomains,  domaintags, dimdomainclouds, dimdomaintags, dimdomains, dimtagdomains
 
@@ -84,6 +86,7 @@ def init_load_dim(dim_id):
     tbs, atbs = dict(), dict()
     trainseendoms, dimseendoms = dict(), dict()
     traindomainnames = dict()
+    dimdomainnames = dict()
     for dom in alldomains:
 
         if dom['tag'] not in ks:
@@ -104,6 +107,8 @@ def init_load_dim(dim_id):
             dimdomaintags[dom['name']] = []
         if dom['tag'] not in dimdomaintags[dom['name']]:
             dimdomaintags[dom['name']].append(dom['tag'])
+
+        dimdomainnames[dom['name']] = True
 
         if dom['name'] not in sample_domain_names:
             continue
@@ -147,14 +152,69 @@ def init_load_dim(dim_id):
     for dom in dimdomains:
         dimdomainclouds[dom['name']] = dict()
         for cd, cp in alldomainclouds[dom['name']].items():
-            dimdomainclouds[dom['name']][cd] = cp
+            if cd in dimdomainnames:
+                dimdomainclouds[dom['name']][cd] = cp
 
     print('domainclouds: %d dimdomainclouds: %d' % (len(domainclouds), len(dimdomainclouds)))
 
-    get_reps()
+    num_rep = max(50, int(len(domains)/10.0))
+    get_reps(num_rep)
 
     #print('calculating tag rep sims')
     #orgh.get_tag_domain_sim(reps, keys, vecs, tagrepsimfile)
+
+
+    # saving all indices and maps to file
+    #domainclouds, keys, vecs, domains, tagdomains,  domaintags, dimdomainclouds, dimdomaintags, dimdomains,         dimtagdomains
+    print('saving dim data to files.')
+    json.dump(domainclouds, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomainclouds_'+str(dim_id)+'.json', 'w'))
+    json.dump(domains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomains_'+str(dim_id)+'.json', 'w'))
+    json.dump(tagdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traintagdomains_'+str(dim_id)+'.json', 'w'))
+    json.dump(domaintags, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomaintags_'+str(dim_id)+'.json', 'w'))
+
+    json.dump(dimdomainclouds, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomainclouds_'+str(dim_id)+'.json', 'w'))
+    json.dump(dimdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomains_'+str(dim_id)+'.json', 'w'))
+    json.dump(dimtagdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimtagdomains_'+str(dim_id)+'.json', 'w'))
+    json.dump(dimdomaintags, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomaintags_'+str(dim_id)+'.json', 'w'))
+
+    json.dump(keys, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagnames_'+str(dim_id)+'.json', 'w'))
+    json.dump([list(v) for v in vecs], open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagvecs_'+str(dim_id)+'.json', 'w'))
+
+    json.dump(reps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/reps_'+str(dim_id)+'.json', 'w'))
+    json.dump(repdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/repdomains_'+str(dim_id)+'.json', 'w'))
+    print('done saving.')
+
+
+
+
+
+def load_dim(dim_id):
+    global domainclouds, keys, vecs, domains, tagdomains,  domaintags, dimdomainclouds, dimdomaintags, dimdomains,  dimtagdomains, reps, repdomains
+
+    start = datetime.datetime.now()
+    domainclouds = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomainclouds_'+str(dim_id)+'.json', 'r'))
+    domains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomains_'+str(dim_id)+'.json', 'r'))
+    tagdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traintagdomains_'+str(dim_id)+'.json', 'r'))
+    domaintags = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomaintags_'+str(dim_id)+'.json', 'r'))
+
+    dimdomainclouds = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomainclouds_'+str(dim_id)+'.json', 'r'))
+    dimdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomains_'+str(dim_id)+'.json', 'r'))
+    dimtagdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimtagdomains_'+str(dim_id)+'.json', 'r'))
+    dimdomaintags = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomaintags_'+str(dim_id)+'.json', 'r'))
+
+    keys = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagnames_'+str(dim_id)+'.json', 'r'))
+    vecs = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagvecs_'+str(dim_id)+'.json', 'r'))
+    vecs = np.array([np.array(v) for v in vecs])
+
+    reps = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/reps_'+str(dim_id)+'.json', 'r'))
+    repdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/repdomains_'+str(dim_id)+'.json', 'r'))
+
+    print('loaded all dim files in %d ms.' % ((datetime.datetime.now()-start).total_seconds()*1000))
+
+    print('reps: %d repdomains: %d tagdomains: %d domaintags: %d domainclouds: %d' % (len(reps), len(repdomains), len(tagdomains), len(domaintags), len(domainclouds)))
+    print('keys: %d vecs: %d' % (len(keys), len(vecs)))
+    print('dim domains: %d domaintags: %d tagdomains: %d domainclouds: %d' % (len(dimdomains), len(dimdomaintags), len(dimtagdomains), len(dimdomainclouds)))
+
 
 
 def init_flat():
@@ -285,26 +345,36 @@ def fix(g, hierarchy_name):
     h, iteration_sps, iteration_ls, sps, dsps = orgf.fix_plus(g, domains, tagdomains, domainclouds, 'opendata', domaintags, reps, repdomains)
 
     print('fuzzy eval: ')
-    max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(h.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
+    max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_fuzzy(h.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
 
     json.dump(domain_success_probs, open('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_domain_sps.json', 'w'))
     json.dump(success_probs, open('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_table_sps.json', 'w'))
 
     print('printed to %s' % ('fix_' + hierarchy_name + '_prob_' + str(len(domains)) + '.pdf'))
-    print('printed iteration success plot to %s' % ('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_sps.pdf'))
-    print('printed iteration likelihood plot to %s' % ('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_iteration_ls.pdf'))
+    print('saved domain success probs to %s' % ('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_domain_sps.json'))
+    print('saved table succsss probs to %s' % ('od_output/fix_' + hierarchy_name + '_' + str(len(domains)) + '_table_sps.json'))
 
     return success_probs, h, domain_success_probs
 
 
 
-def agg_fuzzy(suffix1, suffix2):
+def agg_fuzzy(suffix1, dim_id):
     print('agg_fuzzy')
     gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs, keys)
     print('done clustering')
     print('initial hierarchy with %d nodes' % len(list(gp.nodes)))
     orgh.get_state_domain_sims(gp, tagrepsimfile, reps)
-    orgh.init(gp, domains, simfile)
+
+    domainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomains_'+str(dim_id)+'.json'
+
+    orgh.init(gp, domainsfile, simfile)
+
+    tagdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traintagdomains_'+str(dim_id)+'.json'
+    domaincloudsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomainclouds_'+str(dim_id)+'.json'
+    domaintagsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomaintags_'+str(dim_id)+'.json'
+    repdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/repdomains_'+str(dim_id)+'.json'
+    repsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/reps_'+str(dim_id)+'.json'
+
     max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_rep_prob_fuzzy(gp.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags, repdomains, reps)
     json.dump(domain_success_probs, open('od_output/agg_' + suffix1 + '_' + str(len(domains)) + '_domain_sps.json', 'w'))
     json.dump(success_probs, open('od_output/agg_' + suffix1 + '_' + str(len(domains)) + '_table_sps.json', 'w'))
@@ -323,7 +393,7 @@ def multidimensional_hierarchy(dim_id):
 
     ds = datetime.datetime.now()
 
-    gp, sps, before_dsps = agg_fuzzy('agg'+str(dim_id)+'of'+str(dim_num), '')
+    gp, sps, before_dsps = agg_fuzzy('agg'+str(dim_id)+'of'+str(dim_num), dim_id)
     for t, p in sps.items():
         if t not in success_probs_before:
             success_probs_before[t] = 0.0
@@ -334,7 +404,7 @@ def multidimensional_hierarchy(dim_id):
     print('fixing')
     sps, fg, after_dsps = fix(gp, 'agg_'+str(dim_id)+'of'+str(dim_num))
     sp = sum(list(sps.values()))/float(len(sps))
-    print('sp of dim %d after fix is %f.' % (dim_id, sp))
+    print('sp of dim %d for domains after fix is %f.' % (dim_id, sp))
     for t, p in sps.items():
         if t not in success_probs_after:
             success_probs_after[t] = 0.0
@@ -347,12 +417,16 @@ def multidimensional_hierarchy(dim_id):
     print('elapsed time of dim %d is %d' % (dim_id, int(delapsed.total_seconds() * 1000)))
     # evaluating test domains: domains that are not in the sample
     # need to call init() to reindex all domains on name
-    orgh.get_state_domain_sims(fg, tagdomsimfile, reps)
-    orgh.init(fg, dimdomains, simfile)
-    test_success, gp, test_success_probs, test_likelihood, test_domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(fg, dimdomains, dimtagdomains, dimdomainclouds, 'opendata', dimdomaintags)
+    orgh.get_state_domain_sims(fg, tagdomsimfile, dimdomains)
+    dimdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomains_'+str(dim_id)+'.json'
+    orgh.init(fg, dimdomainsfile, simfile)
+    print('dimdomains in main: %d vs %d dimtagdomains: %d vs %d' % (len(dimdomains), len(domains), len(dimtagdomains), len(tagdomains)))
+    test_success, gp, test_success_probs, test_likelihood, test_domain_success_probs = orgh.get_success_prob_fuzzy(fg, dimdomains, dimtagdomains, dimdomainclouds, 'opendata', dimdomaintags)
+    print('sp of dim %d for all domains: %f' % (dim_id, test_success))
     # saving domain success probs of train and test
     json.dump(after_dsps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/train_domain_probs_' + str(dim_id) + '.json', 'w'))
     json.dump(test_domain_success_probs, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/all_domain_probs_' + str(dim_id) + '.json', 'w'))
+    json.dump(test_domain_success_probs, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/all_table_probs_' + str(dim_id) + '.json', 'w'))
 
     for t, p in success_probs_before.items():
         success_probs_before[t] = 1-success_probs_before_intersect[t]
@@ -365,11 +439,13 @@ def multidimensional_hierarchy(dim_id):
 
 
     before_sp = sum(list(success_probs_before.values()))/float(len(success_probs_before))
-    print('success prob of multidimensions before fix: %f' % before_sp)
+    print('success prob of dim %d before fix for train domains: %f' % (dim_id, before_sp))
 
 
     after_sp = sum(list(success_probs_after.values()))/float(len(success_probs_after))
-    print('success prob of multidimensions after fix: %f' % after_sp)
+    print('success prob of dim %d after fix with %d reps: %f' % (dim_id, len(reps), after_sp))
+
+    print('success prob of dim %d for all domains after fix: %f' % (dim_id, test_success))
 
 
 
@@ -377,8 +453,8 @@ def flat(suffix):
     print('flat')
     g = orgh.add_node_vecs(orgg.get_flat_cluster_graph(keys), vecs, keys)
     orgh.get_state_domain_sims(g, tagrepsimfile, domains)
-    orgh.init(g, domains, tagdomains, simfile, keys, vecs)
-    max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(g.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
+    orgh.init(g, domains, tagdomains, simfile)
+    max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_fuzzy(g.copy(), domains, tagdomains, domainclouds, 'opendata', domaintags)
 
 
     jsonfile = 'od_output/flat_dists_' + str(len(domains)) + '_' + suffix + '.json'
@@ -402,7 +478,8 @@ TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_label_embs'
 
 #init()
 
-init_load_dim(8)
+#init_dim(8)
+load_dim(8)
 print('-------------------')
 multidimensional_hierarchy(8)
 
