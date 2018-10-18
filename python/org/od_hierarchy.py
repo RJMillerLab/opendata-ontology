@@ -40,7 +40,8 @@ def init(g, domainsfile, simfile, tgparam=10.0):
     print('done init')
 
 
-def get_state_domain_sims(g, tagdomsimfile, domains):
+def get_state_domain_sims(g, tagdomsimfile, domainsfile):
+    domains = json.load(open(domainsfile, 'r'))
     print('domains: %d states: %d' % (len(domains), len(g.nodes)))
     global node_dom_sims
     node_dom_sims = dict()
@@ -56,7 +57,7 @@ def get_state_domain_sims(g, tagdomsimfile, domains):
     print('loaded %d nodes and leaves: %d' % (len(node_dom_sims), len(leaves)))
     for n in g.nodes:
         i += 1
-        if i % 100 == 0:
+        if i % 50 == 0:
             print('processed %d states.' % i)
         if n in leaves:
             continue
@@ -230,7 +231,7 @@ def get_success_prob_rep_domains(g, domains, tagdomains, domainclouds, dtype, do
             accepted_tags = list(domaintags[domainname])
             for c in list(domainclouds[domainname].keys()):
                 if c not in domain_index:
-                    print('domain cloud not in index.')
+                    #print('domain cloud not in index.')
                     continue
                 accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
             accepted_tags = list(set(accepted_tags))
@@ -324,7 +325,7 @@ def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, doma
             accepted_tags.extend(list(domaintags[domainname]))
             for c in list(domainclouds[domainname].keys()):
                 if c not in domain_index:
-                    print('domain cloud not in index.')
+                    #print('domain cloud not in index.')
                     continue
                 accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
             accepted_tags = list(set(accepted_tags))
@@ -662,8 +663,16 @@ def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, dom
     return update_domains, update_domain_names
 
 
-def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
+#def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
+def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dtype, domaintagsfile):
+
+    domains = json.load(open(domainsfile, 'r'))
+    tagdomains = json.load(open(tagdomainsfile, 'r'))
+    domainclouds = json.load(open(domaincloudsfile, 'r'))
+    domaintags = json.load(open(domaintagsfile, 'r'))
+
     print('get_success_prob_fuzzy')
+    print('domains: %d  tags: %d ' % (len(domains), len(tagdomains)))
 
     top = list(nx.topological_sort(g))
     gnodes = list(g.nodes)
@@ -686,7 +695,7 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
         accepted_tags.extend(list(domaintags[domainname]))
         for c in list(domainclouds[domainname].keys()):
             if c not in domain_index:
-                print('domain cloud not in index.')
+                #print('domain cloud not in index.')
                 continue
             accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
         accepted_tags = list(set(accepted_tags))
@@ -743,6 +752,8 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
     expected_success = sum(list(success_probs.values()))/float(len(success_probs))
     if expected_success == 0:
         print('zero expected_success.')
+
+    print('expected_success: %f' % expected_success)
 
     return expected_success, h, success_probs, likelihood, domain_success_probs
 

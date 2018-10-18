@@ -5,9 +5,11 @@ import operator
 import numpy as np
 import copy
 import datetime
+import json
 
 
 tagdomains = dict()
+domaintags = dict()
 domains = []
 reps = []
 repdomains = dict()
@@ -20,20 +22,27 @@ fix_count = 0
 rhcount = 0
 apcount = 0
 
-def init(g, doms, tdoms, dclouds, oreps, orepdomains):
-    global repdomains, reps, domains, tagdomains, domainclouds, populations
-    domains = doms
-    reps = oreps
-    tagdomains = tdoms
-    domainclouds = dclouds
-    repdomains = orepdomains
+#def init(g, doms, tdoms, dclouds, oreps, orepdomains):
+def init(g, domsfile, tdomsfile, dcloudsfile, orepsfile, orepdomainsfile, odomtagsfile):
+    global repdomains, reps, domains, tagdomains, domainclouds, populations, domaintags
+    domains = json.load(open(domsfile, 'r'))
+    reps = json.load(open(orepsfile, 'r'))
+    tagdomains = json.load(open(tdomsfile, 'r'))
+    domainclouds = json.load(open(dcloudsfile, 'r'))
+    repdomains = json.load(open(orepdomainsfile, 'r'))
+    domaintags = json.load(open(odomtagsfile, 'r'))
     h = g.copy()
+
+    print('number of reps: %d' % len(reps))
+
     return h
 
 
-def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags, oreps, orepdomains):
+#def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags, oreps, orepdomains):
+def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile, orepdomainsfile):
     global fix_count
-    init(g, doms, tdoms, dclouds, oreps, orepdomains)
+    #init(g, doms, tdoms, dclouds, oreps, orepdomains)
+    init(g, domsfile, tdomsfile, dcloudsfile, orepsfile, orepdomainsfile, odomtagsfile)
     print('started fixing with %d domains.' % len(domains))
     stats = []
     iteration_likelihoods = []
@@ -44,13 +53,13 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags, oreps, orepdomains):
     best = gp.copy()
     print('starting with success prob: fuzzy %f' % (max_success))
 
-    fixfunctions = [reduce_height, add_parent]
+    fixfunctions = [add_parent, reduce_height, add_parent]
 
     # termination condition
     pleateau_count = 0
     prev_max_success = max_success
     #
-    for i in range(2):
+    for i in range(1):#(2):
         print(datetime.datetime.now())
         print('iteration %d' % i)
         initial_sp = max_success
@@ -66,7 +75,7 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags, oreps, orepdomains):
             #    break
             #print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
             print('len(level_n): %d' % (len(level_n)))
-            hf, ll, sps, levelstats, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype, domaintags)
+            hf, ll, sps, levelstats, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype)
             stats.extend(list(levelstats))
             iteration_likelihoods.extend(list(ls))
             #print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
@@ -97,7 +106,7 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags, oreps, orepdomains):
     return best, stats, iteration_likelihoods, max_success_probs, max_domain_success_probs
 
 
-def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfunctions, dtype, domaintags):
+def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfunctions, dtype):
 
     stats = []
     iteration_likelihoods = []
