@@ -7,7 +7,7 @@ import datetime
 import random
 from sklearn.cluster import KMeans
 import json
-from sklearn.metrics import silhouette_score
+
 
 node_dom_sims = dict()
 dom_selection_probs = dict()
@@ -68,12 +68,28 @@ def get_state_domain_sims(g, tagdomsimfile, domainsfile):
     print('node_dom_sims: %d and states: %d' % (len(node_dom_sims), len(g.nodes)))
 
 
+def extend_node_dom_sims(g, domainsfile):
+    domains = json.load(open(domainsfile, 'r'))
+    print('domains: %d states: %d' % (len(domains), len(g.nodes)))
+    # only computing sims for domains that do not exists in the map
+    updoms = 0
+    for n in g.nodes:
+        for dom in domains:
+            domainname = dom['name']
+            if domainname not in node_dom_sims[n]:
+                updoms += 1
+                s = get_transition_sim(g.node[n]['rep'],dom['mean'])
+                node_dom_sims[n][domainname] = s
+    print('updated node_dom_sims for overall %d doms' % updoms)
 
 
-def update_node_dom_sims(g, domains, ns):
+def update_node_dom_sims(g, domains, ns, leaves):
     for n in ns:
+        if n in leaves:
+            continue
         for dom in domains:
             node_dom_sims[n][dom['name']] = get_transition_sim(g.node[n]['rep'], dom['mean'])
+
 
 def extend_state_dom_sims(g, domains):
     for i in range(len(domains)):
@@ -107,34 +123,6 @@ def get_sims(g, domain, nodes):
         #sims[n] = get_transition_sim(g.node[n]['rep'], domain['mean'])
         sims[n] = node_dom_sims[n][domain['name']]
     return sims
-
-
-def get_rep_edge_probs(g, domain, leaves, gnodes):
-    gd = g
-    for p in gnodes:
-        if p in leaves:
-            continue
-        ts, sis = get_trans_prob(gd, p, domain)
-        for ch, prob in ts.items():
-            gd[p][ch][domain['name']] = {'trans_prob_domain': prob}
-    return gd
-
-
-
-def get_rep_node_probs(gd, domain, top, root, gnodes):
-
-    domainname = domain['name']
-    for n in gnodes:
-        gd.node[n][domainname] = dict()
-        if n == root:
-            gd.node[n][domainname]['reach_prob_domain'] = 1.0
-        else:
-            gd.node[n][domainname]['reach_prob_domain'] = 0.0
-    for p in top:
-        for ch in list(gd.successors(p)):
-            gd.node[ch][domainname]['reach_prob_domain'] += gd.node[p][domainname]['reach_prob_domain']*gd[p][ch][domainname]['trans_prob_domain']
-    return gd
-
 
 
 
@@ -219,12 +207,9 @@ def get_success_prob_rep_domains(g, domains, tagdomains, domainclouds, dtype, do
         if repname not in active_rep_names:
             continue
 
-        gp = get_rep_edge_probs(h, rep, leaves, gnodes)
-        gpp = get_rep_node_probs(gp, rep, top, root, gnodes)
+        rep_reachprobs = get_rep_reach_probs(h, rep, top, root, gnodes)
 
         for domainname in repdomains[repname]:
-            #if domname not in domain_index:
-            #    continue
             domain = domains[domain_index[domainname]]
 
             # finding the tags of accepted domains
@@ -242,13 +227,15 @@ def get_success_prob_rep_domains(g, domains, tagdomains, domainclouds, dtype, do
             max_reached_dom_prob = 0.0
             #
             for n in leaves:
-                if gpp.node[n]['tag'] not in accepted_tags:
+                nodetag = h.node[n]['tag']
+                if nodetag not in accepted_tags:
                     continue
-                selps = get_dom_trans_prob(tagdomains[gpp.node[n]['tag']], domain)
-                for dn in tagdomains[gpp.node[n]['tag']]:
+                selps = get_dom_trans_prob(tagdomains[nodetag], domain)
+                for dn in tagdomains[nodetag]:
                     if dn not in domainclouds[domainname]:
                         continue
-                    sp = selps[dn] * gpp.node[n][repname]['reach_prob_domain']
+                    #sp = selps[dn] * h.node[n]['reach_prob_domain']
+                    sp = selps[dn] * rep_reachprobs[n]
                     if sp > max_reached_dom_prob:
                         max_reached_dom_prob = sp
             reachable_dom_probs.append(max_reached_dom_prob)
@@ -270,7 +257,6 @@ def get_success_prob_rep_domains(g, domains, tagdomains, domainclouds, dtype, do
                 success_probs[table] += sp
 
 
-        h = gpp
 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
@@ -311,8 +297,7 @@ def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, doma
 
         repname = rep['name']
 
-        gp = get_rep_edge_probs(h, rep, leaves, gnodes)
-        gpp = get_rep_node_probs(gp, rep, top, root, gnodes)
+        rep_reachprobs = get_rep_reach_probs(h, rep, top, root, gnodes)
 
         for domainname in repdomains[repname]:
             # index is built on domain of a dimension which is a subset
@@ -336,14 +321,15 @@ def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, doma
             max_reached_dom_prob = 0.0
             #
             for n in leaves:
-                stag = gpp.node[n]['tag']
+                stag = h.node[n]['tag']
                 if stag not in accepted_tags:
                     continue
                 selps = get_dom_trans_prob(tagdomains[stag], domain)
                 for dn in tagdomains[stag]:
                     if dn not in domainclouds[domainname]:
                         continue
-                    sp = selps[dn] * gpp.node[n][repname]['reach_prob_domain']
+                    #sp = selps[dn] * h.node[n]['reach_prob_domain']
+                    sp = selps[dn] * rep_reachprobs[n]
                     if sp > max_reached_dom_prob:
                         max_reached_dom_prob = sp
 
@@ -360,9 +346,9 @@ def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, doma
                 success_probs[table] += sp
 
             for p in gnodes:
-                gpp.node[p]['reach_prob'] += gpp.node[p][repname]['reach_prob_domain']
+                #gpp.node[p]['reach_prob'] += gpp.node[p]['reach_prob_domain']
+                h.node[p]['reach_prob'] += rep_reachprobs[p]
 
-            h = gpp
 
     # the prob of finding a table is the union of the prob of finding its domains
     for t, p in success_probs.items():
@@ -394,8 +380,7 @@ def get_dom_trans_prob(choices, domain):
                 m = dom_sims[s][domain['name']]
         tps2[s] = math.exp((gamma/branching_factor)*m)
         d2 += tps2[s]
-    for s in choices:
-        tps2[s] = (tps2[s]/d2)
+    tps2 = {s:(p/d2) for s, p in tps2.items()}
     return tps2
 
 
@@ -405,7 +390,6 @@ def get_trans_prob(g, p, domain):
     global gamma
     d = 0.0
     tps = dict()
-    sis = dict()
     sps = list(g.successors(p))
     branching_factor = len(sps)
     for s in sps:
@@ -413,17 +397,13 @@ def get_trans_prob(g, p, domain):
         m = 0.0
         if domain['name'] in node_dom_sims[s]:
             m = node_dom_sims[s][domain['name']]
-        sis[s] = m
         tps[s] = math.exp((gamma/branching_factor)*m)
         d += tps[s]
-    for s in sps:
-        tps[s] = tps[s]/d
-
-    return tps, sis
+    tps = {s:(p/d) for s, p in tps.items()}
+    return tps
 
 
 def get_reps_to_update(g, domains, nodes, tagdomains, domainclouds, head, domaintags, prune, repdomains, reps):
-
 
     updomains = []
     dnames = {}
@@ -464,9 +444,10 @@ def get_reps_to_update(g, domains, nodes, tagdomains, domainclouds, head, domain
     active_reps = []
     active_rep_names = dict()
 
-    rep_index = dict()
-    for i in range(len(reps)):
-        rep_index[reps[i]['name']] = i
+    #rep_index = dict()
+    rep_index = {reps[i]['name']: i for i in range(len(reps))}
+    #for i in range(len(reps)):
+    #    rep_index[reps[i]['name']] = i
 
     for rep, rdomains in repdomains.items():
         for dom in rdomains:
@@ -519,53 +500,6 @@ def get_dimensions(tags, vecs, n_dims):
     print('number of dims: %d' % len(dims))
     return dims
 
-def get_dimensions_plus(tags, vecs):
-    print('vecs: %d tags: %d' % (len(vecs), len(tags)))
-    range_n_dims = [i for i in range(2, 20)]
-    for n_dims in range_n_dims:
-        kmeans = KMeans(n_clusters=n_dims, random_state=random.randint(1,1000)).fit(vecs)
-        cluster_labels = kmeans.fit_predict(vecs)
-        silhouette_avg = silhouette_score(vecs, cluster_labels)
-        print("For n_clusters =", n_dims, "The average silhouette_score is :", silhouette_avg)
-    dims = dict()
-    dimvecs = dict()
-    for i in range(len(kmeans.labels_)):
-        c = kmeans.labels_[i]
-        if c not in dims:
-            dims[c] = []
-            dimvecs[c] = []
-        dims[c].append(tags[i])
-        dimvecs[c].append(vecs[i])
-    # computing the means vectors
-    cmeans = dict()
-    for c, ts in dims.items():
-        cmeans[c] = np.mean(dimvecs[c], axis=0)
-    # merge the clusters with one member into a random cluster
-    ocs = list(dims.keys())
-    for c in ocs:
-        ts = dims[c]
-        print(len(ts))
-        if len(ts) > 15:
-            continue
-        # find the cluster to merge with
-        mergec = c
-        maxsim = 0.0
-        for k in list(dims.keys()):
-            if c != k:
-                sim = max(0.000001, cosine(cmeans[c], cmeans[k]))
-                if sim > maxsim:
-                    maxsim = sim
-                    mergec = k
-        # merge
-        print('merging cluster %d with %d.' % (c, mergec))
-        dims[mergec].extend(dims[c])
-        del dims[c]
-        ocs.remove(c)
-        print('ocs: %d dims: %d' % (len(ocs), len(dims)))
-    print('number of dims: %d' % len(dims))
-    return dims
-
-
 
 def save(h, hierarchy_filename):
     hfile = open(hierarchy_filename,'w')
@@ -612,6 +546,25 @@ def get_table_from_domain(domainname, dtype):
     return table
 
 
+def get_tag_domain_trans_probs(tagdomsimfile, tagdomains, tagdomtransprobsfile):
+    print('get_tag_domain_trans_probs')
+    tdsims = json.load(tagdomsimfile)
+    tdtprobs = dict()
+    i = 0
+    for t, ds in tdsims.items():
+        i += 1
+        if i % 200 == 0:
+            print('computed tag dom trans prob for %d tags.' % i)
+        ts = 0.0
+        ps = dict()
+        for d in ds:
+            branching_factor = len(tagdomains[t])
+            if d in tagdomains[t]:
+                m = math.exp((gamma/branching_factor)*tdsims[t][d])
+                ps[d] = m
+                ts += m
+        tdtprobs[t] = {d: p/ts for d, p in ps.items()}
+    json.dump(open(tagdomtransprobsfile, 'w'))
 
 
 def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, domaintags, prune):
@@ -702,8 +655,8 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
         #
         table = get_table_from_domain(domainname, dtype)
 
-        gp = get_domain_edge_probs(h, domain, leaves, gnodes)
-        gpp = get_domain_node_probs(gp, domain, top, root, gnodes)
+        dom_reachprobs = get_domain_reach_probs(h, domain, top, root, gnodes)
+        gpp = h
         # finding the most reachable domain
         max_reached_dom_prob = 0.0
         #
@@ -715,7 +668,8 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
             for dn in tagdomains[stag]:
                 if dn not in domainclouds[domainname]:
                     continue
-                sp = selps[dn] * gpp.node[n][domainname]['reach_prob_domain']
+                sp = selps[dn] * dom_reachprobs[n]
+                #sp = selps[dn] * gpp.node[n]['reach_prob_domain']
                 if sp > max_reached_dom_prob:
                     max_reached_dom_prob = sp
         reachable_dom_probs.append(max_reached_dom_prob)
@@ -735,7 +689,8 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
             success_probs[table] += sp
 
         for p in gnodes:
-            gpp.node[p]['reach_prob'] += gpp.node[p][domainname]['reach_prob_domain']
+            #gpp.node[p]['reach_prob'] += gpp.node[p]['reach_prob_domain']
+            gpp.node[p]['reach_prob'] += dom_reachprobs[p]
 
         h = gpp
 
@@ -758,30 +713,47 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
     return expected_success, h, success_probs, likelihood, domain_success_probs
 
 
-def get_domain_edge_probs(gd, domain, leaves, gnodes):
 
-    for p in gnodes:
+def get_domain_reach_probs(gd, domain, top, root, gnodes):
+
+    dom_reachprobs = np.zeros(len(gnodes))
+
+    for n in gnodes:
+        if n == root:
+            dom_reachprobs[n] = 1.0
+            #gd.node[n]['reach_prob_domain'] = 1.0
+        else:
+            dom_reachprobs[n] = 0.0
+            #gd.node[n]['reach_prob_domain'] = 0.0
+    for p in top:
         if p in leaves:
             continue
-        ts, sis = get_trans_prob(gd, p, domain)
+        ts = get_trans_prob(gd, p, domain)
         for ch, prob in ts.items():
-            gd[p][ch][domain['name']] = {'trans_prob_domain': prob}
-    return gd
+            dom_reachprobs[ch] += dom_reachprobs[p]*prob
+            #gd.node[ch]['reach_prob_domain'] += gd.node[p]['reach_prob_domain']*prob
+    #return gd
+    return dom_reachprobs
 
 
-def get_domain_node_probs(gd, domain, top, root, gnodes):
+def get_rep_reach_probs(gd, domain, top, root, gnodes):
+    rep_reachprobs = np.zeros(len(gnodes))
 
-    domainname = domain['name']
     for n in gnodes:
-        gd.node[n][domainname] = dict()
         if n == root:
-            gd.node[n][domainname]['reach_prob_domain'] = 1.0
+            rep_reachprobs[n] = 1.0
+            #gd.node[n]['reach_prob_domain'] = 1.0
         else:
-            gd.node[n][domainname]['reach_prob_domain'] = 0.0
+            rep_reachprobs[n] = 0.0
+            #gd.node[n]['reach_prob_domain'] = 0.0
     for p in top:
-        for ch in list(gd.successors(p)):
-            gd.node[ch][domainname]['reach_prob_domain'] += gd.node[p][domainname]['reach_prob_domain']*gd[p][ch][domainname]['trans_prob_domain']
-    return gd
 
-
+        if p in leaves:
+            continue
+        ts = get_trans_prob(gd, p, domain)
+        for ch, prob in ts.items():
+            rep_reachprobs[ch] += rep_reachprobs[p]*prob
+            #gd.node[ch]['reach_prob_domain'] += gd.node[p]['reach_prob_domain']*prob
+    #return gd
+    return rep_reachprobs
 

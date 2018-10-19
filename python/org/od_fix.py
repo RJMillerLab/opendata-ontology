@@ -16,7 +16,7 @@ repdomains = dict()
 populations = dict()
 domainclouds = dict()
 # stop exploring after X times of no improvement fixes
-termination_condition = 3000
+termination_condition = 1200
 plateau_termination_condition = 200
 fix_count = 0
 rhcount = 0
@@ -218,10 +218,8 @@ def update_graph_add_parent(g, p, c):
     if p in list(ancestors_c):
         to_update = []
     else:
-        #if len(set(nx.ancestors(h,p)).difference(set(nx.ancestors(h,c)))) > 0:
         if len(ancestors_p.difference(ancestors_c)) > 0:
             print('something to update')
-        #to_update = list((set(nx.ancestors(h,p)).difference(set(nx.ancestors(h,c)))).    union({p}))
         to_update = list((ancestors_p.difference(ancestors_c)).union({p}))
     update_head = nx.lowest_common_ancestor(h, p, c)
     for u in to_update:
@@ -243,7 +241,7 @@ def update_graph_add_parent(g, p, c):
                 h.node[n]['tags'].append(h.node[a]['tag'])
         if len(pops) > 0:
             h.node[n]['rep'] = list(np.mean(np.array(pops), axis=0))
-    orgh.update_node_dom_sims(h, domains, to_update)
+    orgh.update_node_dom_sims(h, domains, to_update, leaves)
     return h, update_head
 
 
