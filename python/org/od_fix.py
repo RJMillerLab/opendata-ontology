@@ -53,7 +53,7 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
     best = gp.copy()
     print('starting with success prob: fuzzy %f' % (max_success))
 
-    fixfunctions = [add_parent, reduce_height, add_parent]
+    fixfunctions = [reduce_height, add_parent]
 
     # termination condition
     pleateau_count = 0
@@ -169,7 +169,7 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
     print('fix %d' % n)
     num_active_domains, num_active_reps = 0, 0
     potentials2 = []
-    for sp in schoices[:2]:
+    for sp in schoices[:1]:
         p = sp[0]
         h = best.copy()
 
@@ -235,10 +235,15 @@ def update_graph_add_parent(g, p, c):
             to_add.append(n)
         to_add.extend(list((set(nx.descendants(h,n)).intersection(set(leaves)))))
         to_add = list(set(to_add))
+        tags = {t: True for t in h.node[n]['tags']}
         for a in to_add:
             pops.append(h.node[a]['rep'])
-            if h.node[a]['tag'] not in h.node[n]['tags']:
-                h.node[n]['tags'].append(h.node[a]['tag'])
+            #if h.node[a]['tag'] not in h.node[n]['tags']:
+            at = h.node[a]['tag']
+            if at not in tags:
+                #h.node[n]['tags'].append(h.node[a]['tag'])
+                tags[at] = True
+            h.node[n]['tags'] = list(tags.keys())
         if len(pops) > 0:
             h.node[n]['rep'] = list(np.mean(np.array(pops), axis=0))
     orgh.update_node_dom_sims(h, domains, to_update, leaves)
