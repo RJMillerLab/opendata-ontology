@@ -17,14 +17,16 @@ top = []
 gamma = 10.0
 domain_index = dict()
 tag_dom_trans_probs = dict()
-dagstates = 0
+dagstates = -1
 
 
 def init(g, domainsfile, simfile, tagdomtransprobsfile, tgparam=10.0):
-    global dagstates, omain_index, dom_sims, gamma, tag_dom_trans_probs
+    global dagstates, domain_index, dom_sims, gamma, tag_dom_trans_probs
     gamma = float(tgparam)
 
-    dagstates = len(g.nodes)
+    # if it is the first time calling init(): the initial graph
+    if dagstates == -1:
+        dagstates = len(g.nodes)
 
     domain_index = dict()
 
@@ -228,13 +230,15 @@ def get_success_prob_rep_domains(g, domains, tagdomains, domainclouds, dtype, do
                 if c not in domain_index:
                     #print('domain cloud not in index.')
                     continue
-                accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
+                #accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
+                accepted_tags.extend(domaintags[c])
             accepted_tags = list(set(accepted_tags))
             #
             table = get_table_from_domain(domainname, dtype)
 
             # finding the most reachable domain
-            max_reached_dom_prob = 0.0
+            #max_reached_dom_prob = 0.0
+            max_reached_dom_prob = 1.0
             #
             #for n in leaves:
             for n, nodetag in leavetags.items():
@@ -248,10 +252,12 @@ def get_success_prob_rep_domains(g, domains, tagdomains, domainclouds, dtype, do
                         continue
                     #sp = selps[dn] * h.node[n]['reach_prob_domain']
                     sp = selps[dn] * rep_reachprobs[n]
-                    if sp > max_reached_dom_prob:
-                        max_reached_dom_prob = sp
+                    #if sp > max_reached_dom_prob:
+                    #    max_reached_dom_prob = sp
+                    max_reached_dom_prob *= (1.0-sp)
             reachable_dom_probs.append(max_reached_dom_prob)
-            sp = max_reached_dom_prob
+            #sp = max_reached_dom_prob
+            sp = 1.0 - max_reached_dom_prob
 
             if domainname in domain_success_probs:
                 print('rep dom alert')
@@ -307,16 +313,17 @@ def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, doma
 
     leavetags = {n:h.node[n]['tag'] for n in leaves}
 
+    print('domain_index: %d' % len(domain_index))
+
     for rep in reps:
 
         repname = rep['name']
-
-        rep_reachprobs = get_rep_reach_probs(h, rep, top, root, gnodes)
 
         for domainname in repdomains[repname]:
             # index is built on domain of a dimension which is a subset
             # of complete domains.
             if domainname not in domain_index:
+                print('domainname not in domain_index')
                 continue
             #domain = domains[domain_index[domainname]]
             # finding the tags of accepted domains
@@ -331,25 +338,32 @@ def get_success_rep_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, doma
             #
             table = get_table_from_domain(domainname, dtype)
 
+            rep_reachprobs = get_rep_reach_probs(h, rep, top, root, gnodes)
+
             # finding the most reachable domain
-            max_reached_dom_prob = 0.0
+            max_reached_dom_prob = 1.0
             #
             for n, nodetag in leavetags.items():
             #for n in leaves:
-                stag = h.node[n]['tag']
+                #stag = h.node[n]['tag']
+                stag = nodetag
                 if stag not in accepted_tags:
+                    #print('tag not in accepted tags')
                     continue
                 #selps = get_dom_trans_prob(tagdomains[stag], domain)
                 selps = tag_dom_trans_probs[stag]
                 for dn in tagdomains[stag]:
                     if dn not in domainclouds[domainname]:
+                        #print('dn not in domainclouds')
                         continue
                     #sp = selps[dn] * h.node[n]['reach_prob_domain']
                     sp = selps[dn] * rep_reachprobs[n]
-                    if sp > max_reached_dom_prob:
-                        max_reached_dom_prob = sp
+                    #if sp > max_reached_dom_prob:
+                    #    max_reached_dom_prob = sp
+                    max_reached_dom_prob *= (1.0-sp)
 
-            sp = max_reached_dom_prob
+            #sp = max_reached_dom_prob
+            sp = 1.0-max_reached_dom_prob
 
             domain_success_probs[domainname] = sp
 
@@ -514,6 +528,8 @@ def get_dimensions(tags, vecs, n_dims):
         ocs.remove(c)
         print('ocs: %d dims: %d' % (len(ocs), len(dims)))
     print('number of dims: %d' % len(dims))
+    for d, ts in dims.items():
+        print(len(ts))
     return dims
 
 
@@ -536,7 +552,9 @@ def save(h, hierarchy_filename):
 
 def get_tag_domain_sim(domains, tags, vecs, tagdomsimfile):
     print('get_tag_domain_sim')
-    sims = dict()
+    # always compute the sims incrementally
+    sims = json.load(open(tagdomsimfile, 'r'))
+    #sims = dict()
     for i in range(len(tags)):
         if i % 100 == 0:
             print('computed tag dom sims for %d tags' % i)
@@ -545,6 +563,8 @@ def get_tag_domain_sim(domains, tags, vecs, tagdomsimfile):
         if t not in sims:
             sims[t] = dict()
         for d in domains:
+            if d['name'] in sims[t]:
+                continue
             s = get_transition_sim(v,d['mean'])
             sims[t][d['name']] = s
     json.dump(sims, open(tagdomsimfile, 'w'))
@@ -632,7 +652,6 @@ def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, dom
     return update_domains, update_domain_names
 
 
-#def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
 def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dtype, domaintagsfile):
 
     domains = json.load(open(domainsfile, 'r'))
@@ -652,7 +671,6 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
     success_probs_intersect = dict()
     h = g
     likelihood = 0.0
-    reachable_dom_probs = []
     #
     for p in gnodes:
         h.node[p]['reach_prob'] = 0.0
@@ -676,11 +694,12 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
         dom_reachprobs = get_domain_reach_probs(h, domain, top, root, gnodes)
         gpp = h
         # finding the most reachable domain
-        max_reached_dom_prob = 0.0
+        max_reached_dom_prob = 1.0
         #
         for n, nodetag in leavetags.items():
         #for n in leaves:
-            stag = gpp.node[n]['tag']
+            #stag = gpp.node[n]['tag']
+            stag = nodetag
             if stag not in accepted_tags:
                 continue
             #selps = get_dom_trans_prob(tagdomains[stag], domain)
@@ -691,13 +710,14 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
                     continue
                 sp = selps[dn] * dom_reachprobs[n]
                 #sp = selps[dn] * gpp.node[n]['reach_prob_domain']
-                if sp > max_reached_dom_prob:
-                    max_reached_dom_prob = sp
-        reachable_dom_probs.append(max_reached_dom_prob)
+                #if sp > max_reached_dom_prob:
+                #    max_reached_dom_prob = sp
+                max_reached_dom_prob *= (1.0-sp)
 
         table = get_table_from_domain(domainname, dtype)
 
-        sp = max_reached_dom_prob
+        #sp = max_reached_dom_prob
+        sp = 1.0 - max_reached_dom_prob
 
         domain_success_probs[domainname] = sp
 
@@ -710,7 +730,6 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
             success_probs[table] += sp
 
         for p in gnodes:
-            #gpp.node[p]['reach_prob'] += gpp.node[p]['reach_prob_domain']
             gpp.node[p]['reach_prob'] += dom_reachprobs[p]
 
         h = gpp
@@ -737,12 +756,6 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
 
 def get_domain_reach_probs(gd, domain, top, root, gnodes):
 
-    #dom_reachprobs = np.zeros(len(gnodes))
-    #for n in gnodes:
-    #    if n == root:
-    #        dom_reachprobs[n] = 1.0
-    #    else:
-    #        dom_reachprobs[n] = 0.0
     dom_reachprobs = np.zeros(dagstates)
     dom_reachprobs[root] = 1.0
     for p in top:
@@ -758,11 +771,6 @@ def get_rep_reach_probs(gd, domain, top, root, gnodes):
     rep_reachprobs = np.zeros(dagstates)
     rep_reachprobs[root] = 1.0
 
-    #for n in gnodes:
-    #    if n == root:
-    #        rep_reachprobs[n] = 1.0
-    #    else:
-    #        rep_reachprobs[n] = 0.0
     for p in top:
 
         if p in leaves:

@@ -53,7 +53,7 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
     best = gp.copy()
     print('starting with success prob: fuzzy %f' % (max_success))
 
-    fixfunctions = [reduce_height, add_parent]
+    fixfunctions = [add_parent, reduce_height, add_parent]
 
     # termination condition
     pleateau_count = 0
@@ -116,8 +116,9 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
     max_domain_success_probs = copy.deepcopy(domain_success_probs)
     best = g.copy()
     bnodes = best.nodes
-    for f in fixes:
-        #if f[0] not in best.nodes:
+    #for f in fixes:
+    for fi in range(int(len(fixes)/2)):
+        f = fixes[fi]
         if f[0] not in bnodes:
             continue
         if len(list(best.predecessors(f[0]))) == 0:
@@ -125,12 +126,10 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
         if f[1] == 1.0:
             continue
         for ffunc in fixfunctions:
-            #print('nodes: %d edges: %d before ffunc' % (len(best.nodes), len(best.edges)))
             start = datetime.datetime.now()
             hp, newsuccess, newsps, its, ls, dsps = ffunc(best.copy(), level, f[0], max_success, max_success_probs, dtype, domaintags, max_domain_success_probs, bnodes)
             print('fix time: %d' % (int((datetime.datetime.now()-start).total_seconds() *1000)))
             print('------------------------')
-            #print('nodes: %d edges: %d after ffunc' % (len(hp.nodes), len(hp.edges)))
             if newsuccess < 0.0:
                 continue
             if newsuccess > max_success:
@@ -139,8 +138,6 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
                 max_success_probs = copy.deepcopy(newsps)
                 max_domain_success_probs = copy.deepcopy(dsps)
                 bnodes = best.nodes
-            #else:
-            #    print('opeartor did not help.')
             stats.extend(list(its))
             iteration_likelihoods.extend(list(ls))
     return best, max_success, max_success_probs, stats, iteration_likelihoods, max_domain_success_probs
@@ -149,7 +146,6 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
 def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_success_probs, gnodes):
     global apcount
     print('add_parent')
-    #if n not in g.nodes:
     if n not in gnodes:
         return g, -1.0, [], [], [], []
     global fix_count
