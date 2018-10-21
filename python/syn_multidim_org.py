@@ -24,9 +24,13 @@ simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/pyth
 
 
 def init(tag_num):
-    global keys, vecs, domains, tagdomains, domaintags
+    global keys, vecs, domains, tagdomains, domaintags, domainclouds
     print("Loading domains")
     adomains = list(orgl.add_ft_vectors(orgl.iter_domains()))
+
+    json.dump(adomains, open('/home/fnargesian/FINDOPENDATA_DATASETS/synthetic/domains.json', 'w'))
+    return
+
     print("Reduce tags")
     atags, atagdomains = orgl.reduce_tag_vectors(adomains)
     print('number of tags: %d' % len(atags))
@@ -46,8 +50,8 @@ def init(tag_num):
     print('domain tags: %d' % len(domaintags))
     for t in tvs:
         tags[t] = copy.deepcopy(atags[t])
-        tagdomains[t] = copy.deepcopy(atagdomains[t])
-        nudomains.extend(list(tagdomains[t]))
+        tagdomains[t] = [dom['name'] for dom in atagdomains[t]]
+        nudomains.extend(list(atagdomains[t]))
     domains = []
     # making domains unique
     seen = dict()
@@ -59,7 +63,11 @@ def init(tag_num):
     keys, vecs = orgc.mk_tag_table(tags)
 
     # Tag-domain sims are precalculated.
-    #orgh.get_tag_domain_sim(domains, keys, vecs, tagdomsimfile)
+    orgh.get_tag_domain_sim(domains, keys, vecs, tagdomsimfile)
+
+    # finding the cloud
+    simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/synthetic_output/allpair_sims.json'
+    domainclouds = orgk.make_cloud(simfile, 0.75)
 
 
 
@@ -94,8 +102,11 @@ def agg_fuzzy(suffix1, suffix2):
     print('agglomerative')
     gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs, keys)
 
-    orgh.init(gp, domains, tagdomains, simfile, tagdomsimfile)
-    max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(gp.     copy(), domains, tagdomains, domainclouds, 'synthetic', domaintags)
+    orgh.get_state_domain_sims(gp, tagdomsimfile, domains)
+    orgh.init(gp, domains, simfile)
+    max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_likelihood_fuzzy(gp.copy(), domains, tagdomains, domainclouds, 'synthetic', domaintags)
+
+    print(max_success)
 
     json.dump(success_probs, open('synthetic_output/agg_dists' + str(len(domains)) + suffix1 + '.json', 'w'))
     print('printed the fuzzy eval of agg hierarchy to %s.' % ('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/agg_' + str(len(domains)) + suffix1 + '.pdf'))
@@ -106,7 +117,7 @@ def agg_fuzzy(suffix1, suffix2):
 
 def multidimensional_hierarchy(dim_num):
     print('multidimensional_hierarchy')
-    global keys, vecs, domains, tagdomains, domainclouds
+    global keys, vecs, domains, repdomains, tagdomains, domainclouds
     stats = []
     dims = orgh.get_dimensions(keys, vecs, dim_num)
     allkeys = list(keys)
@@ -118,6 +129,12 @@ def multidimensional_hierarchy(dim_num):
     success_probs_before_intersect = dict()
     success_probs_after = dict()
     success_probs_after_intersect = dict()
+    # build an index of domains on name
+    domain_index = dict()
+    for i in range(len(domains)):
+        if domains[i]['name'] not in domain_index:
+            domain_index[domains[i]['name']] = i
+    #
     for i, ts in dims.items():
         print('dim %d' % i)
         ds = datetime.datetime.now()
@@ -127,12 +144,13 @@ def multidimensional_hierarchy(dim_num):
         domainclouds = dict()
         domain_names = {}
         tagdomains = dict()
+        repdomains = dict()
         for t in ts:
             vecs.append(allvecs[allkeys.index(t)])
             for td in alltagdomains[t]:
-                if td['name'] not in domain_names:
-                    domains.append(td)
-                    domain_names[td['name']] = True
+                if td not in domain_names:
+                    domains.append(alldomains[domain_index[td]])
+                    domain_names[td] = True
             tagdomains[t] = list(alltagdomains[t])
         vecs = np.array(vecs)
         for d1 in domain_names:
@@ -142,13 +160,14 @@ def multidimensional_hierarchy(dim_num):
                     domainclouds[d1][d2] = s
         print('tags: %d vecs: %d domains: %d  tagdomains: %d  domainclouds: %d' % (len(keys), len(vecs), len(domains), len(tagdomains), len(domainclouds)))
 
-        gp, sps, before_dsps = agg_fuzzy('agg'+str(i)+'f2op_partial_sim_threshold062', '')
+
+        gp, sps, before_dsps = agg_fuzzy('agg'+str(i)+'f2op_partial_sim_threshold06_stats', '')
         for t, p in sps.items():
             if t not in success_probs_before:
                 success_probs_before[t] = 0.0
                 success_probs_before_intersect[t] = 1.0
             success_probs_before[t] += p
-            success_probs_before_intersect[t] *= p
+            success_probs_before_intersect[t] *= (1.0-p)
 
         print('fixing cluster %d' % i)
         sps, after_dsps, dim_stats = fix(gp, 'agg_'+str(i)+'f2op_partial_sim_threshold062')
@@ -160,19 +179,19 @@ def multidimensional_hierarchy(dim_num):
                 success_probs_after[t] = 0.0
                 success_probs_after_intersect[t] = 1.0
             success_probs_after[t] += p
-            success_probs_after_intersect[t] *= p
+            success_probs_after_intersect[t] *= (1.0-p)
         de = datetime.datetime.now()
         delapsed = de - ds
         print('elapsed time of dim %d is %d' % (i, int(delapsed.total_seconds() * 1000)))
         print('---------------')
     for t, p in success_probs_before.items():
-        if success_probs_before[t] != success_probs_before_intersect[t]:
-            success_probs_before[t] = (p-success_probs_before_intersect[t])
+        #if success_probs_before[t] != success_probs_before_intersect[t]:
+        success_probs_before[t] = (1.0-success_probs_before_intersect[t])
         if success_probs_before[t] > 1.0:
             success_probs_before[t] = 1.0
     for t, p in success_probs_after.items():
-        if success_probs_after[t] != success_probs_after_intersect[t]:
-            success_probs_after[t] = (p-success_probs_after_intersect[t])
+        #if success_probs_after[t] != success_probs_after_intersect[t]:
+        success_probs_after[t] = (1.0-success_probs_after_intersect[t])
         if success_probs_after[t] > 1.0:
             success_probs_after[t] = 1.0
 
@@ -204,21 +223,13 @@ def multidimensional_hierarchy(dim_num):
 
 
 
-def multidim():
-    global keys, vecs
-    dims = orgc.cmeans_clustering(keys, vecs)
-    print('vecs: %d' % len(vecs))
-    for c, d in dims.items():
-        print(len(d['tags']))
-
 print('started at: ')
 print(datetime.datetime.now())
 
 init(500)
+#agg_fuzzy('t1', 't2')
 
-init_plus()
-
-multidimensional_hierarchy(2)
+#multidimensional_hierarchy(2)
 
 print('ended at:')
 print(datetime.datetime.now())
