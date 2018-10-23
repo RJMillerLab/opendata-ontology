@@ -16,8 +16,9 @@ repdomains = dict()
 populations = dict()
 domainclouds = dict()
 # stop exploring after X times of no improvement fixes
-termination_condition = 1200
-plateau_termination_condition = 200
+termination_condition = 1000
+plateau_termination_condition = 150
+plateau_count = 0
 fix_count = 0
 rhcount = 0
 apcount = 0
@@ -38,10 +39,8 @@ def init(g, domsfile, tdomsfile, dcloudsfile, orepsfile, orepdomainsfile, odomta
     return h
 
 
-#def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags, oreps, orepdomains):
 def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile, orepdomainsfile):
-    global fix_count
-    #init(g, doms, tdoms, dclouds, oreps, orepdomains)
+    global plateau_count, fix_count
     init(g, domsfile, tdomsfile, dcloudsfile, orepsfile, orepdomainsfile, odomtagsfile)
     print('started fixing with %d domains.' % len(domains))
     stats = []
@@ -53,48 +52,48 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
     best = gp.copy()
     print('starting with success prob: fuzzy %f' % (max_success))
 
-    fixfunctions = [add_parent, reduce_height, add_parent]
+    fixfunctions = [reduce_height, add_parent]
 
-    # termination condition
-    pleateau_count = 0
-    prev_max_success = max_success
-    #
-    for i in range(1):#(2):
-        print(datetime.datetime.now())
-        print('iteration %d' % i)
-        initial_sp = max_success
-        #level_n = list(orgg.get_leaves(gp))
-        #print('bottom up')
-        #level_n = orgg.level_down(gp, orgg.level_down(gp, [orgg.get_root(gp)]))
-        print('top down')
-        level_n = set(set(gp.nodes).difference({orgg.get_root(gp)})).difference(set(orgg.level_down(gp, [orgg.get_root(gp)])))
-        #li = 0
-        while len(level_n) > 1 and fix_count < termination_condition:
-            #li += 1
-            #if li > 2:
-            #    break
-            #print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
-            print('len(level_n): %d' % (len(level_n)))
-            hf, ll, sps, levelstats, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype)
-            stats.extend(list(levelstats))
-            iteration_likelihoods.extend(list(ls))
-            #print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
-            if ll > max_success:
-                print('improving after fixing level from %0.7f to %0.7f.' % (max_success, ll))
-                max_success = ll
-                best = hf.copy()
-                max_success_probs = copy.deepcopy(sps)
-                max_domain_success_probs = copy.deepcopy(dsps)
-            if max_success == prev_max_success:
-                pleateau_count += 1
-            else:
-                pleateau_count = 0
-            if pleateau_count > plateau_termination_condition:
-                print('plateau after %d fix iterations' % fix_count)
-                break
-            level_n = orgg.level_up(hf, level_n)
-            #level_n = orgg.level_down(hf, level_n)
-            #level_n = []
+    termination_cond = False
+    round_num = 0
+    while not termination_cond and round_num < 3:
+        if round_num > 0:
+            it_success, gp, itr_success_probs, itr_likelihood, itr_domain_success_probs = orgh.get_success_rep_prob_fuzzy(best.copy(), domains, tagdomains, domainclouds, dtype, domaintags, repdomains, reps)
+        round_num += 1
+        print('round %d' % round_num)
+        for i in range(2):
+            if termination_cond:
+                continue
+            print(datetime.datetime.now())
+            print('iteration %d' % i)
+            initial_sp = max_success
+            #level_n = list(orgg.get_leaves(gp))
+            #print('bottom up')
+            #level_n = orgg.level_down(gp, orgg.level_down(gp, [orgg.get_root(gp)]))
+            print('top down')
+            #level_n = set(set(gp.nodes).difference({orgg.get_root(gp)})).difference(set(orgg.level_down(gp, [orgg.get_root(gp)])))
+            level_n = set(set(best.nodes).difference({orgg.get_root(best)})).difference(set(orgg.level_down(best, [orgg.get_root(best)])))
+            while len(level_n) > 0:
+                #print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
+                print('len(level_n): %d' % (len(level_n)))
+                hf, ll, sps, levelstats, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype)
+                stats.extend(list(levelstats))
+                iteration_likelihoods.extend(list(ls))
+                #print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
+                if ll > max_success:
+                    print('improving after fixing level from %0.7f to %0.7f.' % (max_success, ll))
+                    max_success = ll
+                    best = hf.copy()
+                    max_success_probs = copy.deepcopy(sps)
+                    max_domain_success_probs = copy.deepcopy(dsps)
+                print('plateau_count: %d fix_count: %d' % (plateau_count, fix_count))
+                if terminate():
+                    print('terminate!')
+                    termination_cond = True
+                    break
+                level_n = orgg.level_up(hf, level_n)
+                #level_n = orgg.level_down(hf, level_n)
+                #level_n = []
         print('initial success prob: %f  and best success prob: %f' % (initial_sp, max_success))
         #print('after fix_level: node %d edge %d' % (len(best.nodes), len(best.edges)))
         orgg.height(best)
@@ -102,12 +101,13 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
 
         gp = best.copy()
         print('Number of fix() iterations: %d' % fix_count)
+        print('Number of rounds: %d' % round_num)
         print(datetime.datetime.now())
     return best, stats, iteration_likelihoods, max_success_probs, max_domain_success_probs
 
 
 def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfunctions, dtype):
-
+    global plateau_count
     stats = []
     iteration_likelihoods = []
     fixes = what_to_fix(g, level)
@@ -116,8 +116,12 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
     max_domain_success_probs = copy.deepcopy(domain_success_probs)
     best = g.copy()
     bnodes = best.nodes
-    #for f in fixes:
-    for fi in range(int(len(fixes)/2)):
+    num_fix_nodes = max(min(50,len(fixes)), int(len(fixes)/2.0))
+    print('ffunc: %s' % fixfunctions[0].__name__)
+    if fixfunctions[0].__name__ == 'reduce_height':
+        num_fix_nodes = max(min(50,len(fixes)), int(len(fixes)/4.0))
+    print('num_fix_nodes: %d out of %d' % (num_fix_nodes, len(fixes)))
+    for fi in range(num_fix_nodes):
         f = fixes[fi]
         if f[0] not in bnodes:
             continue
@@ -125,22 +129,38 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
             continue
         if f[1] == 1.0:
             continue
-        for ffunc in fixfunctions:
-            start = datetime.datetime.now()
-            hp, newsuccess, newsps, its, ls, dsps = ffunc(best.copy(), level, f[0], max_success, max_success_probs, dtype, domaintags, max_domain_success_probs, bnodes)
-            print('fix time: %d' % (int((datetime.datetime.now()-start).total_seconds() *1000)))
-            print('------------------------')
-            if newsuccess < 0.0:
-                continue
-            if newsuccess > max_success:
-                best = hp.copy()
-                max_success = newsuccess
-                max_success_probs = copy.deepcopy(newsps)
-                max_domain_success_probs = copy.deepcopy(dsps)
-                bnodes = best.nodes
-            stats.extend(list(its))
-            iteration_likelihoods.extend(list(ls))
+        ffunc = fixfunctions[0]
+        start = datetime.datetime.now()
+        hp, newsuccess, newsps, its, ls, dsps = ffunc(best.copy(), level, f[0], max_success, max_success_probs, dtype, domaintags, max_domain_success_probs, bnodes)
+        print('fix time: %d' % (int((datetime.datetime.now()-start).total_seconds() *1000)))
+        print('------------------------')
+        if newsuccess < 0.0:
+            continue
+        if newsuccess > max_success:
+            best = hp.copy()
+            max_success = newsuccess
+            max_success_probs = copy.deepcopy(newsps)
+            max_domain_success_probs = copy.deepcopy(dsps)
+            bnodes = best.nodes
+            plateau_count = 0
+        else:
+            plateau_count += 1
+        stats.extend(list(its))
+        iteration_likelihoods.extend(list(ls))
+        if terminate():
+            print('terminating in fix_level')
+            return best, max_success, max_success_probs, stats, iteration_likelihoods,      max_domain_success_probs
+
     return best, max_success, max_success_probs, stats, iteration_likelihoods, max_domain_success_probs
+
+
+def terminate():
+    global plateau_count, fix_count, termination_condition, plateau_termination_condition
+    if fix_count > termination_condition:
+        return True
+    if plateau_count > plateau_termination_condition:
+        return True
+    return False
 
 
 def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_success_probs, gnodes):

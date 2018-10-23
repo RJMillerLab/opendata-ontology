@@ -1,4 +1,5 @@
 import networkx as nx
+import os.path
 import copy
 import org.graph as orgg
 import numpy as np
@@ -32,7 +33,7 @@ def init(g, domainsfile, simfile, tagdomtransprobsfile, tgparam=10.0):
 
     domains = json.load(open(domainsfile, 'r'))
 
-    dom_sims = json.load(open(simfile, 'r'))
+    #dom_sims = json.load(open(simfile, 'r'))
 
     print('org.init domains: %d' % len(domains))
 
@@ -43,7 +44,7 @@ def init(g, domainsfile, simfile, tagdomtransprobsfile, tgparam=10.0):
             print('dup domains')
 
     tag_dom_trans_probs = json.load(open(tagdomtransprobsfile, 'r'))
-    #json.dump(tag_dom_sims, open(nodedomsimfile, 'w'))
+
     print('done init')
 
 
@@ -509,13 +510,12 @@ def get_dimensions(tags, vecs, n_dims):
     ocs = list(dims.keys())
     for c in ocs:
         ts = dims[c]
-        print(len(ts))
         if len(ts) > 15:
             continue
         # find the cluster to merge with
         mergec = c
         maxsim = 0.0
-        for k in list(dims.keys()):
+        for k in ocs:
             if c != k:
                 sim = max(0.000001, cosine(cmeans[c], cmeans[k]))
                 if sim > maxsim:
@@ -526,10 +526,36 @@ def get_dimensions(tags, vecs, n_dims):
         dims[mergec].extend(dims[c])
         del dims[c]
         ocs.remove(c)
-        print('ocs: %d dims: %d' % (len(ocs), len(dims)))
     print('number of dims: %d' % len(dims))
-    for d, ts in dims.items():
-        print(len(ts))
+    print('--------------')
+    # building an index on tags
+    tag_index = dict()
+    for i in range(len(tags)):
+        tag_index[tags[i]] = i
+    prev_dims = copy.deepcopy(dims)
+    for d, ts in prev_dims.items():
+        if len(ts) > 2000:
+            print('further partitioning.')
+            tinx = np.array([tag_index[t] for t in ts])
+            subtags = np.array(tags)[tinx]
+            subvecs = vecs[tinx]
+            subkmeans = KMeans(n_clusters=2, random_state=random.randint(1,1000)).fit(subvecs)
+            dim_size = len(dims)
+            del dims[d]
+            for i in range(len(subkmeans.labels_)):
+                c = subkmeans.labels_[i]
+                dim_inx = len(dims)+c
+                if c == 0:
+                    dim_inx = d
+                else:
+                    dim_inx = dim_size
+                if dim_inx not in dims:
+                    dims[dim_inx] = []
+                    dimvecs[dim_inx] = []
+                dims[dim_inx].append(subtags[i])
+                dimvecs[dim_inx].append(subvecs[i])
+    print('final dims: %d' % len(dims))
+
     return dims
 
 
@@ -553,8 +579,9 @@ def save(h, hierarchy_filename):
 def get_tag_domain_sim(domains, tags, vecs, tagdomsimfile):
     print('get_tag_domain_sim')
     # always compute the sims incrementally
-    sims = json.load(open(tagdomsimfile, 'r'))
-    #sims = dict()
+    sims = dict()
+    if os.path.isfile(tagdomsimfile):
+        sims = json.load(open(tagdomsimfile, 'r'))
     for i in range(len(tags)):
         if i % 100 == 0:
             print('computed tag dom sims for %d tags' % i)
@@ -587,9 +614,9 @@ def get_tag_domain_trans_probs(tagdomsimfile, tagdomains, tagdomtransprobsfile):
     tdsims = json.load(open(tagdomsimfile, 'r'))
     tdtprobs = dict()
     i = 0
-    for t, ds in tdsims.items():
+    for t, ds in tagdomains.items():
         i += 1
-        if i % 200 == 0:
+        if i % 20 == 0:
             print('computed tag dom trans prob for %d tags.' % i)
         ts = 0.0
         ps = dict()
@@ -686,7 +713,7 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
             if c not in domain_index:
                 #print('domain cloud not in index.')
                 continue
-            accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
+            accepted_tags.extend(domaintags[c])
         accepted_tags = list(set(accepted_tags))
         #
         table = get_table_from_domain(domainname, dtype)
@@ -714,7 +741,6 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
                 #    max_reached_dom_prob = sp
                 max_reached_dom_prob *= (1.0-sp)
 
-        table = get_table_from_domain(domainname, dtype)
 
         #sp = max_reached_dom_prob
         sp = 1.0 - max_reached_dom_prob
