@@ -3,7 +3,6 @@ import random
 import org.od_hierarchy as orgh
 import org.graph as orgg
 import org.cluster as orgc
-import org.sample as orgs
 import org.cloud as orgk
 import org.od_fix as orgf
 import numpy as np
@@ -15,11 +14,13 @@ domainsfile = ''
 repsfile, repdomainsfile, dimdomaincloudsfile, dimdomaintagsfile, dimtagdomainsfile, dimdomainsfile, domainsfile, tagdomainsfile, domaincloudsfile, domaintagsfile = '', '', '', '', '', '', '', '', '', ''
 
 simfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims.json'
-dimfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/od_dims.json'
+dimfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/boosted_od_dims.json'
 traindomainfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/od_sample_domain_names.json'
-tagdomsimfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/tag_domain_sims.json'
-tagrepsimfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/tag_rep_sims.json'
-tagdomtransprobsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/tag_dom_trans_probs.json'
+tagdomsimfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/boosted_tag_domain_sims.json'
+tagrepsimfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/boosted_tag_rep_sims.json'
+tagdomtransprobsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/boosted_tag_dom_trans_probs.json'
+domainboostedtagsfile = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/att_boosted_labels.json'
+
 keys = []
 vecs = np.array([])
 domains = []
@@ -54,8 +55,8 @@ def get_reps(rep_num, dim_id):
         reps.append({'name': 'centroid_' + str(i), 'mean': list(kmeans.cluster_centers_[i])})
     print('repdomains: %d' % len(repdomains))
     print('tagdomains: %d' % len(tagdomains))
-    json.dump(reps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/reps_kmeans_'+str(dim_id)+'.json', 'w'))
-    json.dump(repdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/repdomains_kmeans_'+str(dim_id)+'.json', 'w'))
+    json.dump(reps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/reps_kmeans_'+str(dim_id)+'.json', 'w'))
+    json.dump(repdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/repdomains_kmeans_'+str(dim_id)+'.json', 'w'))
 
 
 
@@ -77,6 +78,8 @@ def init_dim(dim_id):
     domaintags, tagdomains, domainclouds = dict(), dict(), dict()
     dimdomaintags, dimtagdomains, dimdomainclouds = dict(), dict(), dict()
     domains, dimdomains = [], []
+
+    #domboostedtags = json.load(open(domainboostedtagsfile, 'r'))
 
     dims = json.load(open(dimfile, 'r'))
     dimtags = dims[dim_id]
@@ -100,11 +103,20 @@ def init_dim(dim_id):
 
     alldomains = json.load(open(DOMAIN_FILE))
 
+    # building test and train domain clouds
+    alldomainclouds = orgk.make_cloud(simfile, 0.75)
+    print('all domainclouds: %d' % len(alldomainclouds))
+
     tbs, atbs = dict(), dict()
     trainseendoms, dimseendoms = dict(), dict()
     traindomainnames = dict()
     dimdomainnames = dict()
+    notfound = 0
     for dom in alldomains:
+
+        if dom['name'] not in alldomainclouds:
+            notfound += 1
+            continue
 
         if dom['tag'] not in ks:
             continue
@@ -149,17 +161,30 @@ def init_dim(dim_id):
         if dom['name'] not in tagdomains[dom['tag']]:
             tagdomains[dom['tag']].append(dom['name'])
 
-    print('dimdomains: %d, dimdomaintags: %d, dimtables: %d' % (len(dimdomains), len(dimdomaintags), len(atbs)))
-    return
+    print('not found: %d' % notfound)
 
-    print('dimdomains: %d traindomainnames: %d' % (len(domains), len(traindomainnames)))
+    print('domains: %d traindomainnames: %d' % (len(domains), len(traindomainnames)))
     print('num of train tables: %d number of dim tables: %d' % (len(tbs), len(atbs)))
     print('all domains: %d train domains: %d keys: %d vecs: %d tagdomains: %d domaintags: %d' % (len(alldomains), len(domains), len(keys), len(vecs), len(tagdomains), len(domaintags)))
     print('all domains: %d dim domains: %d keys: %d vecs: %d tagdomains: %d domaintags: %d'  % (len(alldomains), len(dimdomains), len(keys), len(vecs), len(dimtagdomains), len(dimdomaintags)))
 
+    # adding boosted tags to domains
+    #num_boosted_tags = 0
+    #for dom, dtags in dimdomaintags.items():
+    #    for t in domboostedtags[dom]:
+    #        if t not in dtags:
+    #            num_boosted_tags += 1
+    #            dimdomaintags[dom].append(t)
+    #            dimtagdomains[t].append(dom)
+    #            if dom in traindomainnames:
+    #                domaintags[dom].append(t)
+    #                tagdomains[t].append(dom)
+    #print('num_boosted_tags: %d tagdomains: %d dimtagdomains: %d domaintags: %d dimdomaintags: %d' % (num_boosted_tags, len(tagdomains), len(dimtagdomains), len(dimtagdomains), len(dimdomaintags)))
+
+
     # building test and train domain clouds
-    alldomainclouds = orgk.make_cloud(simfile, 0.75)
-    print('all domainclouds: %d' % len(alldomainclouds))
+    #alldomainclouds = orgk.make_cloud(simfile, 0.75)
+    #print('all domainclouds: %d' % len(alldomainclouds))
 
     for dom in domains:
         domainclouds[dom['name']] = dict()
@@ -182,21 +207,21 @@ def init_dim(dim_id):
 
     # saving all indices and maps to file
     print('saving dim data to files.')
-    json.dump(domainclouds, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomainclouds_'+str(dim_id)+'.json', 'w'))
-    json.dump(domains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomains_'+str(dim_id)+'.json', 'w'))
-    json.dump(tagdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traintagdomains_'+str(dim_id)+'.json', 'w'))
-    json.dump(domaintags, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomaintags_'+str(dim_id)+'.json', 'w'))
+    json.dump(domainclouds, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomainclouds_'+str(dim_id)+'.json', 'w'))
+    json.dump(domains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomains_'+str(dim_id)+'.json', 'w'))
+    json.dump(tagdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traintagdomains_'+str(dim_id)+'.json', 'w'))
+    json.dump(domaintags, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomaintags_'+str(dim_id)+'.json', 'w'))
 
-    json.dump(dimdomainclouds, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomainclouds_'+str(dim_id)+'.json', 'w'))
-    json.dump(dimdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomains_'+str(dim_id)+'.json', 'w'))
-    json.dump(dimtagdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimtagdomains_'+str(dim_id)+'.json', 'w'))
-    json.dump(dimdomaintags, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomaintags_'+str(dim_id)+'.json', 'w'))
+    json.dump(dimdomainclouds, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimdomainclouds_'+str(dim_id)+'.json', 'w'))
+    json.dump(dimdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimdomains_'+str(dim_id)+'.json', 'w'))
+    json.dump(dimtagdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimtagdomains_'+str(dim_id)+'.json', 'w'))
+    json.dump(dimdomaintags, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimdomaintags_'+str(dim_id)+'.json', 'w'))
 
-    json.dump(keys, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagnames_'+str(dim_id)+'.json', 'w'))
-    json.dump([list(v) for v in vecs], open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagvecs_'+str(dim_id)+'.json', 'w'))
+    json.dump(keys, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagnames_'+str(dim_id)+'.json', 'w'))
+    json.dump([list(v) for v in vecs], open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagvecs_'+str(dim_id)+'.json', 'w'))
 
-    json.dump(reps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/reps_'+str(dim_id)+'.json', 'w'))
-    json.dump(repdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/repdomains_'+str(dim_id)+'.json', 'w'))
+    json.dump(reps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/reps_'+str(dim_id)+'.json', 'w'))
+    json.dump(repdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/repdomains_'+str(dim_id)+'.json', 'w'))
     print('done saving.')
 
 
@@ -220,22 +245,22 @@ def load_dim(dim_id):
     global domainclouds, keys, vecs, domains, tagdomains,  domaintags, dimdomainclouds, dimdomaintags, dimdomains,  dimtagdomains, reps, repdomains
 
     start = datetime.datetime.now()
-    domainclouds = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomainclouds_'+str(dim_id)+'.json', 'r'))
-    domains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomains_'+str(dim_id)+'.json', 'r'))
-    tagdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traintagdomains_'+str(dim_id)+'.json', 'r'))
-    domaintags = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomaintags_'+str(dim_id)+'.json', 'r'))
+    domainclouds = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomainclouds_'+str(dim_id)+'.json', 'r'))
+    domains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomains_'+str(dim_id)+'.json', 'r'))
+    tagdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traintagdomains_'+str(dim_id)+'.json', 'r'))
+    domaintags = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomaintags_'+str(dim_id)+'.json', 'r'))
 
-    dimdomainclouds = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomainclouds_'+str(dim_id)+'.json', 'r'))
-    dimdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomains_'+str(dim_id)+'.json', 'r'))
-    dimtagdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimtagdomains_'+str(dim_id)+'.json', 'r'))
-    dimdomaintags = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomaintags_'+str(dim_id)+'.json', 'r'))
+    dimdomainclouds = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimdomainclouds_'+str(dim_id)+'.json', 'r'))
+    dimdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimdomains_'+str(dim_id)+'.json', 'r'))
+    dimtagdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimtagdomains_'+str(dim_id)+'.json', 'r'))
+    dimdomaintags = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimdomaintags_'+str(dim_id)+'.json', 'r'))
 
-    keys = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagnames_'+str(dim_id)+'.json', 'r'))
-    vecs = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagvecs_'+str(dim_id)+'.json', 'r'))
+    keys = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagnames_'+str(dim_id)+'.json', 'r'))
+    vecs = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagvecs_'+str(dim_id)+'.json', 'r'))
     vecs = np.array([np.array(v) for v in vecs])
 
-    reps = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/reps_'+str(dim_id)+'.json', 'r'))
-    repdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/repdomains_'+str(dim_id)+'.json', 'r'))
+    reps = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/reps_'+str(dim_id)+'.json', 'r'))
+    repdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/repdomains_'+str(dim_id)+'.json', 'r'))
 
     print('loaded all dim files in %d ms.' % ((datetime.datetime.now()-start).total_seconds()*1000))
 
@@ -252,25 +277,25 @@ def read_dim(dim_id):
 
     print('assigning file names')
 
-    domainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomains_'+str(dim_id)+'.json'
-    tagdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traintagdomains_'+str(dim_id)+'.json'
-    domaincloudsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomainclouds_'+str(dim_id)+'.json'
-    domaintagsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomaintags_'+str(dim_id)+'.json'
-    dimdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomains_'+str(dim_id)+'.json'
-    dimtagdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimtagdomains_'+str(dim_id)+'.json'
-    dimdomaincloudsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomainclouds_'+str(dim_id)+'.json'
-    dimdomaintagsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/dimdomaintags_'+str(dim_id)+'.json'
+    domainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomains_'+str(dim_id)+'.json'
+    tagdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traintagdomains_'+str(dim_id)+'.json'
+    domaincloudsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomainclouds_'+str(dim_id)+'.json'
+    domaintagsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomaintags_'+str(dim_id)+'.json'
+    dimdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimdomains_'+str(dim_id)+'.json'
+    dimtagdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimtagdomains_'+str(dim_id)+'.json'
+    dimdomaincloudsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimdomainclouds_'+str(dim_id)+'.json'
+    dimdomaintagsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/dimdomaintags_'+str(dim_id)+'.json'
     repsfile =  repdomainsfile
 
-    repsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/reps_'+          str(dim_id)+'.json'
-    repdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/repdomains_'+str(dim_id)+'.json'
+    repsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/reps_'+          str(dim_id)+'.json'
+    repdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/repdomains_'+str(dim_id)+'.json'
 
-    keys = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagnames_'+str(dim_id)+'.json', 'r'))
-    vecs = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagvecs_'+str(dim_id)+'.json', 'r'))
+    keys = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagnames_'+str(dim_id)+'.json', 'r'))
+    vecs = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagvecs_'+str(dim_id)+'.json', 'r'))
     vecs = np.array([np.array(v) for v in vecs])
 
-    reps = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/reps_'+str(dim_id)+'.json', 'r'))
-    repdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/repdomains_'+str(dim_id)+'.json', 'r'))
+    reps = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/reps_'+str(dim_id)+'.json', 'r'))
+    repdomains = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/repdomains_'+str(dim_id)+'.json', 'r'))
 
     print('number of reps: %d' % len(reps))
 
@@ -282,13 +307,13 @@ def read_flat():
 
     print('assigning file names')
 
-    domainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomains.json'
-    tagdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traintagdomains.json'
-    domaincloudsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomainclouds.json'
-    domaintagsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomaintags.json'
+    domainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomains.json'
+    tagdomainsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traintagdomains.json'
+    domaincloudsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomainclouds.json'
+    domaintagsfile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomaintags.json'
 
-    keys = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagnames.json', 'r'))
-    vecs = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagvecs.json', 'r'))
+    keys = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagnames.json', 'r'))
+    vecs = json.load(open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagvecs.json', 'r'))
     vecs = np.array([np.array(v) for v in vecs])
 
     print('done')
@@ -327,9 +352,8 @@ def init_flat():
     adomains = []
     adomaintags = dict()
     for dom in alldomains:
-        # remove the condition for all repo experiments
-        #if dom['name'] not in train_domain_names:
-        #    continue
+        if dom['name'] not in train_domain_names:
+            continue
 
         if dom['tag'] not in ks:
             continue
@@ -348,43 +372,50 @@ def init_flat():
 
     print('num of alli unique domains: %d all domains: %d all tagdomains: %d' % (len(seen), len(alldomains), len(atagdomains)))
     print('adomaintags: %d' % len(adomaintags))
-    alldomainclouds = orgk.make_cloud(simfile, 0.9)
-    orgk.plot(alldomainclouds)
-    #alldomainclouds = orgk.make_cloud(simfile, 0.75)
+    alldomainclouds = orgk.make_cloud(simfile, 0.75)
     print('all domainclouds: %d' % len(alldomainclouds))
-    return
 
-    #for dom in train_domain_names:
-    #    domainclouds[dom] = dict()
-    #    for cd, cp in alldomainclouds[dom].items():
-    #        if cd in train_domain_names:
-    #            domainclouds[dom][cd] = cp
-    # create the cloud for all domains
-    for dom in seen:
+    for dom in train_domain_names:
         domainclouds[dom] = dict()
         for cd, cp in alldomainclouds[dom].items():
-            domainclouds[dom][cd] = cp
-
+            if cd in train_domain_names:
+                domainclouds[dom][cd] = cp
 
     print('saving train data to files.')
-    json.dump(domainclouds, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomainclouds.json', 'w'))
-    json.dump(adomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomains.json', 'w'))
-    json.dump(atagdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traintagdomains.json', 'w'))
-    json.dump(adomaintags, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/traindomaintags.json', 'w'))
+    json.dump(domainclouds, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomainclouds.json', 'w'))
+    json.dump(adomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomains.json', 'w'))
+    json.dump(atagdomains, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traintagdomains.json', 'w'))
+    json.dump(adomaintags, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/traindomaintags.json', 'w'))
 
 
-    json.dump(keys, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagnames.json', 'w'))
-    json.dump([list(v) for v in vecs], open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_tmp/tagvecs.json', 'w'))
+    json.dump(keys, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagnames.json', 'w'))
+    json.dump([list(v) for v in vecs], open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_tmp/tagvecs.json', 'w'))
 
     orgh.get_tag_domain_trans_probs(tagdomsimfile, atagdomains, tagdomtransprobsfile)
 
 
+def get_tag_embs(tagdomains, domains):
+    # build an index on domain names
+    domain_index = dict()
+    for i in range(len(domains)):
+        domain_index[domains[i]['name']] = i
+    tag_embs = dict()
+    for t, ds in tagdomains.items():
+        vs =np.array([domains[domain_index[dname]]['mean'] for dname in ds])
+        tag_embs[t] = np.mean(vs, axis= 0)
+    return tag_embs
 
-
-
-
+# working with the same sample of domains as non-boosted version.
+# the rep of tags and their distribution has changed.
 def init():
     global keys, vecs, domains, tagdomains, domaintags
+
+    sample_domain_names = json.load(open(traindomainfile, 'r'))
+    print('sample_domain_names: %d' % len(sample_domain_names))
+    train_domain_names = dict()
+    for s in sample_domain_names:
+        train_domain_names[s] = True
+
     tag_embs = json.load(open(TAG_EMB_FILE))
     ks = []
     vs = []
@@ -401,71 +432,57 @@ def init():
 
     alldomains = json.load(open(DOMAIN_FILE))
 
-    tbs = dict()
     seen = []
     atagdomains = dict()
+    adomains = []
+    adomaintags = dict()
+    i = 0
     for dom in alldomains:
+        i += 1
+        if i % 500 == 0:
+            print('processed %d domains.' % i)
+        if dom['name'] not in train_domain_names:
+            continue
 
         if dom['tag'] not in ks:
             continue
 
         if dom['name'] not in seen:
             seen.append(dom['name'])
+            adomains.append(dom)
 
-        table = dom['name'][:dom['name'].rfind('_')]
-        tbs[table]= True
+        if dom['name'] not in adomaintags:
+            adomaintags[dom['name']] = []
+        adomaintags[dom['name']].append(dom['tag'])
 
         if dom['tag'] not in atagdomains:
             atagdomains[dom['tag']] = []
-        atagdomains[dom['tag']].append(dom)
+        atagdomains[dom['tag']].append(dom['name'])
 
-    print('num of alli unique domains: %d tables: %d all domains: %d all tagdomains: %d' % (len(seen), len(tbs),len(alldomains), len(atagdomains)))
+    print('num of all unique domains: %d all domains: %d all tagdomains: %d' % (len(seen), len(alldomains), len(atagdomains)))
+    print('adomaintags: %d' % len(adomaintags))
+    alldomainclouds = orgk.make_cloud(simfile, 0.75)
+    print('all domainclouds: %d' % len(alldomainclouds))
+
+    for dom in train_domain_names:
+        domainclouds[dom] = dict()
+        for cd, cp in alldomainclouds[dom].items():
+            if cd in train_domain_names:
+                domainclouds[dom][cd] = cp
 
 
-
-    # random sample of tags
-    tvs = list(atagdomains.keys())
-    print('selected tags: %d' % len(tvs))
-    tagdomains = copy.deepcopy(atagdomains)
-    domains = alldomains
-    print('selected tags: domains: %d vecs: %d keys: %d' % (len(domains), len(vecs), len(keys)))
-    # sampling
-    stagdomains, sdomains = orgs.stratified_sample(tagdomains, 0.45)
-    print('sampled domains: %d sampled tagdomains: %d' % (len(sdomains), len(stagdomains)))
-    tagdomains = copy.deepcopy(stagdomains)
-    domains = []
-    # making domains unique
-    seen = dict()
-    tbs = dict()
-    sample_domain_names = []
-    for domain in sdomains:
-        domainname = domain['name']
-        sample_domain_names.append(domainname)
-        table = domainname[:domainname.rfind('_')]
-        tbs[table]= True
-        if domainname not in seen:
-            domains.append(domain)
-            seen[domainname] = True
-    sample_domain_names = list(set(sample_domain_names))
-    print('unique sample_domain_names: %d' % len(sample_domain_names))
-    print('sampled tables: %d' % len(tbs))
-    print('sampled domains: %d  unique domains: %d keys: %d vecs: %d sampled tagdomains: %d domaintags: %d' % (len(sdomains), len(domains), len(keys), len(vecs), len(tagdomains), len(domaintags)))
-    print('writing train domain names')
-    json.dump(sample_domain_names, open(traindomainfile, 'w'))
     dims = orgh.get_dimensions(keys, vecs, dim_num)
     json.dump(list(dims.values()), open(dimfile, 'w'))
     print('created %d dims' % len(dims))
 
-    #json.dump(domains, open('/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_domain_'+str(len(domains))+'_embs.json', 'w'))
 
     print('done writing dom files')
 
-    #orgk.all_pair_sim(alldomains, simfile)
     # Tag-rep and Tag-domain sims are precalculated.
-    #print('get_tag_domain_sim')
-    #orgh.get_tag_domain_sim(domains, keys, vecs, tagdomsimfile)
-    #print('get_tag_domain_transprobs')
-    #orgh.get_tag_domain_trans_probs(tagdomsimfile, atagdomains, tagdomtransprobsfile)
+    print('get_tag_domain_sim')
+    orgh.get_tag_domain_sim(adomains, keys, vecs, tagdomsimfile)
+    print('get_tag_domain_transprobs')
+    orgh.get_tag_domain_trans_probs(tagdomsimfile, atagdomains, tagdomtransprobsfile)
 
 
 def fix(g, hierarchy_name, dim_id):
@@ -502,9 +519,9 @@ def agg_fuzzy(suffix1, dim_id):
 
     print('the success prob of the agg org: %f' % max_success)
 
-    json.dump(domain_success_probs, open('od_output/agg_' + suffix1 + '_' + str(len(domains)) + '_domain_sps.json', 'w'))
-    json.dump(success_probs, open('od_output/agg_' + suffix1 + '_' + str(len(domains)) + '_table_sps.json', 'w'))
-    print('initial dsps to %s' % ('od_output/agg_' + suffix1 + '_' + str(len(domains)) + '_domain_sps.json'))
+    json.dump(domain_success_probs, open('od_boosted_output/agg_' + suffix1 + '_' + str(len(domains)) + '_domain_sps.json', 'w'))
+    json.dump(success_probs, open('od_boosted_output/agg_' + suffix1 + '_' + str(len(domains)) + '_table_sps.json', 'w'))
+    print('initial dsps to %s' % ('od_boosted_output/agg_' + suffix1 + '_' + str(len(domains)) + '_domain_sps.json'))
 
     return gp, success_probs, domain_success_probs
 
@@ -530,7 +547,7 @@ def multidimensional_hierarchy(dim_id):
 
     # saving the org
     print('sp of dim %d for domains after fix is %f.' % (dim_id, sp))
-    orgfilname = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/org'+str(dim_id)+'of'+str(dim_num)+'txt'
+    orgfilname = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_output/org'+str(dim_id)+'of'+str(dim_num)+'txt'
     print('saving org to %s' % orgfilname)
     orgh.save(fg, orgfilname)
 
@@ -546,17 +563,17 @@ def multidimensional_hierarchy(dim_id):
     print('success prob of dim %d for all domains: %f' % (dim_id, test_success))
 
     # saving domain success probs of train and test
-    json.dump(after_sps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/fix_train_probs_' + str(dim_id) + '.json', 'w'))
-    json.dump(after_dsps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/fix_train_domain_probs_' + str(dim_id) + '.json', 'w'))
+    json.dump(after_sps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_output/fix_train_probs_' + str(dim_id) + '.json', 'w'))
+    json.dump(after_dsps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_output/fix_train_domain_probs_' + str(dim_id) + '.json', 'w'))
     print('printed after: %s and %s' % ('fix_train_probs_' + str(dim_id) + '.json', 'fix_train_domain_probs_' + str(dim_id) + '.json'))
 
-    json.dump(before_sps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/agg_train_probs_' + str(dim_id) + '.json', 'w'))
-    json.dump(before_dsps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/agg_train_domain_probs_' + str(dim_id) + '.json', 'w'))
+    json.dump(before_sps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_output/agg_train_probs_' + str(dim_id) + '.json', 'w'))
+    json.dump(before_dsps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_output/agg_train_domain_probs_' + str(dim_id) + '.json', 'w'))
     print('printed before: %s and %s' % ('agg_train_probs_' + str(dim_id) + '.json', 'agg_train_domain_probs_' + str(dim_id) + '.json'))
 
 
-    json.dump(test_dsps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/all_domain_probs_' + str(dim_id) + '.json', 'w'))
-    json.dump(test_sps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/all_table_probs_' + str(dim_id) + '.json', 'w'))
+    json.dump(test_dsps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_output/all_domain_probs_' + str(dim_id) + '.json', 'w'))
+    json.dump(test_sps, open('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_boosted_output/all_table_probs_' + str(dim_id) + '.json', 'w'))
     print('printed test: %s and %s' % ('all_domain_probs_' + str(dim_id) + '.json', 'all_table_probs_' + str(dim_id) + '.json'))
 
 
@@ -585,17 +602,10 @@ def flat():
 
     print('the success prob of the flat org: %f' % max_success)
 
-    #json.dump(domain_success_probs, open('od_output/flat_' + str(len(domains)) + '_domain_sps.json', 'w'))
-    #json.dump(success_probs, open('od_output/flat_' + str(len(domains)) + '_table_sps.json', 'w'))
-    #print('flat dsps to %s' % ('od_output/flat_' + str(len(domains)) + '_domain_sps.json'))
-    #print('flat sps to %s' % ('od_output/flat_' + str(len(domains)) + '_table_sps.json'))
-
-    json.dump(domain_success_probs, open('od_output/all_flat_' + str(len(domains)) + '_domain_sps.json', 'w'))
-    json.dump(success_probs, open('od_output/all_flat_' + str(len(domains)) + '_table_sps.json', 'w'))
-    print('flat dsps to %s' % ('od_output/all_flat_' + str(len(domains)) + '_domain_sps.json'))
-    print('flat sps to %s' % ('od_output/all_flat_' + str(len(domains)) + '_table_sps.json'))
-
-
+    json.dump(domain_success_probs, open('od_boosted_output/flat_' + str(len(domains)) + '_domain_sps.json', 'w'))
+    json.dump(success_probs, open('od_boosted_output/flat_' + str(len(domains)) + '_table_sps.json', 'w'))
+    print('flat dsps to %s' % ('od_boosted_output/flat_' + str(len(domains)) + '_domain_sps.json'))
+    print('flat sps to %s' % ('od_boosted_output/flat_' + str(len(domains)) + '_table_sps.json'))
 
     return gp, success_probs, domain_success_probs
 
@@ -617,22 +627,22 @@ def get_org_success_probs(dimsfilename, spsfilename):
     json.dump(org_sps, open(spsfilename, 'w'))
 
 
-DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_domain_embs'
-TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_label_embs'
-#TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/boosted_socrata_label_embs'
-#DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/boosted_socrata_domain_embs'
+#DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_domain_embs'
+#TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_label_embs'
+TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/boosted_socrata_label_embs'
+DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/boosted_socrata_domain_embs'
 
-init_flat()
+#init_flat()
 #read_flat()
 #flat()
 
 #init()
 
-#init_dim(0)
-#load_dim(6)
-#read_dim(9)
+#init_dim(11)
+##load_dim(0)
+#read_dim(11)
 print('-------------------')
-#multidimensional_hierarchy(9)
+#multidimensional_hierarchy(11)
 
-#get_org_success_probs('od_output/train_resultfiles.txt', 'od_output/train_dsps_multidim.json')
-#get_org_success_probs('od_output/test_resultfiles.txt', 'od_output/test_dsps_multidim.json')
+#get_org_success_probs('od_boosted_output/train_resultfiles.txt', 'od_boosted_output/train_dsps_multidim.json')
+get_org_success_probs('od_boosted_output/test_resultfiles.txt', 'od_boosted_output/test_dsps_multidim.json')
