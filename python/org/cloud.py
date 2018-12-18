@@ -67,6 +67,11 @@ def make_cloud(simfile, threshold):
 def plot(cloud):
     pdffile = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/org/plot/cloud.pdf'
     ys = [len(ds) for t, ds in cloud.items()]
+    print('len(ys): %d' % len(ys))
+    print('>2: %d' % sum(i > 1 for i in ys))
+    print('min clo: %d' % min(ys))
+    print('max clo: %d' % max(ys))
+    print('avg clo: %d' % (sum(ys)/float(len(ys))))
     ys.sort(reverse=True)
     print('number of accepted doms: min:  %d  max:  %d' % (min(ys), max(ys)))
     print('cloud size > 1: %d' % len([i for i in ys if i>1]))

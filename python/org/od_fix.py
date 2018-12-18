@@ -16,8 +16,8 @@ repdomains = dict()
 populations = dict()
 domainclouds = dict()
 # stop exploring after X times of no improvement fixes
-termination_condition = 1000
-plateau_termination_condition = 150
+termination_condition = 500
+plateau_termination_condition = 100
 plateau_count = 0
 fix_count = 0
 rhcount = 0
@@ -56,7 +56,7 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
 
     termination_cond = False
     round_num = 0
-    while not termination_cond and round_num < 3:
+    while not termination_cond and round_num < 6:
         if round_num > 0:
             it_success, gp, itr_success_probs, itr_likelihood, itr_domain_success_probs = orgh.get_success_rep_prob_fuzzy(best.copy(), domains, tagdomains, domainclouds, dtype, domaintags, repdomains, reps)
         round_num += 1
@@ -116,10 +116,11 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
     max_domain_success_probs = copy.deepcopy(domain_success_probs)
     best = g.copy()
     bnodes = best.nodes
-    num_fix_nodes = max(min(50,len(fixes)), int(len(fixes)/2.0))
-    print('ffunc: %s' % fixfunctions[0].__name__)
-    if fixfunctions[0].__name__ == 'reduce_height':
-        num_fix_nodes = max(min(50,len(fixes)), int(len(fixes)/4.0))
+    #num_fix_nodes = max(min(50,len(fixes)), int(len(fixes)/2.0))
+    #print('ffunc: %s' % fixfunctions[0].__name__)
+    #if fixfunctions[0].__name__ == 'reduce_height':
+    #    num_fix_nodes = max(min(20,len(fixes)), int(len(fixes)/6.0))
+    num_fix_nodes = min(len(fixes), min(50, max(len(fixes),20)))
     print('num_fix_nodes: %d out of %d' % (num_fix_nodes, len(fixes)))
     for fi in range(num_fix_nodes):
         f = fixes[fi]

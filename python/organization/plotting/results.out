@@ -1,0 +1,163 @@
+labels: 
+ckan_tags_society - ckan_tags_crime - ckan_tags_public-order-justice-and-rights - ckan_tags_england-and-wales - ckan_tags_crime-and-law-enforcement - ckan_tags_drug-related-crime - ckan_tags_murder - ckan_tags_vehicle-crime - ckan_tags_victims-of-crime - ckan_tags_offenders - ckan_tags_theft-and-burglary - ckan_tags_crime-maps - ckan_tags_sex-offences - ckan_subject_language_and_linguistics - ckan_keywords_government terminology - ckan_tags_finance - ckan_tags_spend-transactions - ckan_tags_spending data - ckan_tags_transparency - ckan_keywords_cansim
+[ 167374.  167374.  167374. ...,  363783.  363783.  363783.]
+org 0
+dim1
+----
+ckan_keywords_cansim   ckan_tags_transparency   ckan_tags_spending data   ckan_subject_language_and_linguistics   ckan_tags_sex-offences   ckan_tags_theft-and-burglary   ckan_tags_vehicle-crime   ckan_tags_england-and-wales   ckan_tags_public-order-justice-and-rights   ckan_tags_society
+dim2
+----
+ckan_tags_spend-transactions   ckan_tags_finance   ckan_keywords_government terminology   ckan_tags_crime-maps   ckan_tags_offenders   ckan_tags_victims-of-crime   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_crime
+------------------------------------------------------
+density: 196415 - intradim overlap: 167374 - unformity: 3.775153
+------------------------------------------------------
+org 1
+dim1
+----
+ckan_keywords_cansim   ckan_tags_spend-transactions   ckan_tags_finance   ckan_keywords_government terminology   ckan_tags_sex-offences   ckan_tags_theft-and-burglary   ckan_tags_offenders   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_public-order-justice-and-rights   ckan_tags_crime
+dim2
+----
+ckan_tags_transparency   ckan_tags_spending data   ckan_subject_language_and_linguistics   ckan_tags_crime-maps   ckan_tags_victims-of-crime   ckan_tags_vehicle-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_england-and-wales   ckan_tags_society
+------------------------------------------------------
+density: 196415 - intradim overlap: 167374 - unformity: 3.775153
+------------------------------------------------------
+org 2
+dim1
+----
+ckan_keywords_cansim   ckan_tags_spend-transactions   ckan_tags_finance   ckan_subject_language_and_linguistics   ckan_tags_theft-and-burglary   ckan_tags_offenders   ckan_tags_vehicle-crime   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_public-order-justice-and-rights
+dim2
+----
+ckan_tags_transparency   ckan_tags_spending data   ckan_keywords_government terminology   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_victims-of-crime   ckan_tags_murder   ckan_tags_england-and-wales   ckan_tags_crime   ckan_tags_society
+------------------------------------------------------
+density: 196415 - intradim overlap: 167374 - unformity: 3.775153
+------------------------------------------------------
+org 3
+dim1
+----
+ckan_keywords_cansim   ckan_tags_spend-transactions   ckan_tags_finance   ckan_keywords_government terminology   ckan_tags_sex-offences   ckan_tags_theft-and-burglary   ckan_tags_offenders   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_england-and-wales
+dim2
+----
+ckan_tags_transparency   ckan_tags_spending data   ckan_subject_language_and_linguistics   ckan_tags_crime-maps   ckan_tags_victims-of-crime   ckan_tags_vehicle-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_public-order-justice-and-rights   ckan_tags_crime   ckan_tags_society
+------------------------------------------------------
+density: 196415 - intradim overlap: 167374 - unformity: 3.775153
+------------------------------------------------------
+org 4
+dim1
+----
+ckan_keywords_cansim   ckan_tags_spend-transactions   ckan_tags_finance   ckan_subject_language_and_linguistics   ckan_tags_theft-and-burglary   ckan_tags_offenders   ckan_tags_vehicle-crime   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_crime
+dim2
+----
+ckan_tags_transparency   ckan_tags_spending data   ckan_keywords_government terminology   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_victims-of-crime   ckan_tags_murder   ckan_tags_england-and-wales   ckan_tags_public-order-justice-and-rights   ckan_tags_society
+------------------------------------------------------
+density: 196415 - intradim overlap: 167374 - unformity: 3.775153
+------------------------------------------------------
+org 20000
+dim1
+----
+ckan_keywords_cansim   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_subject_language_and_linguistics   ckan_tags_theft-and-burglary   ckan_tags_vehicle-crime   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_crime
+dim2
+----
+ckan_tags_transparency   ckan_tags_finance   ckan_keywords_government terminology   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_offenders   ckan_tags_victims-of-crime   ckan_tags_england-and-wales   ckan_tags_public-order-justice-and-rights   ckan_tags_society
+------------------------------------------------------
+density: 196377 - intradim overlap: 167412 - unformity: 3.774479
+------------------------------------------------------
+org 20001
+dim1
+----
+ckan_keywords_cansim   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_subject_language_and_linguistics   ckan_tags_theft-and-burglary   ckan_tags_vehicle-crime   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_public-order-justice-and-rights
+dim2
+----
+ckan_tags_transparency   ckan_tags_finance   ckan_keywords_government terminology   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_offenders   ckan_tags_victims-of-crime   ckan_tags_england-and-wales   ckan_tags_crime   ckan_tags_society
+------------------------------------------------------
+density: 196377 - intradim overlap: 167412 - unformity: 3.774479
+------------------------------------------------------
+org 20002
+dim1
+----
+ckan_keywords_cansim   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_subject_language_and_linguistics   ckan_tags_theft-and-burglary   ckan_tags_vehicle-crime   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_public-order-justice-and-rights   ckan_tags_crime
+dim2
+----
+ckan_tags_transparency   ckan_tags_finance   ckan_keywords_government terminology   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_offenders   ckan_tags_victims-of-crime   ckan_tags_england-and-wales   ckan_tags_society
+------------------------------------------------------
+density: 196377 - intradim overlap: 167412 - unformity: 3.774479
+------------------------------------------------------
+org 20003
+dim1
+----
+ckan_keywords_cansim   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_subject_language_and_linguistics   ckan_tags_theft-and-burglary   ckan_tags_vehicle-crime   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_england-and-wales
+dim2
+----
+ckan_tags_transparency   ckan_tags_finance   ckan_keywords_government terminology   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_offenders   ckan_tags_victims-of-crime   ckan_tags_public-order-justice-and-rights   ckan_tags_crime   ckan_tags_society
+------------------------------------------------------
+density: 196377 - intradim overlap: 167412 - unformity: 3.774479
+------------------------------------------------------
+org 20004
+dim1
+----
+ckan_keywords_cansim   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_subject_language_and_linguistics   ckan_tags_theft-and-burglary   ckan_tags_vehicle-crime   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_england-and-wales   ckan_tags_crime
+dim2
+----
+ckan_tags_transparency   ckan_tags_finance   ckan_keywords_government terminology   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_offenders   ckan_tags_victims-of-crime   ckan_tags_public-order-justice-and-rights   ckan_tags_society
+------------------------------------------------------
+density: 196377 - intradim overlap: 167412 - unformity: 3.774479
+------------------------------------------------------
+Bad key "axes.color_cycle" on line 35 in
+acm-2col.mplstyle.
+You probably need to get an updated matplotlibrc file from
+http://github.com/matplotlib/matplotlib/blob/master/matplotlibrc.template
+or from the matplotlib source distribution
+/home/fnargesian/anaconda3/lib/python3.5/site-packages/matplotlib/style/core.py:51: UserWarning: Style includes a parameter, 'backend', that is not related to style.  Ignoring
+  "to style.  Ignoring".format(key))
+/home/fnargesian/anaconda3/lib/python3.5/site-packages/matplotlib/font_manager.py:1328: UserWarning: findfont: Font family ['sans-serif'] not found. Falling back to DejaVu Sans
+  (prop.get_family(), self.defaultFamily[fontext]))
+
+org 500000
+dim1
+----
+ckan_keywords_cansim   ckan_tags_transparency   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_keywords_government terminology   ckan_subject_language_and_linguistics   ckan_tags_crime-maps   ckan_tags_vehicle-crime   ckan_tags_public-order-justice-and-rights
+dim2
+----
+ckan_tags_finance   ckan_tags_sex-offences   ckan_tags_theft-and-burglary   ckan_tags_offenders   ckan_tags_victims-of-crime   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_england-and-wales   ckan_tags_crime   ckan_tags_society
+------------------------------------------------------
+density: 140253 - intradim overlap: 223536 - unformity: 3.436099
+------------------------------------------------------
+org 500001
+dim1
+----
+ckan_keywords_cansim   ckan_tags_finance   ckan_keywords_government terminology   ckan_subject_language_and_linguistics   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_theft-and-burglary   ckan_tags_victims-of-crime   ckan_tags_vehicle-crime   ckan_tags_murder   ckan_tags_crime-and-law-enforcement   ckan_tags_england-and-wales   ckan_tags_crime   ckan_tags_society
+dim2
+----
+ckan_tags_transparency   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_tags_offenders   ckan_tags_drug-related-crime   ckan_tags_public-order-justice-and-rights
+------------------------------------------------------
+density: 140253 - intradim overlap: 223536 - unformity: 3.436099
+------------------------------------------------------
+org 500002
+dim1
+----
+ckan_keywords_cansim   ckan_tags_transparency   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_tags_theft-and-burglary   ckan_tags_victims-of-crime   ckan_tags_public-order-justice-and-rights
+dim2
+----
+ckan_tags_finance   ckan_keywords_government terminology   ckan_subject_language_and_linguistics   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_offenders   ckan_tags_vehicle-crime   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_england-and-wales   ckan_tags_crime   ckan_tags_society
+------------------------------------------------------
+density: 140253 - intradim overlap: 223536 - unformity: 3.436099
+------------------------------------------------------
+org 500003
+dim1
+----
+ckan_keywords_cansim   ckan_tags_finance   ckan_keywords_government terminology   ckan_subject_language_and_linguistics   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_theft-and-burglary   ckan_tags_victims-of-crime   ckan_tags_vehicle-crime   ckan_tags_drug-related-crime   ckan_tags_crime-and-law-enforcement   ckan_tags_england-and-wales   ckan_tags_crime   ckan_tags_society
+dim2
+----
+ckan_tags_transparency   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_tags_offenders   ckan_tags_murder   ckan_tags_public-order-justice-and-rights
+------------------------------------------------------
+density: 140253 - intradim overlap: 223536 - unformity: 3.436099
+------------------------------------------------------
+org 500004
+dim1
+----
+ckan_keywords_cansim   ckan_tags_finance   ckan_tags_theft-and-burglary   ckan_tags_offenders   ckan_tags_victims-of-crime   ckan_tags_vehicle-crime   ckan_tags_murder   ckan_tags_drug-related-crime   ckan_tags_england-and-wales   ckan_tags_public-order-justice-and-rights   ckan_tags_crime   ckan_tags_society
+dim2
+----
+ckan_tags_transparency   ckan_tags_spending data   ckan_tags_spend-transactions   ckan_keywords_government terminology   ckan_subject_language_and_linguistics   ckan_tags_sex-offences   ckan_tags_crime-maps   ckan_tags_crime-and-law-enforcement
+------------------------------------------------------
+density: 140253 - intradim overlap: 223536 - unformity: 3.436099
+------------------------------------------------------

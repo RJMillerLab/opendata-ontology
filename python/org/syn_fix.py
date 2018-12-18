@@ -56,17 +56,13 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
         #level_n = orgg.level_down(gp, orgg.level_down(gp, [orgg.get_root(gp)]))
         print('top down')
         level_n = set(set(gp.nodes).difference({orgg.get_root(gp)})).difference(set(orgg.level_down(gp, [orgg.get_root(gp)])))
-        #li = 0
         while len(level_n) > 1 and fix_count < termination_condition:
-            #li += 1
-            #if li > 2:
-            #    break
-            #print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
+            print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
             print('len(level_n): %d' % (len(level_n)))
             hf, ll, sps, levelstats, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype, domaintags)
             stats.extend(list(levelstats))
             iteration_likelihoods.extend(list(ls))
-            #print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
+            print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
             if ll > max_success:
                 print('improving after fixing level from %0.7f to %0.7f.' % (max_success, ll))
                 max_success = ll
@@ -84,12 +80,16 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
             #level_n = orgg.level_down(hf, level_n)
             #level_n = []
         print('initial success prob: %f  and best success prob: %f' % (initial_sp, max_success))
-        #print('after fix_level: node %d edge %d' % (len(best.nodes), len(best.edges)))
+        print('after fix_level: node %d edge %d' % (len(best.nodes), len(best.edges)))
         #orgg.height(best)
         #orgg.branching_factor(best)
 
         gp = best.copy()
         print('Number of fix() iterations: %d' % fix_count)
+        print('sp returned from ffunc: %f' % (sum(list(max_success_probs.values()))/len(max_success_probs)))
+        #max_success11, gp11, max_success_probs11, likelihood11, max_domain_success_probs11 = orgh.get_success_prob_fuzzy(best.copy(), domains, tagdomains, domainclouds, dtype, domaintags)
+
+        #print('fuzzy: %f' % (sum(list(max_success_probs11.values()))/len(max_success_probs11)))
         print(datetime.datetime.now())
     return best, stats, iteration_likelihoods, max_success_probs, max_domain_success_probs
 
@@ -105,7 +105,6 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
     best = g.copy()
     bnodes = best.nodes
     for f in fixes:
-        #if f[0] not in best.nodes:
         if f[0] not in bnodes:
             continue
         if len(list(best.predecessors(f[0]))) == 0:
@@ -118,7 +117,7 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
             hp, newsuccess, newsps, its, ls, dsps = ffunc(best.copy(), level, f[0], max_success, max_success_probs, dtype, domaintags, max_domain_success_probs, bnodes)
             print('fix time: %d' % (int((datetime.datetime.now()-start).total_seconds() *1000)))
             print('------------------------')
-            #print('nodes: %d edges: %d after ffunc' % (len(hp.nodes), len(hp.edges)))
+            print('nodes: %d edges: %d after ffunc' % (len(hp.nodes), len(hp.edges)))
             if newsuccess < 0.0:
                 continue
             if newsuccess > max_success:
@@ -127,8 +126,6 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
                 max_success_probs = copy.deepcopy(newsps)
                 max_domain_success_probs = copy.deepcopy(dsps)
                 bnodes = best.nodes
-            #else:
-            #    print('opeartor did not help.')
             stats.extend(list(its))
             iteration_likelihoods.extend(list(ls))
     return best, max_success, max_success_probs, stats, iteration_likelihoods, max_domain_success_probs
@@ -157,7 +154,7 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
     print('fix %d' % n)
     num_active_domains, num_prune_domains = 0, 0
     potentials2 = []
-    for sp in schoices[:1]:#[:2]:
+    for sp in schoices[:2]:
         p = sp[0]
         h = best.copy()
 
@@ -174,6 +171,11 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
 
 
         new, gl, sps, likelihood, dsps, num_active_domains, num_prune_domains = orgh.get_success_prob_partial(hap.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials2, update_head, max_success_probs, max_domain_success_probs)
+
+        #max_success22, gp22, max_success_probs22, likelihood22, max_domain_success_probs22 = orgh.get_success_prob_fuzzy(hap.copy(), domains,           tagdomains, domainclouds, dtype, domaintags)
+
+        #print('all: %f vs partial: %f' % (max_success22, new))
+
         apcount += 1
         print('after adding parent: prev %f new %f' % (max_success, new))
 
@@ -231,7 +233,7 @@ def update_graph_add_parent(g, p, c):
                 h.node[n]['tags'].append(h.node[a]['tag'])
         if len(pops) > 0:
             h.node[n]['rep'] = list(np.mean(np.array(pops), axis=0))
-    orgh.update_node_dom_sims(h, domains, to_update)
+    orgh.update_node_dom_sims(h, domains, to_update, leaves)
     return h, update_head
 
 

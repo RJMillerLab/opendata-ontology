@@ -1,0 +1,1 @@
+{"etas": [0.2], "max_depths": [10], "num_rounds": [100], "num_boost_rounds": [1000], "min_child_weights": [1], "early_stopping_rounds_vars": [50]}

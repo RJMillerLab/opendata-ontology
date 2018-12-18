@@ -50,9 +50,7 @@ def fix_plus(g, doms, tdoms, dclouds, dtype, domaintags):
         level_n = orgg.level_down(gp, orgg.level_down(gp, [orgg.get_root(gp)]))
         print('top down')
         #level_n = set(set(gp.nodes).difference({orgg.get_root(gp)})).difference(set(orgg.level_down(gp, [orgg.get_root(gp)])))
-        #first = True
-        while len(level_n) > 1:# and first:
-            #first = False
+        while len(level_n) > 1:
             print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
             hf, ll, sps, its, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype, domaintags)
             iteration_success_probs.extend(list(its))
@@ -162,7 +160,7 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
         #new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_fuzzy(hap.copy(), domains, tagdomains, domainclouds, dtype, domaintags)
         new, gl, sps, likelihood, dsps = orgh.get_success_prob_likelihood_partial(hap.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials2, update_head, max_success_probs, max_domain_success_probs)
 
-        print('after add_parent: prev %f new %f' % (max_success, new))
+        print('after adding parent: prev %f new %f' % (max_success, new))
 
         iteration_success_probs.append(new)
         iteration_likelihoods.append(likelihood)

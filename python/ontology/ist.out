@@ -1,0 +1,12 @@
+100
+socrata_domaintags_market characterization and ckan_keywords_cansim
+Traceback (most recent call last):
+  File "isa_test.py", line 29, in <module>
+    print(isa.get_distance(np.asarray(labelEmbs[l1]), np.asarray(labelEmbs[l2])))
+  File "/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/ontology/isa.py", line 22, in get_distance
+    return abs(gmi.kullback_leibler_divergence(pm, pv, qm, qv).sum())
+  File "/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/ontology/gmi.py", line 29, in kullback_leibler_divergence
+    iqv = linalg.inv(qv)#1./qv
+  File "/home/fnargesian/anaconda3/lib/python3.5/site-packages/scipy/linalg/basic.py", line 819, in inv
+    raise LinAlgError("singular matrix")
+numpy.linalg.linalg.LinAlgError: singular matrix

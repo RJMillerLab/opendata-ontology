@@ -1,0 +1,36 @@
+[[  8.00000000e-02   4.00000000e-02   0.00000000e+00]
+ [  5.00000000e-01   3.46944695e-18   0.00000000e+00]
+ [  0.00000000e+00   0.00000000e+00   0.00000000e+00]]
+[[ 0.     0.     0.   ]
+ [ 0.     0.02  -0.03 ]
+ [ 0.     0.     0.045]]
+iqv * pv: %v [[  0.00000000e+00   0.00000000e+00   0.00000000e+00]
+ [  0.00000000e+00   6.93889390e-20  -0.00000000e+00]
+ [  0.00000000e+00   0.00000000e+00   0.00000000e+00]]
+-1.4884
+[[  8.00000000e-02   4.00000000e-02   0.00000000e+00]
+ [  5.00000000e-01   3.46944695e-18   0.00000000e+00]
+ [  0.00000000e+00   0.00000000e+00   0.00000000e+00]]
+[[ 0.0241962   0.00353775  0.00240846 ..., -0.00540693 -0.00103119
+   0.00212203]
+ [ 0.00353775  0.03409781 -0.00936858 ...,  0.01526064  0.00306579
+   0.00611597]
+ [ 0.00240846 -0.00936858  0.02210641 ..., -0.00560495 -0.00011632
+  -0.00107658]
+ ..., 
+ [-0.00540693  0.01526064 -0.00560495 ...,  0.04853178  0.00216675
+   0.00133358]
+ [-0.00103119  0.00306579 -0.00011632 ...,  0.00216675  0.02278967
+   0.0061446 ]
+ [ 0.00212203  0.00611597 -0.00107658 ...,  0.00133358  0.0061446
+   0.03403335]]
+Traceback (most recent call last):
+  File "gmi_test.py", line 2, in <module>
+    import isa
+  File "/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/ontology/isa.py", line 40, in <module>
+    dists.append(get_distance(class_embs[c1],class_embs[c2]))
+  File "/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/ontology/isa.py", line 22, in get_distance
+    return abs(gmi.kullback_leibler_divergence(pm, pv, qm, qv).sum())
+  File "/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/data-prep/python/ontology/gmi.py", line 29, in kullback_leibler_divergence
+    print("iqv * pv: %v", iqv * pv)
+ValueError: operands could not be broadcast together with shapes (3,3) (300,300) 

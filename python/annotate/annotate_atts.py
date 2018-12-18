@@ -41,30 +41,18 @@ for l, mf in modelFiles.items():
     booster.load_model(mf)
     model._Booster = booster
     for t, ss in tableSamples.items():
-        #tss = samples[np.array(ss)]
-        # predicting labels for tables
-        #preds = model.predict_proba(tss)
         # predicting labels per att
         for si in ss:
-            tss = [samples[si]]
+            tss = np.array([samples[si]])
             preds = model.predict_proba(tss)
             labelProb = np.float64(max(list(preds[:,1])))
             if labelProb != 0.0:
                 print('new label: %s with %f' % (label_names[str(l)], labelProb))
-                attname = t+'_'+str(attSamples[t][si])
+                if str(si) not in attSamples[t]:
+                    continue
+                attname = t+'_'+str(attSamples[t][str(si)])
                 if attname not in attBoostedLabels:
                     attBoostedLabels[attname] = []
-                if int(l) not in attBoostedLabels[attname]:
-                #if int(l) not in tableBoostedLabels[t]:
-                    #tableBoostedLabels[t][int(l)] = labelProb
-                    attBoostedLabels[t+'_'+str(attSamples[t][si])].append(l)
-#json.dump(tableBoostedLabels, open(TABLE_BOOSTED_LABELS_FILE, 'w'))
+                if label_names[str(l)] not in attBoostedLabels[attname]:
+                    attBoostedLabels[t+'_'+str(attSamples[t][str(si)])].append(label_names[str(l)])
 json.dump(attBoostedLabels, open(ATT_BOOSTED_LABELS_FILE, 'w'))
-#tableBoostedLabels = json.load(open(TABLE_BOOSTED_LABELS_FILE, 'r'))
-labelBoostedTables = {}
-for t, lps in tableBoostedLabels.items():
-    for l, p in lps.items():
-        if l not in labelBoostedTables:
-            labelBoostedTables[l] = []
-        labelBoostedTables[l].append(t)
-json.dump(labelBoostedTables, open(LABEL_BOOSTED_TABLES_FILE, 'w'))

@@ -1,4 +1,5 @@
 import networkx as nx
+import copy
 import org.graph as orgg
 import operator
 import numpy as np
@@ -19,30 +20,46 @@ top = []
 gamma = 10.0
 domain_index = dict()
 
-def init(g, domains, tagdomains, simfile, tgparam=10.0):
+def init(g, domains, tagdomains, simfile, tagdomsimfile, tgparam=10.0):
     #print('trans sim > 0.5')
     #print('reach prob > 0.1')
     print('sanity check of domain prunning')
     global domain_index, node_dom_sims, dom_selection_probs, dom_sims, gamma
     gamma = float(tgparam)
-    print('gamma: %f' % gamma)
 
     dom_sims = json.load(open(simfile, 'r'))
+    #tag_dom_sims_file = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/tag_domain_sims.json'
 
     #dom_selection_probs = get_domains_selection_probs(tagdomains)
-
+    print('g.nodes: %d' % len(g.nodes))
+    print('domains: %d' % len(domains))
+    i = 0
+    leaves = orgg.get_leaves(g)
+    tag_dom_sims = json.load(open(tagdomsimfile, 'r'))
+    for l in leaves:
+        node_dom_sims[l] = copy.deepcopy(tag_dom_sims[g.node[l]['tag']])
+        if len(tag_dom_sims[g.node[l]['tag']]) == 0:
+            print('no doms')
+    print('loaded %d nodes: leaves: %d' % (len(node_dom_sims), len(leaves)))
     for n in g.nodes:
+        i += 1
+        if i % 100 == 0:
+            print('processed %d states.' % i)
+        if n in leaves:
+            continue
         node_dom_sims[n] = dict()
         for dom in domains:
-            #node_dom_sims[n][dom['name']] = np.random.random_sample()
-            node_dom_sims[n][dom['name']] = get_transition_sim(g.node[n]['rep'], dom['mean'])
+            s = get_transition_sim(g.node[n]['rep'],dom['mean'])
+            node_dom_sims[n][dom['name']] = s
 
     for i in range(len(domains)):
         if domains[i]['name'] not in domain_index:
             domain_index[domains[i]['name']] = []
         domain_index[domains[i]['name']].append(i)
 
+    #json.dump(tag_dom_sims, open(nodedomsimfile, 'w'))
     print('done init')
+
 
 
 def update_node_dom_sims(g, domains, ns):
@@ -249,9 +266,7 @@ def get_domain_edge_probs(g, domain, leaves, gnodes):
             continue
         ts, sis = get_trans_prob(gd, p, domain)
         for ch, prob in ts.items():
-            gd[p][ch][domain['name']] = dict()
-            gd[p][ch][domain['name']]['trans_prob_domain'] = prob
-            gd[p][ch][domain['name']]['trans_sim_domain'] = sis[ch]
+            gd[p][ch][domain['name']] = {'trans_prob_domain': prob, 'trans_sim_domain': sis[ch]}
     return gd
 
 
@@ -650,7 +665,7 @@ def get_success_prob_likelihood(g, domains, dtype):
     return expected_success, h, success_probs, likelihood
 
 
-def get_success_prob_likelihood_partial_plus(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
+def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
 
     active_domains, dnames = get_domains_to_update(g.copy(), adomains, nodes, tagdomains, domainclouds, update_head, domaintags)
     print('exact doms: %d vs. %d' % (len(active_domains), len(adomains)))
@@ -662,7 +677,7 @@ def get_success_prob_likelihood_partial_plus(g, adomains, tagdomains, domainclou
 
 
 
-def get_success_prob_likelihood_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
+def get_success_prob_likelihood_partial_plus(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
 
 
     active_domains, dnames = get_domains_to_update(g.copy(), adomains, nodes, tagdomains, domainclouds, update_head, domaintags)
@@ -1123,8 +1138,6 @@ def get_dom_trans_prob(choices, domain):
     d2 = 0.0
     tps2 = dict()
     sis = dict()
-    tsl = []
-    ts = dict()
     branching_factor = len(choices)
     for s in choices:
         #m = get_transition_sim(s['mean'], domain['mean'])
@@ -1132,12 +1145,8 @@ def get_dom_trans_prob(choices, domain):
         if s['name'] in dom_sims:
             if domain['name'] in dom_sims[s['name']]:
                 m = dom_sims[s['name']][domain['name']]
-        tsl.append(m)
-        ts[s['name']] = m
-    for s in choices:
-        #tps2[s['name']] = math.exp(5.0*ts[s['name']])
-        tps2[s['name']]  = math.exp((gamma/branching_factor)*ts[s['name']])
-        sis[s['name']] = ts[s['name']]
+        tps2[s['name']] = math.exp((gamma/branching_factor)*m)
+        sis[s['name']] = m
         d2 += tps2[s['name']]
     for s in choices:
         tps2[s['name']] = (tps2[s['name']]/d2)
@@ -1149,34 +1158,18 @@ def get_dom_trans_prob(choices, domain):
 def get_trans_prob(g, p, domain):
     global gamma
     d = 0.0
-    d2 = 0.0
     tps = dict()
-    tps2 = dict()
     sis = dict()
-    tsl = []
-    ts = dict()
     sps = list(g.successors(p))
     branching_factor = len(sps)
     for s in sps:
         #m = get_transition_sim(g.node[s]['rep'], domain['mean'])
         m = node_dom_sims[s][domain['name']]
-        tsl.append(m)
-        ts[s] = m
-    #maxs = max(tsl)
-    #mins = min(tsl)
-    for s in sps:
-        #if maxs == mins:
-        #    tps[s] = math.exp(ts[s]-maxs)
-        #else:
-        #    tps[s] = math.exp((ts[s]-mins)/(maxs-mins))
-        tps2[s] = math.exp(5.0*ts[s])#(10.0/branching_factor)*ts[s])
-        tps[s]  = math.exp((gamma/branching_factor)*ts[s])
-        sis[s] = ts[s]
+        sis[s] = m
+        tps[s] = math.exp((gamma/branching_factor)*m)
         d += tps[s]
-        d2 += tps2[s]
     for s in sps:
         tps[s] = tps[s]/d
-        tps2[s] = tps2[s]/d2
 
     return tps, sis
 
@@ -1413,10 +1406,19 @@ def save(h, hierarchy_filename):
     hfile.close()
 
 
-
-
-
-
+def get_tag_domain_sim(tagdomains, tags, vecs, tagdomsimfile):
+    sims = dict()
+    dcount = 0
+    for i in range(len(tags)):
+        t = tags[i]
+        v = vecs[i]
+        if t not in sims:
+            sims[t] = dict()
+        dcount += len(tagdomains[t])
+        for d in tagdomains[t]:
+            sims[t][d['name']] = get_transition_sim(v,d['mean'])
+    json.dump(sims, open(tagdomsimfile, 'w'))
+    print('done computing sims for %d tags doms %d' % (len(sims), len(dcount)))
 
 
 

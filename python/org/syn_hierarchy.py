@@ -20,12 +20,12 @@ tag_dom_trans_probs = dict()
 dagstates = -1
 
 
-def init(g, domains, simfile, tagdomtransprobsfile, tgparam=10.0):
+def init(g, domains, simfile, tagdomtransprobsfile, dagstates_update, tgparam=10.0):
     global dagstates, domain_index, dom_sims, gamma, tag_dom_trans_probs
     gamma = float(tgparam)
 
     # if it is the first time calling init(): the initial graph
-    if dagstates == -1:
+    if dagstates_update:
         dagstates = len(g.nodes)
 
     domain_index = dict()
@@ -143,12 +143,30 @@ def cosine(vec1, vec2):
     c = dp / (np.linalg.norm(vec1)*np.linalg.norm(vec2))
     return c
 
+def get_success_prob_complete(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
+
+
+    active_domains = adomains
+    dnames = {dom['name']:True for dom in active_domains}
+
+    start = datetime.datetime.now()
+    expected_success1, h1, success_probs1, likelihood1, domain_success_probs1 = get_success_prob_prune_domains(g.copy(), adomains, tagdomains, domainclouds, dtype, domaintags, prev_success_probs, prev_domain_success_probs, active_domains, dnames, update_head, nodes, False)
+    e3 = datetime.datetime.now()-start
+
+
+    print('dom exact: %d' % (int(e3.total_seconds() *1000)))
+
+
+    return expected_success1, h1.copy(), success_probs1, likelihood1, domain_success_probs1, len(active_domains), 0
+
+
 
 def get_success_prob_partial(g, adomains, tagdomains, domainclouds, dtype, domaintags, nodes, update_head,  prev_success_probs, prev_domain_success_probs):
 
     start = datetime.datetime.now()
     active_domains, dnames = get_domains_to_update(g.copy(), adomains, nodes, tagdomains, domainclouds, update_head, domaintags, False)
     print('finding active doms: %d' % (int((datetime.datetime.now()-start).total_seconds() *1000)))
+
 
     start = datetime.datetime.now()
     expected_success1, h1, success_probs1, likelihood1, domain_success_probs1 = get_success_prob_prune_domains(g.copy(), adomains, tagdomains, domainclouds, dtype, domaintags, prev_success_probs, prev_domain_success_probs, active_domains, dnames, update_head, nodes, False)
@@ -179,9 +197,6 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
     root = orgg.get_root_plus(g, gnodes)
     leaves = orgg.get_leaves_plus(g, gnodes)
 
-    # reset states' reachability
-    for p in gnodes:
-        h.node[p]['reach_prob'] = 0
     # the reachability prob of domains that are not candidates for update remains intact
     for dom in adomains:
         domname = dom['name']
@@ -214,7 +229,7 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
         accepted_tags = list(domaintags[domainname])
         for c in list(domainclouds[domainname].keys()):
             if c not in domain_index:
-                #print('domain cloud not in index.')
+                print('domain cloud not in index.')
                 continue
             accepted_tags.extend(domaintags[c])
         accepted_tags = list(set(accepted_tags))
@@ -553,9 +568,9 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
         accepted_tags.extend(list(domaintags[domainname]))
         for c in list(domainclouds[domainname].keys()):
             if c not in domain_index:
-                #print('domain cloud not in index.')
+                print('domain cloud not in index.')
                 continue
-            accepted_tags.extend(domaintags[domains[domain_index[c]]['name']])
+            accepted_tags.extend(domaintags[c])
         accepted_tags = list(set(accepted_tags))
         #
         table = get_table_from_domain(domainname, dtype)
@@ -566,16 +581,12 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
         max_reached_dom_prob = 1.0
         #
         for n, nodetag in leavetags.items():
-        #for n in leaves:
-            #stag = gpp.node[n]['tag']
             stag = nodetag
             if stag not in accepted_tags:
                 continue
-            #selps = get_dom_trans_prob(tagdomains[stag], domain)
             selps = tag_dom_trans_probs[stag]
             for dn in tagdomains[stag]:
                 if dn not in domainclouds[domainname]:
-                #if dn not in tag_dom_trans_probs:
                     continue
                 sp = selps[dn] * dom_reachprobs[n]
                 #sp = selps[dn] * gpp.node[n]['reach_prob_domain']
@@ -583,9 +594,6 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
                 #    max_reached_dom_prob = sp
                 max_reached_dom_prob *= (1.0-sp)
 
-        table = get_table_from_domain(domainname, dtype)
-
-        #sp = max_reached_dom_prob
         sp = 1.0 - max_reached_dom_prob
 
         domain_success_probs[domainname] = sp

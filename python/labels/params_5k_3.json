@@ -1,0 +1,1 @@
+{"gammas": [2], "etas": [0.2], "max_depths": [500], "min_child_weights": [20], "n_estimators": [500], "alphas": [0], "lambdas": [1], "subsamples": [0.5]}

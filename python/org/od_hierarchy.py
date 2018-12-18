@@ -510,6 +510,7 @@ def get_dimensions(tags, vecs, n_dims):
     ocs = list(dims.keys())
     for c in ocs:
         ts = dims[c]
+        print(len(ts))
         if len(ts) > 15:
             continue
         # find the cluster to merge with
@@ -678,6 +679,111 @@ def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, dom
 
     return update_domains, update_domain_names
 
+def get_optimal_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dtype, domaintagsfile):
+
+    domains = json.load(open(domainsfile, 'r'))
+    tagdomains = json.load(open(tagdomainsfile, 'r'))
+    domainclouds = json.load(open(domaincloudsfile, 'r'))
+    domaintags = json.load(open(domaintagsfile, 'r'))
+
+    print('get_success_prob_fuzzy')
+    print('domains: %d  tags: %d ' % (len(domains), len(tagdomains)))
+
+    top = list(nx.topological_sort(g))
+    gnodes = list(g.nodes)
+    root = orgg.get_root_plus(g, gnodes)
+    leaves = orgg.get_leaves_plus(g, gnodes)
+    success_probs = dict()
+    domain_success_probs = dict()
+    success_probs_intersect = dict()
+    h = g
+    likelihood = 0.0
+    #
+    for p in gnodes:
+        h.node[p]['reach_prob'] = 0.0
+
+    leavetags = {n:h.node[n]['tag'] for n in leaves}
+    optimal_reachprobs = [1.0 for n in leaves]
+    i = 0
+    for domain in domains:
+        i += 1
+        if i%100 == 0:
+            print('fuzzy evaluated %d domains.' % i)
+        domainname = domain['name']
+        # finding the tags of accepted domains
+        accepted_tags = []
+        accepted_tags.extend(list(domaintags[domainname]))
+        for c in list(domainclouds[domainname].keys()):
+            if c not in domain_index:
+                print('domain cloud not in index.')
+                continue
+            accepted_tags.extend(domaintags[c])
+        accepted_tags = list(set(accepted_tags))
+        #
+        table = get_table_from_domain(domainname, dtype)
+
+        dom_reachprobs = optimal_reachprobs
+        gpp = h
+        # finding the most reachable domain
+        max_reached_dom_prob = 1.0
+        #
+        for n, nodetag in leavetags.items():
+        #for n in leaves:
+            #stag = gpp.node[n]['tag']
+            stag = nodetag
+            if stag not in accepted_tags:
+                continue
+            #selps = get_dom_trans_prob(tagdomains[stag], domain)
+            selps = tag_dom_trans_probs[stag]
+            for dn in tagdomains[stag]:
+                if dn not in domainclouds[domainname]:
+                #if dn not in tag_dom_trans_probs:
+                    continue
+                sp = selps[dn] * dom_reachprobs[n]
+                #sp = selps[dn] * gpp.node[n]['reach_prob_domain']
+                #if sp > max_reached_dom_prob:
+                #    max_reached_dom_prob = sp
+                max_reached_dom_prob *= (1.0-sp)
+
+
+        #sp = max_reached_dom_prob
+        sp = 1.0 - max_reached_dom_prob
+
+        domain_success_probs[domainname] = sp
+
+
+        if table not in success_probs:
+            success_probs_intersect[table] = (1.0-sp)
+            success_probs[table] = sp
+        else:
+            success_probs_intersect[table] *= (1.0-sp)
+            success_probs[table] += sp
+
+        #for p in gnodes:
+       #     gpp.node[p]['reach_prob'] += dom_reachprobs[p]
+
+        h = gpp
+
+    # the prob of finding a table is the union of the prob of finding its domains
+    for t, p in success_probs.items():
+        success_probs[t] = 1.0-success_probs_intersect[t]
+        if success_probs[t] > 1.0:
+            print('table %s has sp > 1.0.' % t)
+            success_probs[t] = 1.0
+
+    for p in gnodes:
+        h.node[p]['reach_prob'] = h.node[p]['reach_prob']/float(len(domains))
+
+    expected_success = sum(list(success_probs.values()))/float(len(success_probs))
+    if expected_success == 0:
+        print('len(expected_success): %d' % len(success_probs))
+        print('zero expected_success.')
+
+
+    return expected_success, h, success_probs, likelihood, domain_success_probs
+
+
+
 
 def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dtype, domaintagsfile):
 
@@ -703,15 +809,18 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
         h.node[p]['reach_prob'] = 0.0
 
     leavetags = {n:h.node[n]['tag'] for n in leaves}
-
+    i = 0
     for domain in domains:
+        i += 1
+        if i%100 == 0:
+            print('fuzzy evaluated %d domains.' % i)
         domainname = domain['name']
         # finding the tags of accepted domains
         accepted_tags = []
         accepted_tags.extend(list(domaintags[domainname]))
         for c in list(domainclouds[domainname].keys()):
             if c not in domain_index:
-                #print('domain cloud not in index.')
+                print('domain cloud not in index.')
                 continue
             accepted_tags.extend(domaintags[c])
         accepted_tags = list(set(accepted_tags))
@@ -772,9 +881,9 @@ def get_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsfile, dty
 
     expected_success = sum(list(success_probs.values()))/float(len(success_probs))
     if expected_success == 0:
+        print('len(expected_success): %d' % len(success_probs))
         print('zero expected_success.')
 
-    print('expected_success: %f' % expected_success)
 
     return expected_success, h, success_probs, likelihood, domain_success_probs
 
