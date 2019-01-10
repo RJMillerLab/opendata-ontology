@@ -23,10 +23,16 @@ def fasttext(c, values):
         features.append(emb_vec)
     return features
 
-def semantic_group_sim(db, values1, values2):
+def semantic(db, values):
     c = db.cursor()
-    fs1 = fasttext(c, get_domain_cells(values1))
-    fs2 = fasttext(c, get_domain_cells(values2))
+    return fasttext(c, get_domain_cells(values))
+
+def semantic_group_sim(fs1, fs2):
+    v1 = np.array([np.average(fs1, axis=0)])
+    v2 = np.array([np.average(fs2, axis=0)])
+    return 1.0 - distance.cosine(v1, v2)
+
+def semantic_group_sim2(fs1, fs2):
     sim = 0.0
     for f1 in fs1:
         for f2 in fs2:
