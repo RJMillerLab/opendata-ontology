@@ -8,6 +8,7 @@ func main() {
 	clustering := Initialize()
 	//clustering.MakeThresholdClustering()
 	clustering.BuildClusters()
-	//org := clustering.ToOrganization()
+	org := clustering.ToOrganization()
 	//org.Evaluate()
+	org.Optimize()
 }

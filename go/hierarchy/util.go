@@ -231,3 +231,12 @@ func mergeset(a, b []string) []string {
 	}
 	return r
 }
+
+func copymap(m map[int][]int) map[int][]int {
+	c := make(map[int][]int)
+	for k, vs := range m {
+		c[k] = make([]int, len(vs))
+		copy(c[k], vs)
+	}
+	return c
+}

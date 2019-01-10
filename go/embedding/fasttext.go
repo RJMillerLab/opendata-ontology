@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	fasttext "github.com/ekzhu/go-fasttext"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -44,7 +43,9 @@ func InitInMemoryFastText(dbFilename string, tokenFun func(string) []string, tra
 	if err != nil {
 		return nil, err
 	}
-	_, err = db.Exec(`create table fasttext as select * from disk.fasttext;`)
+	// new fasttext db
+	_, err = db.Exec(`create table fasttext as select * from disk.wv;`)
+	//_, err = db.Exec(`create table fasttext as select * from disk.fasttext;`)
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +68,22 @@ func (ft *FastText) Close() error {
 // Get the embedding vector of a word
 func (ft *FastText) GetEmb(word string) ([]float64, error) {
 	var binVec []byte
-	err := ft.db.QueryRow(`SELECT emb FROM fasttext WHERE word=?;`, word).Scan(&binVec)
+	// new fasttext db
+	err := ft.db.QueryRow(`SELECT vec FROM fasttext WHERE word=?;`, word).Scan(&binVec)
+	//err := ft.db.QueryRow(`SELECT emb FROM fasttext WHERE word=?;`, word).Scan(&binVec)
 	if err == sql.ErrNoRows {
 		return nil, ErrNoEmbFound
 	}
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		//panic(err)
 	}
-	vec, err := BytesToVec(binVec, fasttext.ByteOrder)
+	vec, err := BytesToVec(binVec, binary.LittleEndian) //fasttext.ByteOrder)
+	//for _, v := range vec {
+	//	if v > 1.0 || v < -1.0 {
+	//		log.Println(v)
+	//	}
+	//}
 	return vec, err
 }
 
@@ -86,6 +95,33 @@ func (ft *FastText) GetPhraseEmbMean(value string) ([]float64, error) {
 		return nil, err
 	}
 	return vec, nil
+}
+
+// Returns the mean of domain embedding matrix without considering frequency
+func (ft *FastText) GetDomainEmbMeanNoFreq(values []string) ([]float64, error) {
+	var sum []float64
+	ftValuesNum := 0
+	for _, value := range values {
+		tokens := Tokenize(value, ft.tokenFun, ft.transFun)
+		vec, err := ft.getTokenizedValueEmb(tokens)
+		if err != nil {
+			continue
+		}
+		ftValuesNum += 1
+		for j, x := range vec {
+			vec[j] = x
+		}
+		if sum == nil {
+			sum = vec
+		} else {
+			add(sum, vec)
+		}
+	}
+	if sum == nil {
+		return nil, ErrNoEmbFound
+	}
+	mean := multVector(sum, 1.0/float64(ftValuesNum))
+	return mean, nil
 }
 
 // Returns the mean of domain embedding matrix
@@ -135,7 +171,8 @@ func (ft *FastText) getTokenizedValueEmb(tokenizedValue []string) ([]float64, er
 			continue
 		}
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
+			//panic(err)
 		}
 		if valueVec == nil {
 			valueVec = emb
@@ -170,15 +207,20 @@ func add(dst, src []float64) {
 }
 
 func BytesToVec(data []byte, order binary.ByteOrder) ([]float64, error) {
-	size := len(data) / 8
+	// new fasttext
+	size := len(data) / 4
+	//size := len(data) / 8
 	vec := make([]float64, size)
 	buf := bytes.NewReader(data)
-	var v float64
+	//var v float64
+	// new fasttext
+	var v float32
 	for i := range vec {
 		if err := binary.Read(buf, order, &v); err != nil {
 			return nil, err
 		}
-		vec[i] = v
+		vec[i] = float64(v)
+		//vec[i] =v
 	}
 	return vec, nil
 }

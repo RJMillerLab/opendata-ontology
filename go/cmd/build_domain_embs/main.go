@@ -8,15 +8,16 @@ import (
 	"sync"
 	"unicode"
 
-	. "github.com/RJMillerLab/opendata-ontology/data-prep/go/embedding"
 	. "github.com/RJMillerLab/opendata-ontology/data-prep/go/opendata"
+	. "github.com/RJMillerLab/opendata-ontology/go/embedding"
 )
 
 func main() {
 	CheckEnv()
 
 	start := GetNow()
-	ft, err := InitInMemoryFastText("/home/fnargesian/FASTTEXT/fasttext.db", func(v string) []string {
+	//ft, err := InitInMemoryFastText("/home/fnargesian/FASTTEXT/fasttext.db", func(v string) []string {
+	ft, err := InitInMemoryFastText("/home/kenpu/clones/tagcloud-nlp-generator/ft.sqlite3", func(v string) []string {
 		return strings.Split(v, " ")
 	}, func(v string) string {
 		return strings.ToLower(strings.TrimFunc(strings.TrimSpace(v), unicode.IsPunct))

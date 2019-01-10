@@ -36,7 +36,7 @@ func newItem(value interface{}, priority float64) *item {
 }
 
 func (i *item) String() string {
-	return fmt.Sprintf("<item value:%s priority:%d>", i.value, i.priority)
+	return fmt.Sprintf("<item value:%s priority:%f>", i.value, i.priority)
 }
 
 // NewPQueue creates a new priority queue with the provided pqtype
@@ -59,6 +59,26 @@ func NewPQueue(pqType PQType) *PQueue {
 		comparator: cmp,
 	}
 }
+
+// deletes the value item from the priority queue.
+//func (pq *PQueue) Delete(value interface{}) {
+//	ivalue := -1
+//	log.Printf("len(pq.items): %d", len(pq.items))
+//	for i, _ := range pq.items {
+//		var t *item = pq.items[i]
+//		log.Printf("item")
+//		log.Println(t)
+//		if t.value == value {
+//			ivalue = i
+//			break
+//		}
+//	}
+//	pq.Lock()
+//	defer pq.Unlock()
+
+//	pq.items = append(pq.items[:ivalue], pq.items[ivalue+1:]...)
+//	pq.elemsCount -= 1
+//}
 
 // Push the value item into the priority queue with provided priority.
 func (pq *PQueue) Push(value interface{}, priority float64) {

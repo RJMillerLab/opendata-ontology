@@ -95,15 +95,13 @@ func (cing *clustering) initializeDistanceMatrix() {
 	for i := 0; i < len(cing.clusters); i++ {
 		cing.distances[i] = make([]float64, len(cing.clusters))
 	}
-	//mind := 2.0
 	max := -1.0
 	min := 1.0
 	for i := 0; i < len(cing.clusters); i++ {
-		//cing.singleClusters[i] = true
 		for j := i + 1; j < len(cing.clusters); j++ {
-			d := cosine(cing.clusters[i].sem, cing.clusters[j].sem)
+			//d := cosine(cing.clusters[i].sem, cing.clusters[j].sem)
+			d := cing.clusters[i].getSim(cing.clusters[j])
 			p := pair{cId1: cing.clusters[i].id, cId2: cing.clusters[j].id}
-			//p := pair{c1: cing.clusters[i], cId1: cing.clusters[i].id, c2: cing.clusters[j], cId2: cing.clusters[j].id}
 			if d > 0.0 {
 				if d > max {
 					max = d
@@ -124,7 +122,6 @@ func (cing *clustering) initializeDistanceMatrix() {
 func (cing *clustering) BuildClusters() {
 	p, init := cing.findClustersToMerge()
 	for cond := init; cond; { //cond = cing.doneClustering() {
-		//p, cond := cing.findClustersToMerge()
 		cing.mergeClusters(p)
 		p, cond = cing.findClustersToMerge()
 	}
@@ -180,7 +177,8 @@ func (cing *clustering) addNewCluster(nc cluster) {
 			continue
 		}
 		if _, ok := cing.mergedClusters[i]; !ok {
-			d := cosine(c.sem, nc.sem)
+			//d := cosine(c.sem, nc.sem)
+			d := c.getSim(nc)
 			p := pair{cId1: c.id, cId2: nc.id}
 			if d > 0.0 {
 				cing.mergeQueue.Push(p, -1.0*d)
@@ -220,7 +218,8 @@ func (cing *clustering) buildClusterFromSeed(p pair) cluster {
 		if _, ok := cing.mergedClusters[cing.clusters[ci].id]; ok {
 			continue
 		}
-		d := cosine(cing.clusters[ci].sem, seed.sem)
+		//d := cosine(cing.clusters[ci].sem, seed.sem)
+		d := seed.getSim(cing.clusters[ci])
 		if d > 0.0 {
 			p := pair{cId1: cing.clusters[ci].id, cId2: seed.id}
 			seedQueue.Push(p, -1.0*d)
@@ -243,7 +242,8 @@ func (cing *clustering) buildClusterFromSeed(p pair) cluster {
 			sem:        mergeClusterSem(mp1.sem, mp2.sem),
 			id:         seed.id,
 		}
-		d := cosine(merge.sem, seed.sem)
+		//d := cosine(merge.sem, seed.sem)
+		d := merge.getSim(seed)
 		if d < cing.threshold {
 			aboveThreshold = true
 		} else {
@@ -290,9 +290,12 @@ func (cing *clustering) mergeClusters(clusterPair pair) {
 		sem:        mergeClusterSem(c1.sem, c2.sem),
 		id:         len(cing.clusters),
 	}
+	cing.mergedClusters[cinx1] = true
+	cing.mergedClusters[cinx2] = true
 	for i, c := range cing.clusters {
 		if _, ok := cing.mergedClusters[i]; !ok {
-			d := cosine(c.sem, nc.sem)
+			//d := cosine(c.sem, nc.sem)
+			d := c.getSim(nc)
 			// the index of the new cluster will be the current size of the clusters
 			p := pair{cId1: i, cId2: len(cing.clusters)}
 			if d > 0.0 {
@@ -303,8 +306,6 @@ func (cing *clustering) mergeClusters(clusterPair pair) {
 		}
 	}
 	cing.clusters = append(cing.clusters, nc)
-	cing.mergedClusters[cinx1] = true
-	cing.mergedClusters[cinx2] = true
 	if _, ok := cing.hierarchy[nc.id]; !ok {
 		cing.hierarchy[nc.id] = make([]int, 0)
 	}
@@ -354,7 +355,8 @@ func (cing *clustering) mergeClustersOld(clusterPair pair) {
 	// compue the distance of the new cluster with all clusters
 	nrow := make([]float64, 0)
 	for i, c := range cing.clusters {
-		d := cosine(c.sem, nc.sem)
+		//d := cosine(c.sem, nc.sem)
+		d := nc.getSim(c)
 		nrow = append(nrow, d)
 		// the index of the new cluster will be the current size of the clusters
 		p := pair{cId1: i, cId2: len(cing.clusters)}
@@ -467,11 +469,10 @@ func (cing *clustering) doneClustering() bool {
 }
 
 func mergeClusterSem(s1, s2 []float64) []float64 {
-	a := make([]float64, 0)
-	for i, v1 := range s1 {
-		a = append(a, (v1+s2[i])/2.0)
-	}
-	return a
+	vecs := make([][]float64, 0)
+	vecs = append(vecs, s1)
+	vecs = append(vecs, s2)
+	return avg(vecs)
 }
 
 func (cing *clustering) printClustring() {
@@ -483,4 +484,16 @@ func (cing *clustering) printClustring() {
 	for s, ts := range cing.hierarchy {
 		fmt.Printf("%d -> (%v)\n", s, ts)
 	}
+}
+
+func (c1 cluster) getSim(c2 cluster) float64 {
+	//return cosine(c1.sem, c2.sem)
+	sim := 0.0
+	for _, v1 := range c1.population {
+		for _, v2 := range c2.population {
+			sim += cosine(v1, v2)
+		}
+	}
+	sim = sim / float64(len(c1.population)*len(c2.population))
+	return sim
 }

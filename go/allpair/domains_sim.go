@@ -12,7 +12,8 @@ import (
 func main() {
 	domains := make(map[string][]float64)
 	sims := make(map[string]map[string]float64)
-	err := loadJson("/home/fnargesian/FINDOPENDATA_DATASETS/socrata/socrata_domain_map_embs", &domains)
+	//err := loadJson("/home/fnargesian/FINDOPENDATA_DATASETS/socrata/socrata_domain_40051_map_embs.json", &domains)
+	err := loadJson("/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/nometa_output/nometa_domains.json", &domains)
 	if err != nil {
 		panic(err)
 	}
@@ -58,7 +59,7 @@ func main() {
 		}
 	}
 	log.Println(len(sims))
-	dumpJson("/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/od_output/allpair_sims.json", sims)
+	dumpJson("/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/nometa_output/allpair_sims.json", sims)
 }
 
 func loadJson(file string, v interface{}) (err error) {
