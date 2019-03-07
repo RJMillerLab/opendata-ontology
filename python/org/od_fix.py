@@ -7,7 +7,7 @@ import copy
 import datetime
 import json
 
-
+start_ptime = datetime.datetime.now()
 tagdomains = dict()
 domaintags = dict()
 domains = []
@@ -16,7 +16,7 @@ repdomains = dict()
 populations = dict()
 domainclouds = dict()
 # stop exploring after X times of no improvement fixes
-termination_condition = 500
+termination_condition = 700
 plateau_termination_condition = 100
 plateau_count = 0
 fix_count = 0
@@ -45,6 +45,7 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
     print('started fixing with %d domains.' % len(domains))
     stats = []
     iteration_likelihoods = []
+    iteration_times = []
     h = g.copy()
 
     max_success, gp, max_success_probs, likelihood, max_domain_success_probs = orgh.get_success_rep_prob_fuzzy(h, domains, tagdomains, domainclouds, dtype, domaintags, repdomains, reps)
@@ -53,15 +54,16 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
     print('starting with success prob: fuzzy %f' % (max_success))
 
     fixfunctions = [reduce_height, add_parent]
+    #fixfunctions = [add_parent]
 
     termination_cond = False
     round_num = 0
-    while not termination_cond and round_num < 6:
+    while not termination_cond:# and round_num < 6:
         if round_num > 0:
             it_success, gp, itr_success_probs, itr_likelihood, itr_domain_success_probs = orgh.get_success_rep_prob_fuzzy(best.copy(), domains, tagdomains, domainclouds, dtype, domaintags, repdomains, reps)
         round_num += 1
         print('round %d' % round_num)
-        for i in range(2):
+        for i in range(1): ##
             if termination_cond:
                 continue
             print(datetime.datetime.now())
@@ -76,9 +78,10 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
             while len(level_n) > 0:
                 #print('len(level_n): %d nodes: %d edges: %d' % (len(level_n), len(gp.nodes), len(gp.edges)))
                 print('len(level_n): %d' % (len(level_n)))
-                hf, ll, sps, levelstats, ls, dsps = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype)
+                hf, ll, sps, levelstats, ls, dsps, ts = fix_level_plus(best.copy(), level_n, max_success, max_success_probs, max_domain_success_probs, [fixfunctions[i]], dtype)
                 stats.extend(list(levelstats))
                 iteration_likelihoods.extend(list(ls))
+                iteration_times.extend(ts)
                 #print('after fix_level: node %d edge %d success %f' % (len(hf.nodes), len(hf.edges), ll))
                 if ll > max_success:
                     print('improving after fixing level from %0.7f to %0.7f.' % (max_success, ll))
@@ -103,13 +106,14 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
         print('Number of fix() iterations: %d' % fix_count)
         print('Number of rounds: %d' % round_num)
         print(datetime.datetime.now())
-    return best, stats, iteration_likelihoods, max_success_probs, max_domain_success_probs
+    return best, stats, iteration_likelihoods, max_success_probs, max_domain_success_probs, iteration_times
 
 
 def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfunctions, dtype):
     global plateau_count
     stats = []
     iteration_likelihoods = []
+    iteration_times = []
     fixes = what_to_fix(g, level)
     max_success = success
     max_success_probs = copy.deepcopy(success_probs)
@@ -131,9 +135,9 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
         if f[1] == 1.0:
             continue
         ffunc = fixfunctions[0]
-        start = datetime.datetime.now()
-        hp, newsuccess, newsps, its, ls, dsps = ffunc(best.copy(), level, f[0], max_success, max_success_probs, dtype, domaintags, max_domain_success_probs, bnodes)
-        print('fix time: %d' % (int((datetime.datetime.now()-start).total_seconds() *1000)))
+        start1 = datetime.datetime.now()
+        hp, newsuccess, newsps, its, ls, dsps, ts = ffunc(best.copy(), level, f[0], max_success, max_success_probs, dtype, domaintags, max_domain_success_probs, bnodes)
+        print('fix time: %d' % (int((datetime.datetime.now()-start1).total_seconds() *1000)))
         print('------------------------')
         if newsuccess < 0.0:
             continue
@@ -148,19 +152,20 @@ def fix_level_plus(g, level, success, success_probs, domain_success_probs, fixfu
             plateau_count += 1
         stats.extend(list(its))
         iteration_likelihoods.extend(list(ls))
+        iteration_times.extend(ts)
         if terminate():
             print('terminating in fix_level')
-            return best, max_success, max_success_probs, stats, iteration_likelihoods,      max_domain_success_probs
+            return best, max_success, max_success_probs, stats, iteration_likelihoods,      max_domain_success_probs, iteration_times
 
-    return best, max_success, max_success_probs, stats, iteration_likelihoods, max_domain_success_probs
+    return best, max_success, max_success_probs, stats, iteration_likelihoods, max_domain_success_probs, iteration_times
 
 
 def terminate():
     global plateau_count, fix_count, termination_condition, plateau_termination_condition
     if fix_count > termination_condition:
         return True
-    if plateau_count > plateau_termination_condition:
-        return True
+    #if plateau_count > plateau_termination_condition:
+    #    return True
     return False
 
 
@@ -168,12 +173,13 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
     global apcount
     print('add_parent')
     if n not in gnodes:
-        return g, -1.0, [], [], [], []
+        return g, -1.0, [], [], [], [], []
     global fix_count
     fix_count += 1
 
     iteration_success_probs = []
     iteration_likelihoods = []
+    iteration_times = []
     gp = g.copy()
     max_success = success
     max_success_probs = copy.deepcopy(success_probs)
@@ -207,7 +213,8 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
         print('after adding parent: prev %f new %f' % (max_success, new))
 
         iteration_success_probs.append(new)
-        iteration_likelihoods.append(likelihood)
+        iteration_likelihoods.append(new)
+        iteration_times.append(int((datetime.datetime.now()-start_ptime).total_seconds() *1000))
         if new > max_success:
             print('connecting to %d improved from %0.7f to %0.7f.' % (p, max_success, new))
             max_success = new
@@ -215,9 +222,9 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
             best = gl.copy()
             max_domain_success_probs = copy.deepcopy(dsps)
             print('fixing %d: adding parent: %d' % (n, p))
-            return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials2), 'active_reps': num_active_reps}], iteration_likelihoods, max_domain_success_probs
+            return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials2), 'active_reps': num_active_reps}], iteration_likelihoods, max_domain_success_probs, iteration_times
 
-    return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials2), 'active_reps':     num_active_reps}], iteration_likelihoods, max_domain_success_probs
+    return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials2), 'active_reps':     num_active_reps}], iteration_likelihoods, max_domain_success_probs, iteration_times
 
 
 def what_to_fix(g, nodes):
@@ -268,11 +275,11 @@ def update_graph_add_parent(g, p, c):
 
 
 def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain_success_probs, hnodes):
-    start = datetime.datetime.now()
+    start2 = datetime.datetime.now()
     global rhcount
     print('reduce_height')
     if n not in hnodes:
-        return h, -1.0, [], [], [], []
+        return h, -1.0, [], [], [], [], []
     g = h.copy()
 
     global fix_count
@@ -284,6 +291,7 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
     best = h.copy()
     iteration_success_probs = []
     iteration_likelihoods = []
+    iteration_times = []
 
     parents = list(g.predecessors(n))
     # choose the least reachable parent
@@ -291,7 +299,7 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
     pf = pfixes[0]
     grandparents = list(g.predecessors(pf[0]))
     if len(grandparents) == 0:
-        return g, -1.0, [], [], [], []
+        return g, -1.0, [], [], [], [], []
     # mix the siblings from the least reachable grand parent
     gpfixes = what_to_fix(g, grandparents)
     gpf = gpfixes[0]
@@ -299,13 +307,14 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
 
     potentials = list(set(nx.descendants(hp,gpf[0])))
 
-    print('changing org time: %d' % ((datetime.datetime.now()-start).total_seconds()*1000))
+    print('changing org time: %d' % ((datetime.datetime.now()-start2).total_seconds()*1000))
 
     new, gl, sps, likelihood, dsps, num_active_domains, num_active_reps = orgh.get_success_prob_rep_partial(hp.copy(), domains, tagdomains, domainclouds, dtype, domaintags, potentials, gpf[0], success_probs, domain_success_probs, repdomains, reps)
     rhcount += 1
 
     iteration_success_probs.append(new)
-    iteration_likelihoods.append(likelihood)
+    iteration_likelihoods.append(new)
+    iteration_times.append(int((datetime.datetime.now()-start_ptime).total_seconds() *1000))
     if new > max_success:
         print('reducing height improved from %0.7f to %0.7f.' % (max_success, new))
         max_success = new
@@ -314,7 +323,7 @@ def reduce_height(h, level, n, success, success_probs, dtype, domaintags, domain
         max_domain_success_probs = copy.deepcopy(dsps)
 
     print('after reduction: prev %0.7f new %0.7f' % (max_success, new))
-    return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials), 'active_reps': num_active_reps}], iteration_likelihoods, max_domain_success_probs
+    return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials), 'active_reps': num_active_reps}], iteration_likelihoods, max_domain_success_probs, iteration_times
 
 
 def merge_siblings_and_replace_parent(g, p, gnodes):
