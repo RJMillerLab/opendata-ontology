@@ -20,7 +20,10 @@ def pick_roots(ns, root_num):
     for n in ns:
         ds = list(nx.ancestors(g, n))
         if len(ds) != 0:
-            descs.extend(list(ds) + [n])
+            #descs.extend(list(ds) + [n])
+            descs.extend(list(ds))
+    descs = list(set(descs))
+    print('pot roots: %d' % len(descs))
     inx = random.sample(range(0,len(descs)), min(len(descs),root_num))
     if len(inx) == 0:
         return []
@@ -28,10 +31,8 @@ def pick_roots(ns, root_num):
 
 def pick_roots_plus(ns, root_num):
     descs = []
-    roots = []
     for n in ns:
         ds = list(nx.descendants(g, n))
-        roots.append(random.choice(ds))
         if len(ds) != 0:
             descs.extend(list(ds) + [n])
     inx = random.sample(range(0,len(descs)), min(len(descs),root_num))
@@ -46,50 +47,88 @@ def evaluate_query(root, s):
         return 1.0
     interprob = 1.0
     sp = 0.0
-    count = 0
+    #count = 0
     if not nx.has_path(g,root,s):
         return math.pow(10, -15)#-1.0
+    cutoff = nx.shortest_path_length(g, root, s)
+    if cutoff > 5:
+        return math.pow(10, -15)
     for p in nx.all_simple_paths(g, root, s, cutoff):
         path_prob = 1.0
         for i in range(len(p)-1):
             path_prob *= edges[p[i]][p[i+1]]
         interprob *= (1.0-path_prob)
         sp += path_prob
-        count += 1
-        if count == 50:
-            return sp
+        #count += 1
+        #if count == 20:
+        #    print('break')
+            #break
+        #    return sp
     #prob = 1.0-interprob
     #return prob
+    #print('sp: %f' % sp)
     return sp
 
 
 def evaluate(t, cs, isolated):
-    print(t)
+    print('start')
     if isolated:
         table_prob = (1.0/float(len(g.nodes())))
         print('unreachable tables: %f' % table_prob)
         return table_prob
     roots = pick_roots(cs, SIMULATION_NUM)
-    print('num roots: %d' % len(roots))
+    print('roots: %d cols: %d' % (len(roots), len(cs)))
     round_probs_intersect = 1.0
     table_prob = 0.0
-    print('columns of table: %d' % len(cs))
     lps = []
     for root_column in roots:
         for query_column in cs:
             p = evaluate_query(root_column, query_column)
             #if p == -1.0:
             #    continue
+            #print('p: %f' % p)
             round_probs_intersect *= (1.0-p)
         table_prob += (1.0-round_probs_intersect)
         lps.append(1.0-round_probs_intersect)
     table_prob = table_prob/float(len(roots))
-    print('table_prob: %f' % table_prob)
+    print('table_prob: %f cols: %d roots: %d' % (table_prob, len(cs), len(roots)))
     return table_prob
 
 
 def get_table_name(col_name):
     return col_name[:col_name.rfind('_')]
+
+def init_prune():
+    sts = []
+    for s, ts in edges.items():
+        if len(ts) > 100:
+            continue
+        for t, p in ts.items():
+            sts.append((s,t))
+
+    g.add_edges_from(sts)
+
+    # add all isolated nodes
+    nodes = list(g.nodes())
+    tcs = json.load(open(TABLE_ATTS, 'r'))
+    for t, cs in tcs.items():
+        for c in cs:
+            if c not in nodes:
+                g.add_node(c)
+            else:
+                active_nodes.append(c)
+
+    oes = 0
+    for c in tcs[tablename]:
+        if c in edges:
+            if len(edges[c]) <= 100:
+                oes += len(edges[c])
+    if oes == 0:
+        return True
+    else:
+        return False
+
+
 
 def init():
     sts = []
@@ -170,7 +209,7 @@ def plot():
 TABLE_LIST = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/tables_1000.list'
 TABLE_ATTS = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/table_atts_1000'
 SMALL_TABLE_ATTS = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/table_atts_1000'
-SMALL_EDGE_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/edges_1000_t03'
+SMALL_EDGE_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/edges_1000_t09'
 #SMALL_EDGE_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/edges_1000'
 NAVIGATION_PROBS = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/navigation_probs_1000'
 
@@ -181,6 +220,7 @@ edges = json.load(open(SMALL_EDGE_FILE, 'r'))
 tablename = sys.argv[1]
 active_nodes = []
 isolated = init()
+#isolated = init_prune()
 #init_plus()
 
 seen_paths = dict()
@@ -188,15 +228,12 @@ round_seen_atts = dict()
 
 
 ts = json.load(open(SMALL_TABLE_ATTS, 'r'))
-print('number of tables: %d' % len(ts))
 SIMULATION_NUM = 10
 
 #RESULT_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/tableprobs_1000_t03.csv'
-RESULT_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/tableprobs_1000_t03.csv'
+RESULT_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/ekg/tableprobs_1000_t09.csv'
 
 tcs = json.load(open(TABLE_ATTS, 'r'))
-
-print('tablename: %s' % tablename)
 
 sf = open(RESULT_FILE, 'a', newline="\n")
 delimiter = '|'
@@ -205,7 +242,6 @@ swriter = csv.writer(sf, delimiter=',', escapechar='\\', lineterminator='\n', qu
 tableprob = evaluate(tablename, tcs[tablename], isolated)
 
 swriter.writerow([tablename, tableprob])
-
+print('done')
 sf.close()
 
-print('done')
