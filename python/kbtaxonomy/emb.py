@@ -84,3 +84,4 @@ def get_features(values):
     if len(ft_cells) > 0:
         return np.average(ft_cells, axis=0).tolist()
     cursor.close()
+    return np.array([])

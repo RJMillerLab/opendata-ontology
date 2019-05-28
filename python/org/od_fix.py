@@ -63,7 +63,7 @@ def fix_plus(g, domsfile, tdomsfile, dcloudsfile, dtype, odomtagsfile, orepsfile
             it_success, gp, itr_success_probs, itr_likelihood, itr_domain_success_probs = orgh.get_success_rep_prob_fuzzy(best.copy(), domains, tagdomains, domainclouds, dtype, domaintags, repdomains, reps)
         round_num += 1
         print('round %d' % round_num)
-        for i in range(1): ##
+        for i in range(2): ##
             if termination_cond:
                 continue
             print(datetime.datetime.now())
@@ -223,6 +223,8 @@ def add_parent(g, level, n, success, success_probs, dtype, domaintags, domain_su
             max_domain_success_probs = copy.deepcopy(dsps)
             print('fixing %d: adding parent: %d' % (n, p))
             return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials2), 'active_reps': num_active_reps}], iteration_likelihoods, max_domain_success_probs, iteration_times
+        else:
+            orgh.restore_node_dom_sims()
 
     return best, max_success, max_success_probs, [{'active_domains': num_active_domains, 'active_states': len(potentials2), 'active_reps':     num_active_reps}], iteration_likelihoods, max_domain_success_probs, iteration_times
 
@@ -270,6 +272,7 @@ def update_graph_add_parent(g, p, c):
             h.node[n]['tags'] = list(tags.keys())
         if len(pops) > 0:
             h.node[n]['rep'] = list(np.mean(np.array(pops), axis=0))
+    orgh.backup_node_dom_sims()
     orgh.update_node_dom_sims(h, domains, to_update, leaves)
     return h, update_head
 

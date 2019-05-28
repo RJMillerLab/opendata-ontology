@@ -535,7 +535,7 @@ def get_dimensions(tags, vecs, n_dims):
         tag_index[tags[i]] = i
     prev_dims = copy.deepcopy(dims)
     for d, ts in prev_dims.items():
-        if len(ts) > 2000:
+        if len(ts) > 1000:
             print('further partitioning.')
             tinx = np.array([tag_index[t] for t in ts])
             subtags = np.array(tags)[tinx]
@@ -559,13 +559,11 @@ def get_dimensions(tags, vecs, n_dims):
 
     return dims
 
-
 def save(h, hierarchy_filename):
     hfile = open(hierarchy_filename,'w')
-    hnodes = list(h.nodes)
-    line = str(len(hnodes))
+    line = str(len(h.nodes))
     hfile.write(line + '\n')
-    for s in hnodes:
+    for s in h.nodes:
         line = str(s) + ':' + '|'.join(map(str, h.node[s]['tags']))
         hfile.write(line + '\n')
 
@@ -577,8 +575,10 @@ def save(h, hierarchy_filename):
     hfile.close()
 
 
+
 def get_tag_domain_sim(domains, tags, vecs, tagdomsimfile):
     print('get_tag_domain_sim')
+    print(tagdomsimfile)
     # always compute the sims incrementally
     sims = dict()
     if os.path.isfile(tagdomsimfile):
@@ -914,4 +914,14 @@ def get_rep_reach_probs(gd, domain, top, root, gnodes):
         for ch, prob in ts.items():
             rep_reachprobs[ch] += rep_reachprobs[p]*prob
     return rep_reachprobs
+
+
+def backup_node_dom_sims():
+    global node_dom_sims_backup
+    node_dom_sims_backup = copy.deepcopy(node_dom_sims)
+
+def restore_node_dom_sims():
+    global node_dom_sims
+    node_dom_sims = copy.deepcopy(node_dom_sims_backup)
+
 

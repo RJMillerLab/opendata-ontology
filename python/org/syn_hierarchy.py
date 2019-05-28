@@ -1,4 +1,5 @@
 import networkx as nx
+import os.path
 import copy
 import org.graph as orgg
 import numpy as np
@@ -8,7 +9,7 @@ import random
 from sklearn.cluster import KMeans
 import json
 
-
+node_dom_sims_backup = dict()
 node_dom_sims = dict()
 dom_selection_probs = dict()
 h = nx.DiGraph()
@@ -20,13 +21,14 @@ tag_dom_trans_probs = dict()
 dagstates = -1
 
 
-def init(g, domains, simfile, tagdomtransprobsfile, dagstates_update, tgparam=10.0):
+def init(g, domains, simfile, tagdomtransprobsfile, tgparam=10.0):
     global dagstates, domain_index, dom_sims, gamma, tag_dom_trans_probs
     gamma = float(tgparam)
 
     # if it is the first time calling init(): the initial graph
-    if dagstates_update:
-        dagstates = len(g.nodes)
+    #if dagstates == -1:
+    dagstates = len(g.nodes)
+    print('dagstates: %d' % dagstates)
 
     domain_index = dict()
 
@@ -46,7 +48,6 @@ def init(g, domains, simfile, tagdomtransprobsfile, dagstates_update, tgparam=10
 
 
 def get_state_domain_sims(g, tagdomsimfile, domains):
-    print('domains: %d states: %d' % (len(domains), len(g.nodes)))
     global node_dom_sims
     node_dom_sims = dict()
     # Tag-domain sims are precalcualted.
@@ -58,10 +59,10 @@ def get_state_domain_sims(g, tagdomsimfile, domains):
         node_dom_sims[l] = copy.deepcopy(tag_dom_sims[g.node[l]['tag']])
         if len(tag_dom_sims[g.node[l]['tag']]) == 0:
             print('no doms')
-    print('loaded %d nodes and leaves: %d' % (len(node_dom_sims), len(leaves)))
+    print('loaded %d nodes and %d leaves %d tags' % (len(node_dom_sims), len(leaves), len(tag_dom_sims)))
     for n in g.nodes:
         i += 1
-        if i % 50 == 0:
+        if i % 200 == 0:
             print('processed %d states.' % i)
         if n in leaves:
             continue
@@ -74,7 +75,6 @@ def get_state_domain_sims(g, tagdomsimfile, domains):
 
 def extend_node_dom_sims(g, domainsfile):
     domains = json.load(open(domainsfile, 'r'))
-    print('domains: %d states: %d' % (len(domains), len(g.nodes)))
     # only computing sims for domains that do not exists in the map
     updoms = 0
     for n in g.nodes:
@@ -120,7 +120,6 @@ def add_node_vecs(g, vecs, tags):
             g.node[n]['rep'] = list(vecs[n])
             g.node[n]['tags'] = [tags[n]]
     return g
-
 
 
 def get_sims(g, domain, nodes):
@@ -229,7 +228,7 @@ def get_success_prob_prune_domains(g, adomains, tagdomains, domainclouds, dtype,
         accepted_tags = list(domaintags[domainname])
         for c in list(domainclouds[domainname].keys()):
             if c not in domain_index:
-                print('domain cloud not in index.')
+                #print('domain cloud not in index.')
                 continue
             accepted_tags.extend(domaintags[c])
         accepted_tags = list(set(accepted_tags))
@@ -442,8 +441,9 @@ def save(h, hierarchy_filename):
 def get_tag_domain_sim(domains, tags, vecs, tagdomsimfile):
     print('get_tag_domain_sim')
     # always compute the sims incrementally
-    sims = json.load(open(tagdomsimfile, 'r'))
-    #sims = dict()
+    sims = dict()
+    #if os.path.isfile(tagdomsimfile):
+    #    sims = json.load(open(tagdomsimfile, 'r'))
     for i in range(len(tags)):
         if i % 100 == 0:
             print('computed tag dom sims for %d tags' % i)
@@ -468,12 +468,17 @@ def get_table_from_domain(domainname, dtype):
         table = domainname[:domainname.rfind('_')]+'_'+str(colid%2)
     if dtype == 'opendata':
         table = domainname[:domainname.rfind('_')]
+    if dtype == 'taxonomy':
+        table = domainname
     return table
 
 
 def get_tag_domain_trans_probs(tagdomsimfile, tagdomains, tagdomtransprobsfile):
     print('get_tag_domain_trans_probs')
-    tdsims = json.load(open(tagdomsimfile, 'r'))
+    tdsims = dict()
+    if os.path.isfile(tagdomsimfile):
+        tdsims = json.load(open(tagdomsimfile, 'r'))
+    #tdsims = json.load(open(tagdomsimfile, 'r'))
     tdtprobs = dict()
     i = 0
     for t, ds in tdsims.items():
@@ -543,9 +548,6 @@ def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, dom
 
 def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domaintags):
 
-    print('get_success_prob_fuzzy')
-    print('domains: %d  tags: %d ' % (len(domains), len(tagdomains)))
-
     top = list(nx.topological_sort(g))
     gnodes = list(g.nodes)
     root = orgg.get_root_plus(g, gnodes)
@@ -568,7 +570,7 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
         accepted_tags.extend(list(domaintags[domainname]))
         for c in list(domainclouds[domainname].keys()):
             if c not in domain_index:
-                print('domain cloud not in index.')
+                #print('domain cloud not in index.')
                 continue
             accepted_tags.extend(domaintags[c])
         accepted_tags = list(set(accepted_tags))
@@ -589,9 +591,6 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
                 if dn not in domainclouds[domainname]:
                     continue
                 sp = selps[dn] * dom_reachprobs[n]
-                #sp = selps[dn] * gpp.node[n]['reach_prob_domain']
-                #if sp > max_reached_dom_prob:
-                #    max_reached_dom_prob = sp
                 max_reached_dom_prob *= (1.0-sp)
 
         sp = 1.0 - max_reached_dom_prob
@@ -626,7 +625,7 @@ def get_success_prob_fuzzy(g, domains, tagdomains, domainclouds, dtype, domainta
     if expected_success == 0:
         print('zero expected_success.')
 
-    print('expected_success: %f' % expected_success)
+    print('fuzzy expected_success: %f' % expected_success)
 
     return expected_success, h, success_probs, likelihood, domain_success_probs
 
@@ -644,5 +643,13 @@ def get_domain_reach_probs(gd, domain, top, root, gnodes):
             dom_reachprobs[ch] += dom_reachprobs[p]*prob
     return dom_reachprobs
 
+
+def backup_node_dom_sims():
+    global node_dom_sims_backup
+    node_dom_sims_backup = copy.deepcopy(node_dom_sims)
+
+def restore_node_dom_sims():
+    global node_dom_sims
+    node_dom_sims = copy.deepcopy(node_dom_sims_backup)
 
 
