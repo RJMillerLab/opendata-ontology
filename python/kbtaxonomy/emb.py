@@ -77,6 +77,17 @@ def sum(features):
     s = np.sum(features, axis=0)
     return np.array([s])
 
+def get_vals_fasttext(values):
+    fcs = []
+    db = sqlite3.connect(FT_DB)
+    cursor = db.cursor()
+    for val in values:
+        ft_val = fasttext_cells(cursor, get_domain_cells([val]))
+        if len(ft_val) > 0:
+            fcs.append(val)
+    cursor.close()
+    return fcs
+
 def get_features(values):
     db = sqlite3.connect(FT_DB)
     cursor = db.cursor()

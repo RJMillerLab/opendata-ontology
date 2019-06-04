@@ -15,7 +15,7 @@ def get_agri_sub_taxonomy():
     for row in cursor.fetchall():
         dg.add_edge(row[1],row[0])
     agri_nodes = []
-    cursor.execute("SELECT distinct type FROM types WHERE (type LIKE '%agri%' OR type LIKE '%food%' OR type LIKE '%farm%') AND (type NOT IN (SELECT supercat as type FROM taxonomy)) LIMIT 100;")
+    cursor.execute("SELECT distinct type FROM types WHERE (type LIKE '%agri%' OR type LIKE '%food%' OR type LIKE '%farm%') AND (type NOT IN (SELECT supercat as type FROM taxonomy)) LIMIT 500;")
     # or random types
     #cursor.execute("SELECT distinct type FROM types ORDER BY RANDOM() 500;")
     agri_types = [row[0] for row in cursor.fetchall()]

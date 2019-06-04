@@ -7,8 +7,8 @@ import emb
 import networkx as nx
 
 YAGO_DB = '/home/fnargesian/YAGO/yago.sqlite'
-NUM_TABLES = 500
-MAX_ATTRS = 50
+NUM_TABLES = 370
+MAX_ATTRS = 20
 MIN_ATTRS = 1
 MIN_ROWS = 10
 db = sqlite3.connect(YAGO_DB)
@@ -20,18 +20,18 @@ def get_agri_sub_taxonomy():
     for row in cursor.fetchall():
         dg.add_edge(row[1],row[0])
     agri_nodes = []
-    cursor.execute("SELECT distinct type FROM types WHERE (type LIKE '%agri%' OR type LIKE '%food%' OR type LIKE '%farm%') AND (type NOT IN (SELECT supercat as type FROM taxonomy)) LIMIT 10;")
-    # or random types
-    #cursor.execute("SELECT distinct type FROM types ORDER BY RANDOM() 500;")
+    agri_type_entities = dict()
+    cursor.execute("SELECT distinct type FROM types WHERE (type LIKE '%agri%' OR type LIKE '%food%' OR type LIKE '%farm%') AND (type NOT IN (SELECT supercat as type FROM taxonomy)) AND (SELECT COUNT(DISTINCT entity) FROM types t2 where t2.type=types.type) > 10 LIMIT 400;")
+
     agri_types = [row[0] for row in cursor.fetchall()]
+    print('agri types: %d' % len(agri_types))
     print('dg nodes before types added: %d' % len(dg.nodes))
-    agri_type_vecs = dict()
     agri_types_bckup = list(agri_types)
     for t in agri_types_bckup:
-        vec = get_type_topic_vec(t)
-        if len(vec) != 0:
+        es = get_good_entities(t)
+        if len(es) != 0:
             dg.add_node(t)
-            agri_type_vecs[t] = vec
+            agri_type_entities[t] = es
         else:
             agri_types.remove(t)
     print('agri_types: %d' % len(agri_types))
@@ -48,7 +48,22 @@ def get_agri_sub_taxonomy():
     all_agri_nodes = list(set(all_agri_nodes))
     print('all_agri_nodes after ancestors: %d' % len(all_agri_nodes))
     print('dg nodes: %d' % len(dg.nodes))
-    return dg.subgraph(all_agri_nodes), agri_type_vecs
+    return dg.subgraph(all_agri_nodes), agri_type_entities
+
+def get_good_entities(t):
+    cursor.execute("SELECT distinct entity FROM types WHERE type=?;", (t,))
+    es = [row[0] for row in cursor.fetchall()]
+    if len(es) == 0:
+        print('zero es')
+        return  []
+    es = emb.get_vals_fasttext(es)
+    if len(es) == 0:
+        print('no emb')
+        return []
+    return es
+
+
+
 
 def get_topic_vec(es):
     if len(es) == 0:
@@ -83,28 +98,27 @@ def get_tables_from_types(agri_type_entities):
     table_tags = []
     assigned = 0
     agri_types = list(agri_type_entities.keys())
+    ats = 0
     while assigned < len(agri_types):
         num_attrs = random.randint(MIN_ATTRS, MAX_ATTRS)
+        ats += num_attrs
         tags = agri_types[assigned:(assigned+num_attrs)]
         num_rows = get_num_rows(agri_type_entities, tags)
-        print("table > (%d X %d)" % (num_attrs, num_rows))
         table = make_table(tags, agri_type_entities, num_rows)
         tables.append(table)
         table_tags.append(tags)
         assigned += num_attrs
-    print(table_tags)
-    ts = []
     for j in range(len(tables), NUM_TABLES):
         num_attrs = get_num_attrs_zipfian(MAX_ATTRS)
+        ats += num_attrs
         tags = sample_tags_zipfian(agri_types, num_attrs)
-        ts.append(num_attrs)
         num_rows = get_num_rows(agri_type_entities, tags)
-        print("table > (%d X %d)" % (num_attrs, num_rows))
-        tags = sample_tags_zipfian(agri_types, num_attrs)
         table = make_table(tags, agri_type_entities, num_rows)
         tables.append(table)
         table_tags.append(tags)
-    print(table_tags)
+
+    print('num tables: %d' % len(tables))
+    print('num ats: %d' % ats)
 
     for i in range(len(tables)):
         columns = tables[i]
@@ -120,7 +134,8 @@ def get_tables_from_types(agri_type_entities):
             domaintags[dom['name']] = [tags[j]]
             if tags[j] not in tagdomains:
                 tagdomains[tags[j]] = []
-            tagdomains[tags[j]].append(dom['name'])
+            if dom['name'] not in tagdomains[tags[j]]:
+                tagdomains[tags[j]].append(dom['name'])
 
             if tags[j] not in tagcompdomains:
                 tagcompdomains[tags[j]] = []
@@ -177,16 +192,15 @@ def sample_tags_zipfian(tags, num):
 def make_table(tags, type_entities, size):
     table = []
     for w in tags:
-        table.append(make_column(w, size, type_entities))
+        table.append(make_column(size, type_entities[w]))
     return table
 
-def make_column(tag, size, type_entities):
-    es = type_entities[tag]
+def make_column(size, es):
     return random.sample(es, size)
 
 def get_num_rows(tag_entities, tags):
-    max_rows = max([len(tag_entities[t]) for t in tags])
-    return random.randint(min(10, max_rows), max_rows)
+    max_rows = min([len(tag_entities[t]) for t in tags])
+    return random.randint(10, max_rows)
 
 
 
@@ -226,12 +240,12 @@ for n in h.nodes:
 print('br factors: min %d max %d avg %d' % (min(brs), max(brs), sum(brs)/len(brs)))
 if set(tags) != set(ls):
     print('tags and leaves diff')
-json.dump(list(h.edges()), open('taxcloud_data/agri_taxonomy.json', 'w'))
-json.dump(domains, open('taxcloud_data/agri_domains.json', 'w'))
-json.dump(tags, open('taxcloud_data/agri_tags.json', 'w'))
-json.dump(tagdomains, open('taxcloud_data/agri_tagdomains.json', 'w'))
-json.dump(domaintags, open('taxcloud_data/agri_domaintags.json', 'w'))
-json.dump(vecs, open('taxcloud_data/agri_vecs.json', 'w'))
+json.dump(list(h.edges()), open('yagocloud_data/agri_taxonomy.json', 'w'))
+json.dump(domains, open('yagocloud_data/agri_domains.json', 'w'))
+json.dump(tags, open('yagocloud_data/agri_tags.json', 'w'))
+json.dump(tagdomains, open('yagocloud_data/agri_tagdomains.json', 'w'))
+json.dump(domaintags, open('yagocloud_data/agri_domaintags.json', 'w'))
+json.dump(vecs, open('yagocloud_data/agri_vecs.json', 'w'))
 print(len(domains))
 print(len(tagdomains))
 print(len(tags))
