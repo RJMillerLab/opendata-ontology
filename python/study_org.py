@@ -4,6 +4,7 @@ import org.semantic as orgm
 #import ntpath
 import random
 import org.od_hierarchy as orgh
+import org.visualize as orgv
 import org.graph as orgg
 import org.cluster as orgc
 import org.sample as orgs
@@ -454,17 +455,12 @@ def multidimensional_hierarchy(dim_id):
     orgh.save(fg, orgfilname)
 
     orgm.init_fromarrays(keys, vecs)
-    #orgm.get_states_semantic_btree(orgfilname)
     print('extracting semantics of org')
-    #dirpath = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output'
-    #h, t = ntpath.split(orgfilname)
     semfilename = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org'+str(dim_id)+'of'+str(dim_num)+'.sem'
-    #with open(orgfilname, 'r') as hfile:
-    #    lines = hfile.read().splitlines()
-    #print('main lines: %d' % len(lines))
-    #orgm.get_org_semantic_btree(orgfilname, os.path.join(dirpath, t))
-    orgm.get_org_semantic_btree(orgfilname, semfilename)
-
+    #orgm.get_org_semantic_btree(orgfilname, semfilename)
+    sg = orgm.org_with_semantic_btree(orgfilname, semfilename)
+    # save org for visualization
+    orgv.save_to_visualize(sg)
     # evaluating test domains: domains that are not in the sample
     # need to call init() to reindex all domains on name
     orgh.extend_node_dom_sims(fg, dimdomainsfile)
@@ -535,8 +531,11 @@ TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_label_embs'
 #init_dim(0)
 #load_dim(6)
 read_dim(5)
-#orgm.init_fromarrays(keys, vecs)
+orgm.init_fromarrays(keys, vecs)
 #orgm.get_org_semantic_btree('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10.txt', '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10.sem')
+sg = orgm.org_with_semantic_btree('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10.txt', '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10.sem')
+visfilename = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10_vis.json'
+orgv.save_to_visualize(sg, visfilename)
 print('-------------------')
 #multidimensional_hierarchy(5)
 
