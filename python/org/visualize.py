@@ -42,7 +42,7 @@ def graph_to_dict(g, n, d, index):
         d = dict()
         d["name"] = g.node[n]["sem"]
         if index != "0":
-            node_ids[n] = index
+            node_ids[d["name"]] = index
         dcs = []
         cs = list(g.successors(n))
         for i in range(len(cs)):

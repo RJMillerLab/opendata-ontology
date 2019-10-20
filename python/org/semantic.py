@@ -3,17 +3,16 @@ import operator
 import numpy as np
 import networkx as nx
 
-#TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/label_embs'
-#tag_embs = json.load(open(TAG_EMB_FILE, 'r'))
-tag_embs = dict()
+tag_embs, tag_tables = dict(), dict()
 
 
 def init_fromfile(tagemb_filename):
-    global tag_embs
+    global tag_embs, tag_tables
     tag_embs = json.load(open(tagemb_filename, 'r'))
 
-def init_fromarrays(keys, vecs):
-    global tag_embs
+def init_fromarrays(keys, vecs, i_tagtables):
+    global tag_embs, tagtables
+    tagtables = i_tagtables
     for i in range(len(keys)):
         tag_embs[keys[i]] = vecs[i]
 
@@ -79,6 +78,13 @@ def get_org_semantic(org_filename, sem_filename):
     sfile.close()
     print('sematic of org in %s.' % sem_filename)
 
+def get_state_rep_freq(state_tags):
+    if len(state_tags) == 1:
+        return state_tags[0]
+    tag_weights = {t:len(tag_tables[t]) for t in state_tags}
+    sorted_tag_weights = sorted(tag_weights.items(), key=operator.itemgetter(1))
+    return sorted_tag_weights[-1][0]
+
 
 def get_state_rep_btree(state_tags):
     state_tags = [t for t in state_tags]
@@ -118,11 +124,10 @@ def get_centroid(state_tags):
     vecs = np.array([tag_embs[t] for t in state_tags])
     return np.mean(vecs, axis=0)
 
-def org_with_semantic_btree(org_filename, sem_filename):
+def org_with_semantic(org_filename, sem_filename):
     print('tag_embs: %d' % len(tag_embs))
     with open(org_filename, 'r') as hfile:
         lines = hfile.read().splitlines()
-    print('lines: %d' % len(lines))
     state_num = int(lines[0])
     print('state_num: %d' % state_num)
     edges = []
@@ -134,6 +139,7 @@ def org_with_semantic_btree(org_filename, sem_filename):
     # building and propagating the semantics of states
     g = nx.DiGraph()
     g.add_edges_from(edges)
+    print('cycle exists?')
     print(list(nx.simple_cycles(g)))
     top = list(nx.topological_sort(g))
     top.reverse()
@@ -158,7 +164,8 @@ def org_with_semantic_btree(org_filename, sem_filename):
             statecents[s] = statestags[s][0]
             continue
         for u in g.successors(s):
-            cent = get_state_rep_btree(statesems[u])
+            cent = get_state_rep_freq(statesems[u], tag_tables)
+            #cent = get_state_rep_btree(statesems[u])
             statecents[u] = cent
             statesems[s].append(cent)
 

@@ -555,7 +555,7 @@ def get_dimensions(tags, vecs, n_dims):
                     dimvecs[dim_inx] = []
                 dims[dim_inx].append(subtags[i])
                 dimvecs[dim_inx].append(subvecs[i])
-    print('final dims: %d' % len(dims))
+    print('final dims size: %d' % len(dims))
 
     return dims
 
@@ -629,6 +629,7 @@ def get_tag_domain_trans_probs(tagdomsimfile, tagdomains, tagdomtransprobsfile):
                 ts += m
         tdtprobs[t] = {d: p/ts for d, p in ps.items()}
     json.dump(tdtprobs, open(tagdomtransprobsfile, 'w'))
+    print('tag dom probs file: %s' % tagdomtransprobsfile)
 
 
 def get_domains_to_update(g, domains, nodes, tagdomains, domainclouds, head, domaintags, prune):
@@ -689,9 +690,7 @@ def get_optimal_success_prob_fuzzy(g, domainsfile, tagdomainsfile, domaincloudsf
     print('get_success_prob_fuzzy')
     print('domains: %d  tags: %d ' % (len(domains), len(tagdomains)))
 
-    top = list(nx.topological_sort(g))
     gnodes = list(g.nodes)
-    root = orgg.get_root_plus(g, gnodes)
     leaves = orgg.get_leaves_plus(g, gnodes)
     success_probs = dict()
     domain_success_probs = dict()
@@ -923,5 +922,11 @@ def backup_node_dom_sims():
 def restore_node_dom_sims():
     global node_dom_sims
     node_dom_sims = copy.deepcopy(node_dom_sims_backup)
+
+def clean_tag(t):
+    w = t.replace('socrata_', '')
+    return w[w.find('_')+1:]
+
+
 
 
