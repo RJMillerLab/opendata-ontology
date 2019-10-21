@@ -121,7 +121,7 @@ def init_dim(dim_id):
 
         dimdomainnames[dom['name']] = True
 
-
+    print('dimtagtables: %d' % len(dimtagtables))
     print('dimdomains: %d, dimdomaintags: %d, dimtables: %d' % (len(dimdomains), len(dimdomaintags), len(atbs)))
 
     print('all domains: %d dim domains: %d keys: %d vecs: %d tagdomains: %d domaintags: %d'  % (len(alldomains), len(dimdomains), len(keys), len(vecs), len(dimtagdomains), len(dimdomaintags)))
@@ -260,21 +260,22 @@ def agg_fuzzy(suffix, dim_id):
 
     gp = orgh.add_node_vecs(orgg.cluster_to_graph(orgc.basic_clustering(vecs, 2, 'ward', 'euclidean'), vecs, keys), vecs, keys)
     print('initial hierarchy with %d nodes' % len(list(gp.nodes)))
-    dim_tagdomsimfile = tagdomsimfile.replace('.json', '_'+str(dim_id)+'.json')
-    orgh.get_state_domain_sims(gp, dim_tagdomsimfile, domainsfile)
-    train_tagdomtransprobsfile = tagdomtransprobsfile.replace('.json', '_dim' + str(dim_id)+'.json')
+    #dim_tagdomsimfile = tagdomsimfile.replace('.json', '_'+str(dim_id)+'.json')
+    #orgh.get_state_domain_sims(gp, dim_tagdomsimfile, domainsfile)
+    #train_tagdomtransprobsfile = tagdomtransprobsfile.replace('.json', '_dim' + str(dim_id)+'.json')
 
-    orgh.init(gp, domainsfile, simfile, train_tagdomtransprobsfile)
+    #orgh.init(gp, domainsfile, simfile, train_tagdomtransprobsfile)
 
-    max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_fuzzy(gp.copy(), domainsfile, tagdomainsfile, domaincloudsfile, 'opendata', domaintagsfile)
+    #max_success, gp, success_probs, likelihood, domain_success_probs = orgh.get_success_prob_fuzzy(gp.copy(), domainsfile, tagdomainsfile, domaincloudsfile, 'opendata', domaintagsfile)
 
-    print('the success prob of the agg org: %f' % max_success)
+    #print('the success prob of the agg org: %f' % max_success)
 
-    json.dump(domain_success_probs, open('study_output/agg_' + suffix + '_' + str(len(domains)) + '_domain_sps.json', 'w'))
-    json.dump(success_probs, open('study_output/agg_' + suffix + '_' + str(len(domains)) + '_table_sps.json', 'w'))
-    print('initial dsps to %s' % ('study_output/agg_' + suffix + '_' + str(len(domains)) + '_domain_sps.json'))
+    #json.dump(domain_success_probs, open('study_output/agg_' + suffix + '_' + str(len(domains)) + '_domain_sps.json', 'w'))
+    #json.dump(success_probs, open('study_output/agg_' + suffix + '_' + str(len(domains)) + '_table_sps.json', 'w'))
+    #print('initial dsps to %s' % ('study_output/agg_' + suffix + '_' + str(len(domains)) + '_domain_sps.json'))
 
-    return gp, success_probs, domain_success_probs
+    #return gp, success_probs, domain_success_probs
+    return gp, [], []
 
 
 def multidimensional_hierarchy(dim_id):
@@ -290,29 +291,24 @@ def multidimensional_hierarchy(dim_id):
 
     # improving the org
     print('fixing')
-    after_sps, fg, after_dsps, ls, ts = fix(gp, 'fix_'+str(dim_id)+'of'+str(dim_num), dim_id)
+    #after_sps, fg, after_dsps, ls, ts = fix(gp, 'fix_'+str(dim_id)+'of'+str(dim_num), dim_id)
 
-    print('time to build dim %d is %d' % (dim_id, int((datetime.datetime.now()-ds).total_seconds() * 1000)))
+    #print('time to build dim %d is %d' % (dim_id, int((datetime.datetime.now()-ds).total_seconds() * 1000)))
 
 
-    # saving the org
-    orgfilename = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org'+str(dim_id)+'of'+str(dim_num)+'.txt'
-    print('saving org to %s' % orgfilename)
-    orgh.save(fg, orgfilename)
     print('extracting semantics of org')
-    orgm.init_fromarrays(keys, vecs, tagtablesfile)
+    orgm.init_fromarrays(keys, vecs, tagtables)
     semfilename = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org'+str(dim_id)+'of'+str(dim_num)+'.sem'
-    sg = orgm.org_with_semantic(orgfilename, semfilename)
+    #sg = orgm.org_with_semantic(fg, semfilename)
+    sg = orgm.org_with_semantic(gp, semfilename)
     visfilename = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org'+str(dim_id)+'of'+str(dim_num)+'_vis.json'
-    nodesfilename = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata- ontology/python/study_output/org'+str(dim_id)+'of'+str(dim_num)+'_vis.csv'
-    orgv.save_to_visualize(sg, visfilename, nodesfilename)
+    nodesfilename = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org'+str(dim_id)+'of'+str(dim_num)+'_vis.csv'
+    orgv.save_to_visualize(sg, visfilename, nodesfilename, tagtablesfile)
 
     # need to call init() to reindex all domains on name
-    orgh.extend_node_dom_sims(fg, dimdomainsfile)
+    #print('success prob of dim %d before fix for train domains: %f' % (dim_id, (sum(list(before_sps.values()))/len(before_sps))))
 
-    print('success prob of dim %d before fix for train domains: %f' % (dim_id, (sum(list(before_sps.values()))/len(before_sps))))
-
-    print('success prob of dim %d after fix with %d reps: %f' % (dim_id, len(reps), (sum(list(after_sps.values()))/len(after_sps))))
+    #print('success prob of dim %d after fix with %d reps: %f' % (dim_id, len(reps), (sum(list(after_sps.values()))/len(after_sps))))
 
     print('end time:')
     print(datetime.datetime.now())
@@ -338,17 +334,10 @@ def get_org_success_probs(dimsfilename, spsfilename):
 DOMAIN_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_domain_embs'
 TAG_EMB_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/10k/socrata_label_embs'
 STUDY_TAG_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/socrata/clean_tags.json'
+#STUDY_TAG_FILE = '/home/fnargesian/FINDOPENDATA_DATASETS/socrata/aug_clean_tags.json'
 
 #init()
-#init_dim(1)
-load_dim(1)
-multidimensional_hierarchy(1)
-#orgm.init_fromarrays(keys, vecs)
-#orgm.get_org_semantic_btree('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10.txt', '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10.sem')
-#sg = orgm.org_with_semantic_btree('/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10.txt', '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10.sem')
-#visfilename = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10_vis.json'
-#nodesfilename = '/home/fnargesian/go/src/github.com/RJMillerLab/opendata-ontology/python/study_output/org5of10_vis.csv'
-#orgv.save_to_visualize(sg, visfilename, nodesfilename)
+#init_dim(0)
+load_dim(0)
+multidimensional_hierarchy(0)
 print('-------------------')
-#get_org_success_probs('study_output/train_resultfiles.txt', 'study_output/train_dsps_multidim.json')
-#get_org_success_probs('study_output/test_resultfiles.txt', 'study_output/test_dsps_multidim.json')

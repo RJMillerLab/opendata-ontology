@@ -2,10 +2,10 @@ import json
 import csv
 import org.graph as orgg
 
-node_ids = dict()
+node_ids, tag_tables = dict(), dict()
 
-def save_to_visualize(g, visfilename, nodesfilename):
-    global node_ids
+def save_to_visualize(g, visfilename, nodesfilename, tagtablesfilename):
+    global node_ids, tag_tables
 
     #g = nx.DiGraph()
     #g.add_weighted_edges_from([("3", "4", 0.9), ("1","2", 0.1), ("1","3",0.2), ("2","4",0.4), ("2","5",0.4), ("3","6",0.4), ("3", "7", 0.5), ("3", "8", 56), ("8", "9", 1), ("4", "10", 10), ("4", "11", 10)])
@@ -16,12 +16,13 @@ def save_to_visualize(g, visfilename, nodesfilename):
     print('root')
     print(root)
     # this is for test: adding a dummy edge to make the treet a DAG
-    leaves = orgg.get_leaves(g)
-    n1 = list(g.predecessors(list(leaves)[0]))[0]
-    g.add_edge("413", n1)
-    print(g.node[n1]["sem"])
-    print(g.node["413"]["sem"])
+    #leaves = orgg.get_leaves(g)
+    #n1 = list(g.predecessors(list(leaves)[0]))[0]
+    #g.add_edge("413", n1)
+    #print(g.node[n1]["sem"])
+    #print(g.node["413"]["sem"])
     #
+    tag_tables = json.load(open(tagtablesfilename))
     d = dict()
     gd = graph_to_dict(g, root, d, "0")
     json.dump(gd, open(visfilename, 'w'))
@@ -37,7 +38,15 @@ def save_to_visualize(g, visfilename, nodesfilename):
 
 def graph_to_dict(g, n, d, index):
     if len(list(g.successors(n))) == 0:
-        d = {"name": g.node[n]["sem"], "ID": index, "size": 10}
+        #d = {"name": g.node[n]["sem"], "ID": index, "size": len(tag_tables[g.node[n]["sem"]])}
+        i = 1
+        d = dict()
+        d["name"] = g.node[n]["sem"]
+        node_ids[d["name"]] = index
+        dcs = []
+        for t in tag_tables[g.node[n]["sem"]]:
+            dcs.append({"name": t[t.find("/")+1:], "ID": index+"."+str(i), "size": 0.1})
+        d["children"] = dcs
     else:
         d = dict()
         d["name"] = g.node[n]["sem"]

@@ -1,4 +1,5 @@
 import json
+import org.graph as orgg
 import operator
 import numpy as np
 import networkx as nx
@@ -7,12 +8,12 @@ tag_embs, tag_tables = dict(), dict()
 
 
 def init_fromfile(tagemb_filename):
-    global tag_embs, tag_tables
+    global tag_embs
     tag_embs = json.load(open(tagemb_filename, 'r'))
 
 def init_fromarrays(keys, vecs, i_tagtables):
-    global tag_embs, tagtables
-    tagtables = i_tagtables
+    global tag_embs, tag_tables
+    tag_tables = i_tagtables
     for i in range(len(keys)):
         tag_embs[keys[i]] = vecs[i]
 
@@ -78,12 +79,16 @@ def get_org_semantic(org_filename, sem_filename):
     sfile.close()
     print('sematic of org in %s.' % sem_filename)
 
-def get_state_rep_freq(state_tags):
+def get_state_rep_freq(state_tags, tag_tables):
     if len(state_tags) == 1:
         return state_tags[0]
     tag_weights = {t:len(tag_tables[t]) for t in state_tags}
     sorted_tag_weights = sorted(tag_weights.items(), key=operator.itemgetter(1))
-    return sorted_tag_weights[-1][0]
+    if sorted_tag_weights[-1][0] in sorted_tag_weights[-2][0]:
+        return sorted_tag_weights[-2][0]
+    if sorted_tag_weights[-2][0] in sorted_tag_weights[-1][0]:
+        return sorted_tag_weights[-1][0]
+    return sorted_tag_weights[-2][0] + '|' + sorted_tag_weights[-1][0]
 
 
 def get_state_rep_btree(state_tags):
@@ -124,50 +129,34 @@ def get_centroid(state_tags):
     vecs = np.array([tag_embs[t] for t in state_tags])
     return np.mean(vecs, axis=0)
 
-def org_with_semantic(org_filename, sem_filename):
-    print('tag_embs: %d' % len(tag_embs))
-    with open(org_filename, 'r') as hfile:
-        lines = hfile.read().splitlines()
-    state_num = int(lines[0])
-    print('state_num: %d' % state_num)
-    edges = []
-    edge_num = int(lines[state_num+1])
-    for i in range(state_num+2, state_num+edge_num):
-        ps = lines[i].split(':')
-        edges.append((ps[0], ps[1]))
-
-    # building and propagating the semantics of states
-    g = nx.DiGraph()
-    g.add_edges_from(edges)
+def org_with_semantic(g, sem_filename):
     print('cycle exists?')
     print(list(nx.simple_cycles(g)))
-    top = list(nx.topological_sort(g))
-    top.reverse()
+    top = reversed(list(nx.topological_sort(g)))
 
-    print('states in org: %d aned edges: %d' % (len(g.nodes), len(g.edges)))
-    statestags = dict()
-
-    for i in range(1, state_num+1):
-        line = lines[i]
-        state = line.split(':')[0]
-        tags = line.split(':')[1].split('|')
-        statestags[state] = tags
-
-    leaves = list(set([x for x in g.nodes() if g.out_degree(x)==0 and g.in_degree(x)>0]))
+    leaves = orgg.get_leaves(g)
     statesems = dict()
-    statecents = dict()
-    print('top: %d' % len(top))
+    #statecents = dict()
     for s in top:
         statesems[s] = []
         if s in leaves:
-            statesems[s].append(statestags[s][0])
-            statecents[s] = statestags[s][0]
+            statesems[s].append(g.node[s]['tags'][0])
+            #statecents[s] = g.node[s]['tags'][0]
             continue
+        child_weights = dict()
         for u in g.successors(s):
-            cent = get_state_rep_freq(statesems[u], tag_tables)
-            #cent = get_state_rep_btree(statesems[u])
-            statecents[u] = cent
-            statesems[s].append(cent)
+            #cent = get_state_rep_freq(g.node[u]['tags'], tag_tables)
+            child_weights[statesems[u][0]] = len(tag_tables[statesems[u][0]])
+            #statecents[u] = cent
+            #statesems[s].append(cent)
+        sorted_child_weights = sorted(child_weights.items(), key=operator.itemgetter(1))
+        #if sorted_child_weights[-1][0] in sorted_child_weights[-2][0]:
+        #    statesems[s].append(sorted_child_weights[-2][0])
+        #elif sorted_child_weights[-2][0] in sorted_child_weights[-1][0]:
+        #    statesems[s].append(sorted_child_weights[-1][0])
+        #else:
+        statesems[s].append(sorted_child_weights[-1][0])
+        statesems[s].append(sorted_child_weights[-2][0])
 
     for n in g.nodes:
         g.node[n]['sem'] = '|'.join(list(set(statesems[n])))
